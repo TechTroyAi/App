@@ -18,8 +18,8 @@ Verification date: 2026-08-27
 
 ## Artifact integrity and signing state
 
-- APK SHA-256: `774b27d17225e53826a3bd084c87062d747a3d59b9a575513f418b6362062c41`
-- Size: 1,791,717 bytes
+- APK SHA-256: `f7fa2264c1c082922a81cf166cd91e73018cdcbacb4240bf34cd39c96d744381`
+- Size: 1,812,479 bytes
 - ZIP archive test: passed with no compressed-data errors
 - Four-byte ZIP alignment: passed
 - DEX: version 037, one `classes.dex`, 706 class definitions
@@ -41,7 +41,7 @@ The v1.0 production certificate SHA-256 remains `14d779957005aee528fe603c5b5df2d
 - DEX string inspection found no HTTP URL, localhost endpoint, or Internet permission.
 - Both embedded Kenney CC0 license texts are present.
 - All sampled Utility, corruption, evolution, Supply, imbuement, material, and Cache images are present in the APK.
-- All 73 drawable PNGs are packaged; the approved original-style batch includes seamless terrain, gate/core landmarks, a layered rotating Bolt Tower, Spike Bed, Mosser, Ironhide Elite, Block Generator, and Spore Path.
+- All 77 drawable PNGs are packaged; the approved original-style batches include seamless terrain, gate/core landmarks, a layered rotating Bolt Tower, the complete five-trap family, Mosser, Ironhide Elite, Block Generator, and Spore Path.
 - The original Forgeworks family still contains exactly 40 scoped images; all repository PNGs pass ImageMagick decoding.
 - `ci/verify-forgeworks.sh`, `git diff --check`, shell syntax checks, and Python syntax compilation passed.
 

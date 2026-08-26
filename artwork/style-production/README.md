@@ -18,6 +18,10 @@ High-resolution `*_source.png` files are original image-model concepts created s
 
 `batch-02-game-preview.png` shows the integrated family over the new terrain at approximately actual gameplay scale. It is a review image, not an Android resource.
 
+## Batch 03 — traps
+
+The four remaining trap concepts and transparent outputs are retained in `batch-03/`. Together with Spike Bed, they complete the original five-trap family: Spike Bed, Root Snare, Ember Rune, Arc Plate, and Crusher Block.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

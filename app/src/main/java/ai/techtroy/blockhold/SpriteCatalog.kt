@@ -38,10 +38,10 @@ internal class SpriteCatalog(private val context: Context) {
     val beaconPulse = load("kenney_td_256")
 
     val spikeTrap = load("trap_spike_bed")
-    val rootTrap = load("kenney_td_121")
-    val emberTrap = load("kenney_td_296")
-    val arcTrap = load("kenney_td_203")
-    val crusherTrap = load("kenney_td_126")
+    val rootTrap = load("trap_root_snare")
+    val emberTrap = load("trap_ember_rune")
+    val arcTrap = load("trap_arc_plate")
+    val crusherTrap = load("trap_crusher_block")
 
     val gatePart = load("landmark_gate")
     val corePart = load("landmark_core")
