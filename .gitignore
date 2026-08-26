@@ -1,0 +1,27 @@
+# Android Studio / IntelliJ
+*.iml
+.idea/
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local Android SDK configuration
+local.properties
+
+# Signing material
+*.jks
+*.keystore
+
+# Native build output
+.externalNativeBuild/
+.cxx/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# APKs are generated artifacts; keep the requested installable preview only.
+*.apk
+!artifacts/TechTroy-debug.apk
