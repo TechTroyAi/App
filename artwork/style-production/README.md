@@ -22,6 +22,10 @@ High-resolution `*_source.png` files are original image-model concepts created s
 
 The four remaining trap concepts and transparent outputs are retained in `batch-03/`. Together with Spike Bed, they complete the original five-trap family: Spike Bed, Root Snare, Ember Rune, Arc Plate, and Crusher Block.
 
+## Batch 04 — regular enemies
+
+The four remaining regular-enemy concepts and transparent outputs are retained in `batch-04/`. Together with Mosser, they complete the original regular roster: Mosser, Runner, Brute, Shellback, and Splitling.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.
