@@ -46,6 +46,10 @@ Frost Prism and Core Cannon base/top layers are retained in `batch-08/`. Togethe
 
 Ember Forge and Resonance Beacon base/effect layers are retained in `batch-09/`. All five base towers now use original layered artwork with their gameplay animation and rotation preserved.
 
+## Batch 10 — combat tower evolutions
+
+The six evolution emblems for Bolt Tower, Frost Prism, and Core Cannon are retained in `batch-10/`. Their iconography directly communicates each specialization while remaining part of the shared forge-built family.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.
