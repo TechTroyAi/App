@@ -36,13 +36,13 @@ The Blockhold route-and-core icon family, store icon, interface composition, tar
 
 The v1.2 Forgeworks pass adds 33 fully original vector-style PNG compositions: six corruption mutations, ten tower-evolution badges, eight Supply cards, six imbuement sigils, two material icons, and one Forge Cache icon. Together with the seven CC0-derived Utility compositions, this is the 40-image Forgeworks family. The generation source is `tools/generate_forgeworks_art.sh`; it records every primitive, color, and output filename and introduces no new third-party pack.
 
-`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `935ba7bb6c07a3d7ed2ae6a8f6567a98a92d4d95dce4f601930a85611ce4280b`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
+`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `42ac1748ce21ffc0398bf16492775b15e81e2efc8a6b6966ac135971ea61654a`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
 
 ## Original sprite-revision production
 
 The approved 2026-08-27 visual revision is produced specifically for Blockhold Defense with image-model concept generation followed by repository-local background isolation, cropping, scaling, layer preparation, and seamless-tile construction. No third-party sprite pack pixels are used in these new concepts. High-resolution sources, processed outputs, style constraints, and batch status are retained under `artwork/prototype/` and `artwork/style-production/`.
 
-The integrated roles are Bolt Tower, all five traps, all five regular enemies, Ironhide Elite, Block Generator, Spore Path, grass terrain, route terrain, enemy gate, and player core. The Bolt Tower uses separate centered base and turret layers so gameplay rotation is preserved. `tools/process_sprite_prototypes.py` and `tools/process_sprite_batch_02.py` provide the reproducible processing stage; opposite terrain edges are checked pixel-for-pixel before integration.
+The integrated roles are Bolt Tower, all five traps, all five regular enemies, all five elites, The Overgrowth boss, Block Generator, Spore Path, grass terrain, route terrain, enemy gate, and player core. The Bolt Tower uses separate centered base and turret layers so gameplay rotation is preserved. `tools/process_sprite_prototypes.py` and `tools/process_sprite_batch_02.py` provide the reproducible processing stage; opposite terrain edges are checked pixel-for-pixel before integration.
 
 The remaining Kenney-derived resources stay licensed under the records above until their category is replaced in later reviewed batches.
 

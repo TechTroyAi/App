@@ -26,6 +26,10 @@ The four remaining trap concepts and transparent outputs are retained in `batch-
 
 The four remaining regular-enemy concepts and transparent outputs are retained in `batch-04/`. Together with Mosser, they complete the original regular roster: Mosser, Runner, Brute, Shellback, and Splitling.
 
+## Batch 05 — elites and boss
+
+The four remaining elite concepts plus The Overgrowth are retained in `batch-05/`. Together with Ironhide Champion, they complete all five elite roles and the recurring boss in the original style.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

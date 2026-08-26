@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Process the four original regular-enemy concepts in visual batch 04."""
+"""Process the elite-enemy and boss concepts in visual batch 05."""
 
 from pathlib import Path
 
 from process_sprite_prototypes import isolate, remove_enclosed_neutral_background
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "artwork" / "style-production" / "batch-04"
+SOURCE = ROOT / "artwork" / "style-production" / "batch-05"
 OUTPUT = SOURCE / "processed"
 OUTPUT.mkdir(parents=True, exist_ok=True)
 
 ENEMIES = {
-    "enemy_runner_source.png": "enemy_runner.png",
-    "enemy_brute_source.png": "enemy_brute.png",
-    "enemy_shellback_source.png": "enemy_shellback.png",
-    "enemy_splitling_source.png": "enemy_splitling.png",
+    "enemy_blink_stalker_source.png": "enemy_blink.png",
+    "enemy_rootcaller_source.png": "enemy_rootcaller.png",
+    "enemy_hex_weaver_source.png": "enemy_hex.png",
+    "enemy_siege_colossus_source.png": "enemy_siege.png",
+    "enemy_overgrowth_boss_source.png": "enemy_overgrowth.png",
 }
 
 for input_name, output_name in ENEMIES.items():

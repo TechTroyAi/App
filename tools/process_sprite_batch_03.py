@@ -2,9 +2,8 @@
 """Process the four original trap concepts in visual-production batch 03."""
 
 from pathlib import Path
-from PIL import Image
 
-from process_sprite_prototypes import isolate
+from process_sprite_prototypes import isolate, remove_enclosed_neutral_background
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "artwork" / "style-production" / "batch-03"
@@ -22,15 +21,6 @@ for input_name, output_name in TRAPS.items():
     destination = OUTPUT / output_name
     isolate(SOURCE / input_name, destination)
     if output_name == "trap_root_snare.png":
-        # The curled roots enclose areas of the generated white backdrop, so
-        # remove those neutral pixels after edge-connected isolation.
-        image = Image.open(destination).convert("RGBA")
-        cleaned = []
-        for red, green, blue, alpha in image.getdata():
-            if min(red, green, blue) >= 150 and max(red, green, blue) - min(red, green, blue) <= 34:
-                cleaned.append((red, green, blue, 0))
-            else:
-                cleaned.append((red, green, blue, alpha))
-        image.putdata(cleaned)
-        image.save(destination, optimize=True)
+        # Curled roots enclose areas of the generated white backdrop.
+        remove_enclosed_neutral_background(destination)
     print(destination)

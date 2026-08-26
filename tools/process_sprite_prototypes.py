@@ -31,6 +31,19 @@ def is_removable_background(pixel: tuple[int, int, int, int]) -> bool:
     return min(red, green, blue) >= 145 and max(red, green, blue) - min(red, green, blue) <= 28
 
 
+def remove_enclosed_neutral_background(destination: Path, minimum: int = 150, spread: int = 34) -> None:
+    """Remove bright neutral backdrop trapped inside enclosed sprite gaps."""
+    image = Image.open(destination).convert("RGBA")
+    cleaned = []
+    for red, green, blue, alpha in image.getdata():
+        if min(red, green, blue) >= minimum and max(red, green, blue) - min(red, green, blue) <= spread:
+            cleaned.append((red, green, blue, 0))
+        else:
+            cleaned.append((red, green, blue, alpha))
+    image.putdata(cleaned)
+    image.save(destination, optimize=True)
+
+
 def isolate(source: Path, destination: Path) -> None:
     image = Image.open(source).convert("RGBA")
     width, height = image.size
@@ -95,8 +108,11 @@ def isolate(source: Path, destination: Path) -> None:
 
 def main() -> None:
     for input_name, output_name in SPRITES.items():
-        isolate(SOURCE / input_name, OUTPUT / output_name)
-        print(OUTPUT / output_name)
+        destination = OUTPUT / output_name
+        isolate(SOURCE / input_name, destination)
+        if output_name in {"enemy_mosser.png", "enemy_ironhide.png"}:
+            remove_enclosed_neutral_background(destination)
+        print(destination)
 
 
 if __name__ == "__main__":
