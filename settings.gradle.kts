@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TechTroy"
+rootProject.name = "BlockholdDefense"
 include(":app")

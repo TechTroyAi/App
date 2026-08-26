@@ -18,10 +18,14 @@ local.properties
 .externalNativeBuild/
 .cxx/
 
+# Python tooling
+__pycache__/
+*.py[cod]
+
 # OS files
 .DS_Store
 Thumbs.db
 
 # APKs are generated artifacts; keep the requested installable preview only.
 *.apk
-!artifacts/TechTroy-debug.apk
+!artifacts/Blockhold-Defense-v0.1-debug.apk
