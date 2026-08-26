@@ -1,71 +1,102 @@
 # Blockhold Defense
 
-**Blockhold Defense: Pathforge Defense** is an original native Kotlin tower-defense game for Android. Forge the enemy route through a block world, build a defensive line, upgrade towers, and protect the core through five increasingly dangerous waves.
+**Blockhold Defense: Endless Pathforge** is an original, offline native-Kotlin tower-defense game for Android. Forge the only enemy route from the entrance gate to the protected core, build a mixed defense, and survive an endless procedural assault.
 
-This repository contains the first playable vertical slice (`v0.1.0`), its complete source, original synthesized sound effects, reproducible asset tooling, and an installable APK.
+The game uses its own identity and mechanics. It does not include Minecraft names, artwork, sounds, characters, maps, UI, or code.
 
-## Install the first playable build
+## Install
 
-Download [`artifacts/Blockhold-Defense-v0.1-debug.apk`](artifacts/Blockhold-Defense-v0.1-debug.apk) to an Android phone and open it.
+The current release artifact is `artifacts/Blockhold-Defense-v1.0-release.apk`.
 
-If Android asks for permission, allow **Install unknown apps** for the browser or file manager you used. The APK is debug-signed for direct testing and may trigger the normal Play Protect sideload warning.
-
-### APK details
+On an Android phone, download the APK, open it, and allow **Install unknown apps** for the browser or file manager if Android requests it. The APK is signed with the dedicated Blockhold Defense release identity for direct installation and future updates.
 
 | Item | Value |
 | --- | --- |
-| Game | Blockhold Defense |
-| Application ID | `ai.techtroy.app` |
-| Version | `0.1.0` (`2`) |
+| Public name | Blockhold Defense |
+| Mode | Endless Pathforge |
+| Application ID | `ai.techtroy.blockhold` |
+| Version | `1.0.0` (`10`) |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |
 | Permissions | None requested |
-| SHA-256 | `b22b15123d176550c0e52e6093ce7e9c5a84b258eea21c4843a543d7b123fa47` |
+| Network requirement | None; fully offline |
+
+See `artifacts/README.md` for the final APK hash and signing-certificate fingerprint, and `docs/VERIFICATION.md` for the complete static verification record.
 
 ## How to play
 
-1. From the gate on the left, drag through adjacent blocks until the path reaches the glowing core on the right.
-2. Backtrack over the previous block to undo a path segment, or use **Reset** before the first wave.
-3. Select a defense from the bottom bar and tap the battlefield to build.
-4. Towers require free terrain blocks. Spike traps must be placed directly on the route.
-5. Tap an existing tower during the build phase to upgrade or recycle it.
-6. Press **Start Wave** and survive all five waves.
+1. Drag from the gate on the left through adjacent blocks until the route reaches the glowing core on the right.
+2. Backtrack over the previous block to undo a segment. The route locks when it reaches the core.
+3. Switch between **Towers** and **Traps** in the bottom build bar.
+4. Put towers on free terrain and traps directly on empty route blocks.
+5. Tap any existing defense between waves to upgrade, overcharge, or recycle it.
+6. Start the next wave. Combat, targeting, status effects, and projectiles are automatic.
+7. Continue until the core is destroyed. A checkpoint is saved between waves and can be resumed from the title screen.
 
-### Defenses
+## Defenses
 
-- **Bolt Tower — 70 blocks:** fast, reliable single-target damage
-- **Frost Prism — 90 blocks:** slows enemies while dealing damage
-- **Core Cannon — 125 blocks:** slower explosive shots with area damage
-- **Spike Bed — 45 blocks:** damages every enemy that crosses its path block
+### Towers
 
-### Enemies
+- **Bolt Tower — 70 Blocks:** fast single-target fire
+- **Frost Prism — 90 Blocks:** slows targets and pierces part of their armor
+- **Core Cannon — 125 Blocks:** heavy area damage
+- **Ember Forge — 145 Blocks:** splash damage plus burning damage over time
+- **Resonance Beacon — 170 Blocks:** long-range arcs that chain through groups
 
-- **Mosser:** balanced frontline creature
-- **Runner:** fragile but fast
-- **Brute:** slow, armored, and damaging to the core
-- **The Overgrowth:** final-wave boss
+### Traps
 
-## First-version feature set
+- **Spike Bed — 45 Blocks:** direct route damage
+- **Root Snare — 65 Blocks:** damage plus a long slow
+- **Ember Rune — 85 Blocks:** impact and burn damage
+- **Arc Plate — 110 Blocks:** chain damage plus a short stun
+- **Crusher Block — 145 Blocks:** very heavy damage and a full stun
 
-- Player-forged route with backtracking and route-length limit
-- Twelve-by-seven adaptive battlefield
-- Three animated tower families with three upgrade levels
-- Placeable path traps
-- Five authored waves and a boss encounter
-- Automatic targeting, projectiles, splash damage, slowing, and health states
-- Block economy, tower recycling, core health, scoring, and saved best score
-- Pause, retry, main-menu, and sound controls
-- Procedural block artwork, characters, particles, screen shake, and UI animation
-- Ten original synthesized sound effects
-- Fullscreen landscape layout that scales across Android phones
-- No third-party game engine or runtime dependency
+Towers and traps have three normal levels. After level three, repeatable **Overcharge** ranks provide a continuing long-run currency sink with escalating costs.
 
-## Original assets
+## Enemy roster
 
-All current visuals are drawn at runtime using native Android Canvas geometry. The sound effects are generated from oscillators and deterministic noise—no third-party samples are included.
+### Regular threats
 
-Regenerate the complete sound pack with:
+- **Mosser:** balanced frontline unit
+- **Runner:** fragile, high-speed attacker
+- **Brute:** slow unit with high health and core damage
+- **Shellback:** armored against ordinary damage
+- **Splitling:** divides into two fast minions when destroyed
+
+### Elite threats
+
+Elites recur approximately every five waves:
+
+- **Ironhide Champion:** extreme armor
+- **Blink Stalker:** periodically jumps forward on the route
+- **Rootcaller:** heals nearby enemies
+- **Hex Weaver:** temporarily disables towers
+- **Siege Colossus:** huge health and core damage
+
+### Recurring boss
+
+**The Overgrowth** returns every ten waves. Each recurrence gains a mutation tier, stronger scaling, regeneration, summoned Splitlings, and eventually multi-tower sabotage.
+
+## Endless director
+
+The bounded-memory wave director generates swarm, rush, armored, regeneration, sabotage, siege, split, mixed, elite, and boss encounters. Enemy health, speed, rewards, elite density, and boss mutation tiers continue scaling without storing an infinite authored wave list.
+
+A run records:
+
+- Forged route
+- Towers, levels, and Overcharge ranks
+- Traps, levels, and Overcharge ranks
+- Blocks, core health, score, and completed wave
+- Best score and highest wave
+
+Checkpoints are written only between waves. Leaving during a live wave returns **Continue** to the last safe build checkpoint.
+
+## Visual and audio assets
+
+The game now uses a coherent top-down sprite layer instead of color-only entity blocks. Included Kenney visual assets are CC0 and have an auditable source record in `docs/ASSET_LICENSES.md`; no attribution is legally required. The icon family and Canvas effects are original.
+
+All sound effects are original deterministic synthesis. Regenerate them with:
 
 ```bash
 python3 tools/generate_sfx.py
@@ -77,44 +108,38 @@ python3 tools/generate_sfx.py
 
 - JDK 17
 - Android SDK Platform 35 and Android Build Tools
-- Internet access for the first Gradle dependency download
+- Gradle dependency access for a first standard Android Studio build
 
-Android Studio can open this repository directly. From a terminal:
+Open the repository in Android Studio or run:
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-The Gradle output is written to:
-
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-To build and refresh the convenient artifact:
+The Gradle output is written to `app/build/outputs/apk/debug/app-debug.apk`. The helper script refreshes a convenient debug artifact:
 
 ```bash
 ./scripts/build-apk.sh
 ```
 
-On Windows, run `gradlew.bat assembleDebug` and copy the resulting APK manually.
-
-### Enable GitHub Actions
-
-The APK workflow recipe is stored at `ci/android.yml`. Copy it to `.github/workflows/android.yml` from a GitHub account or App with workflow-write permission to activate automatic APK artifacts.
+The release key is intentionally not in Git. See `docs/SIGNING.md` for production-key handling and verification.
 
 ## Project map
 
 ```text
-app/src/main/java/ai/techtroy/app/MainActivity.kt  Immersive Android host
-app/src/main/java/ai/techtroy/app/GameView.kt      Game loop, input, simulation, rendering
-app/src/main/java/ai/techtroy/app/GameModels.kt    Gameplay entities and balance values
-app/src/main/java/ai/techtroy/app/AudioEngine.kt   Native SoundPool playback
-app/src/main/res/raw/                              Original generated sound effects
-tools/generate_sfx.py                              Reproducible sound synthesizer
-artifacts/Blockhold-Defense-v0.1-debug.apk         Installable first version
+app/src/main/java/ai/techtroy/blockhold/MainActivity.kt  Immersive Android host
+app/src/main/java/ai/techtroy/blockhold/GameView.kt      Input, endless simulation, saves, rendering
+app/src/main/java/ai/techtroy/blockhold/GameModels.kt    Rosters, entities, balance, progression
+app/src/main/java/ai/techtroy/blockhold/SpriteCatalog.kt Offline sprite loader
+app/src/main/java/ai/techtroy/blockhold/AudioEngine.kt   Native SoundPool playback
+app/src/main/res/drawable-nodpi/                         CC0 gameplay sprite layer
+app/src/main/assets/licenses/                            Pack license texts
+docs/ASSET_LICENSES.md                                   Source/license audit
+docs/SIGNING.md                                          Permanent signing procedure
+artwork/                                                 Original icon source and store export
+tools/generate_sfx.py                                    Reproducible original audio
 ```
 
-## Release note
+## Testing note
 
-This first APK is a debug testing build. A production release will require a private release keystore stored outside Git, secure CI configuration, expanded device testing, and a signed Android App Bundle or release APK.
+The repository can be compiled, signed, and statically verified in the provided environment, but no Android emulator or physical device is available there. Device-specific play feel and balance should therefore be validated through installation feedback.

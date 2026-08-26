@@ -1,23 +1,48 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+val releaseSigningFile = rootProject.file(".signing/release.properties")
+val releaseSigningProperties = Properties().apply {
+    if (releaseSigningFile.exists()) {
+        releaseSigningFile.inputStream().use { load(it) }
+    }
+}
+
 android {
-    namespace = "ai.techtroy.app"
+    namespace = "ai.techtroy.blockhold"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "ai.techtroy.app"
+        applicationId = "ai.techtroy.blockhold"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.0"
+        versionCode = 10
+        versionName = "1.0.0"
+    }
+
+    signingConfigs {
+        if (releaseSigningFile.exists()) {
+            create("release") {
+                storeFile = rootProject.file(".signing/blockhold-release.p12")
+                storePassword = releaseSigningProperties.getProperty("storePassword")
+                keyAlias = releaseSigningProperties.getProperty("keyAlias")
+                keyPassword = releaseSigningProperties.getProperty("keyPassword")
+                storeType = "PKCS12"
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

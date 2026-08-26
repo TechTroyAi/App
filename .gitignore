@@ -11,8 +11,12 @@ build/
 local.properties
 
 # Signing material
+.signing/
 *.jks
 *.keystore
+*.p12
+*.pem
+*.key
 
 # Native build output
 .externalNativeBuild/
@@ -26,6 +30,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# APKs are generated artifacts; keep the requested installable preview only.
+# APKs are generated artifacts; keep only the requested installable milestones.
 *.apk
 !artifacts/Blockhold-Defense-v0.1-debug.apk
+!artifacts/Blockhold-Defense-v1.0-release.apk

@@ -1,4 +1,4 @@
-package ai.techtroy.app
+package ai.techtroy.blockhold
 
 import android.app.Activity
 import android.os.Bundle

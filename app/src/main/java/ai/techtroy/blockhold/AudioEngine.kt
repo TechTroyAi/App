@@ -1,4 +1,4 @@
-package ai.techtroy.app
+package ai.techtroy.blockhold
 
 import android.content.Context
 import android.media.AudioAttributes

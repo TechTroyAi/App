@@ -7,7 +7,7 @@ cd "$ROOT_DIR"
 ./gradlew --no-daemon assembleDebug
 
 SOURCE_APK="app/build/outputs/apk/debug/app-debug.apk"
-OUTPUT_APK="artifacts/Blockhold-Defense-v0.1-debug.apk"
+OUTPUT_APK="artifacts/Blockhold-Defense-v1.0-debug.apk"
 
 if [[ ! -f "$SOURCE_APK" ]]; then
   echo "Build completed, but $SOURCE_APK was not found." >&2
