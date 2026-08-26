@@ -34,6 +34,10 @@ The four remaining elite concepts plus The Overgrowth are retained in `batch-05/
 
 The six remaining Utility concepts and transparent outputs are retained in `batch-06/`. Together with Block Generator, they complete all seven non-attacking infrastructure structures in the original style.
 
+## Batch 07 — corruption
+
+The five remaining corruption concepts and transparent outputs are retained in `batch-07/`. Together with Spore Path, they complete all six terrain mutations in the original style.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.
