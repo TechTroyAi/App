@@ -42,6 +42,10 @@ The five remaining corruption concepts and transparent outputs are retained in `
 
 Frost Prism and Core Cannon base/top layers are retained in `batch-08/`. Together with Bolt Tower, three of the five tower families now use original layered artwork while preserving rotation and recoil.
 
+## Batch 09 — layered towers, part two
+
+Ember Forge and Resonance Beacon base/effect layers are retained in `batch-09/`. All five base towers now use original layered artwork with their gameplay animation and rotation preserved.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

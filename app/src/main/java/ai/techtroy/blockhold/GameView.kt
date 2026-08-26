@@ -3278,10 +3278,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawBitmapCentered(canvas, towerLayers.second, x, y, size * 2.0f)
             return
         }
+        if (tool == BuildTool.EMBER || tool == BuildTool.BEACON) {
+            val base = if (tool == BuildTool.EMBER) sprites.emberBase else sprites.beaconBase
+            val effect = if (tool == BuildTool.EMBER) sprites.emberFlame else sprites.beaconPulse
+            val effectSize = if (tool == BuildTool.EMBER) size * 0.96f else size * 1.22f
+            drawBitmapCentered(canvas, base, x, y + size * 0.08f, size * 2.1f)
+            drawBitmapCentered(canvas, effect, x, y - size * 0.08f, effectSize)
+            return
+        }
         val bitmap: Bitmap? = when (tool) {
-            BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON -> null
-            BuildTool.EMBER -> sprites.emberFlame
-            BuildTool.BEACON -> sprites.beaconPulse
+            BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON, BuildTool.EMBER, BuildTool.BEACON -> null
             BuildTool.SPIKES -> sprites.spikeTrap
             BuildTool.ROOT -> sprites.rootTrap
             BuildTool.RUNE -> sprites.emberTrap
