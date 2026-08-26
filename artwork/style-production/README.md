@@ -30,6 +30,10 @@ The four remaining regular-enemy concepts and transparent outputs are retained i
 
 The four remaining elite concepts plus The Overgrowth are retained in `batch-05/`. Together with Ironhide Champion, they complete all five elite roles and the recurring boss in the original style.
 
+## Batch 06 — Utilities
+
+The six remaining Utility concepts and transparent outputs are retained in `batch-06/`. Together with Block Generator, they complete all seven non-attacking infrastructure structures in the original style.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

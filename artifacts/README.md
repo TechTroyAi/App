@@ -11,7 +11,7 @@
 - Orientation: landscape
 - Permissions requested: none
 - Offline: yes
-- APK SHA-256: `e392da6dbf71a564b7d76d2f7781185c373290af2da2c63ef5da19162a663ea4`
+- APK SHA-256: `1f33624ab3a6b31cb1f062246ccbba9d6ba2a81b6c340f9624beeb6852005ad5`
 - Signing state: **unsigned**
 
 This APK cannot be installed until it is signed. It must be signed with the permanent v1.0 Blockhold Defense key before distribution as an update. Do not generate a replacement production key; Android would reject it over an existing installation. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.
