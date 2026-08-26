@@ -38,6 +38,10 @@ The six remaining Utility concepts and transparent outputs are retained in `batc
 
 The five remaining corruption concepts and transparent outputs are retained in `batch-07/`. Together with Spore Path, they complete all six terrain mutations in the original style.
 
+## Batch 08 — layered towers, part one
+
+Frost Prism and Core Cannon base/top layers are retained in `batch-08/`. Together with Bolt Tower, three of the five tower families now use original layered artwork while preserving rotation and recoil.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

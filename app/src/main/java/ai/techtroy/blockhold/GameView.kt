@@ -2972,7 +2972,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 paint.color = Color.argb(80, 93, 220, 255)
                 canvas.drawCircle(x, y, tileSize * 0.21f, paint)
             }
-            TowerKind.CANNON -> drawBitmapCentered(canvas, sprites.cannonTurret, x, y - tileSize * 0.04f, tileSize * 0.82f, tower.angle * 57.29578f + 90f)
+            TowerKind.CANNON -> drawBitmapCentered(canvas, sprites.cannonTurret, x, y - tileSize * 0.04f, tileSize * 0.82f, tower.angle * 57.29578f)
             TowerKind.EMBER -> drawBitmapCentered(canvas, sprites.emberFlame, x, y - tileSize * 0.10f, tileSize * (0.70f + sin(ambientTime * 6f) * 0.03f))
             TowerKind.BEACON -> drawBitmapCentered(canvas, sprites.beaconPulse, x, y - tileSize * 0.03f, tileSize * (0.70f + sin(ambientTime * 4f) * 0.05f), ambientTime * 30f)
         }
@@ -3267,15 +3267,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float, color: Int) {
-        if (tool == BuildTool.BOLT) {
-            drawBitmapCentered(canvas, sprites.towerBase, x, y + size * 0.08f, size * 2.1f)
-            drawBitmapCentered(canvas, sprites.greenTurret, x, y, size * 2.0f)
+        val towerLayers: Pair<Bitmap, Bitmap>? = when (tool) {
+            BuildTool.BOLT -> Pair(sprites.towerBase, sprites.greenTurret)
+            BuildTool.FROST -> Pair(sprites.frostBase, sprites.paleTurret)
+            BuildTool.CANNON -> Pair(sprites.cannonBase, sprites.cannonTurret)
+            else -> null
+        }
+        if (towerLayers != null) {
+            drawBitmapCentered(canvas, towerLayers.first, x, y + size * 0.08f, size * 2.1f)
+            drawBitmapCentered(canvas, towerLayers.second, x, y, size * 2.0f)
             return
         }
         val bitmap: Bitmap? = when (tool) {
-            BuildTool.BOLT -> null
-            BuildTool.FROST -> sprites.paleTurret
-            BuildTool.CANNON -> sprites.cannonTurret
+            BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON -> null
             BuildTool.EMBER -> sprites.emberFlame
             BuildTool.BEACON -> sprites.beaconPulse
             BuildTool.SPIKES -> sprites.spikeTrap

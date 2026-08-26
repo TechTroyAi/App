@@ -27,13 +27,13 @@ internal class SpriteCatalog(private val context: Context) {
     )
 
     val towerBase = load("tower_bolt_base")
-    val frostBase = load("kenney_td_226")
-    val cannonBase = load("kenney_td_227")
+    val frostBase = load("tower_frost_base")
+    val cannonBase = load("tower_cannon_base")
     val emberBase = load("kenney_td_228")
     val beaconBase = load("kenney_td_229")
     val greenTurret = load("tower_bolt_turret")
-    val paleTurret = load("kenney_td_292")
-    val cannonTurret = load("kenney_td_250")
+    val paleTurret = load("tower_frost_turret")
+    val cannonTurret = load("tower_cannon_turret")
     val emberFlame = load("kenney_td_298")
     val beaconPulse = load("kenney_td_256")
 
