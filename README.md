@@ -152,7 +152,7 @@ The bounded version-three save reader migrates v1.0/v1.1 checkpoints, including 
 
 ## Visual and audio assets
 
-The game uses a coherent top-down sprite layer instead of color-only entities. Forgeworks adds 40 original or CC0-derived Utility, corruption, evolution, Supply, imbuement, material, and Cache images. Included Kenney visual assets are CC0 and have an auditable source record in `docs/ASSET_LICENSES.md`; no attribution is legally required. The 33 fully original Forgeworks icon compositions can be regenerated with `tools/generate_forgeworks_art.sh`; the seven CC0-derived Utility composites are retained as audited source assets.
+The game uses a coherent top-down sprite layer instead of color-only entities. Forgeworks adds 40 Utility, corruption, evolution, Supply, imbuement, material, and Cache images. A fully original dark industrial forge-fantasy revision is now replacing the earlier mixed layer in reviewed batches; the first integrated roles cover Bolt Tower, Spike Bed, Mosser, Ironhide Elite, Block Generator, Spore Path, terrain, gate, and core. High-resolution sources and processing records live under `artwork/prototype/` and `artwork/style-production/`. Remaining Kenney visuals are CC0 and retain an auditable record in `docs/ASSET_LICENSES.md` until their categories are replaced.
 
 All sound effects are original deterministic synthesis. Regenerate them with:
 

@@ -93,6 +93,11 @@ def isolate(source: Path, destination: Path) -> None:
     canvas.save(destination, optimize=True)
 
 
-for input_name, output_name in SPRITES.items():
-    isolate(SOURCE / input_name, OUTPUT / output_name)
-    print(OUTPUT / output_name)
+def main() -> None:
+    for input_name, output_name in SPRITES.items():
+        isolate(SOURCE / input_name, OUTPUT / output_name)
+        print(OUTPUT / output_name)
+
+
+if __name__ == "__main__":
+    main()

@@ -26,25 +26,25 @@ internal class SpriteCatalog(private val context: Context) {
         EnemyKind.OVERGROWTH to load("enemy_overgrowth")
     )
 
-    val towerBase = load("kenney_td_203")
+    val towerBase = load("tower_bolt_base")
     val frostBase = load("kenney_td_226")
     val cannonBase = load("kenney_td_227")
     val emberBase = load("kenney_td_228")
     val beaconBase = load("kenney_td_229")
-    val greenTurret = load("kenney_td_291")
+    val greenTurret = load("tower_bolt_turret")
     val paleTurret = load("kenney_td_292")
     val cannonTurret = load("kenney_td_250")
     val emberFlame = load("kenney_td_298")
     val beaconPulse = load("kenney_td_256")
 
-    val spikeTrap = load("kenney_td_205")
+    val spikeTrap = load("trap_spike_bed")
     val rootTrap = load("kenney_td_121")
     val emberTrap = load("kenney_td_296")
     val arcTrap = load("kenney_td_203")
     val crusherTrap = load("kenney_td_126")
 
-    val gatePart = load("kenney_td_226")
-    val corePart = load("kenney_td_249")
+    val gatePart = load("landmark_gate")
+    val corePart = load("landmark_core")
 
     private val corruptions = mapOf(
         CorruptionKind.SPORE_PATH to load("corruption_spore_path"),

@@ -2903,7 +2903,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val x = cellCenterX(0)
         val y = cellCenterY(START_ROW)
         val pulse = 0.88f + sin(ambientTime * 3f) * 0.07f
-        drawBitmapCentered(canvas, sprites.gatePart, x, y, tileSize * 0.90f, 90f)
+        drawBitmapCentered(canvas, sprites.gatePart, x, y, tileSize * 0.90f)
         strokePaint.strokeWidth = tileSize * 0.045f
         strokePaint.color = Color.argb(190, 190, 244, 78)
         canvas.drawCircle(x, y, tileSize * 0.25f * pulse, strokePaint)
@@ -2916,7 +2916,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val pulse = 0.5f + 0.5f * sin(ambientTime * 3.5f)
         paint.color = Color.argb((45 + pulse * 55).toInt(), 190, 244, 78)
         canvas.drawCircle(x, y, tileSize * (0.47f + pulse * 0.05f), paint)
-        drawBitmapCentered(canvas, sprites.corePart, x, y, tileSize * 0.96f, -90f)
+        drawBitmapCentered(canvas, sprites.corePart, x, y, tileSize * 0.96f)
         paint.color = Color.rgb(224, 255, 169)
         canvas.drawCircle(x, y, tileSize * (0.09f + pulse * 0.015f), paint)
     }
@@ -2937,7 +2937,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.WHITE
             canvas.drawCircle(x, y, tileSize * 0.39f, strokePaint)
         }
-        drawBitmapCentered(canvas, bitmap, x, y, scale, if (trap.kind == TrapKind.SPIKE) 90f else 0f)
+        drawBitmapCentered(canvas, bitmap, x, y, scale)
         if (trap.kind == TrapKind.ARC) {
             strokePaint.strokeWidth = tileSize * 0.035f
             strokePaint.color = trap.kind.accent
@@ -3227,7 +3227,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) stored.kind.accent else Color.rgb(25, 38, 30))
             if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
             val bitmap = when (stored.kind) { TrapKind.SPIKE -> sprites.spikeTrap; TrapKind.ROOT -> sprites.rootTrap; TrapKind.EMBER -> sprites.emberTrap; TrapKind.ARC -> sprites.arcTrap; TrapKind.CRUSHER -> sprites.crusherTrap }
-            drawBitmapCentered(canvas, bitmap, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f, if (stored.kind == TrapKind.SPIKE) 90f else 0f)
+            drawBitmapCentered(canvas, bitmap, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
             drawCenteredText(canvas, stored.kind.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
             drawCenteredText(canvas, stored.rankLabel(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(7f), rect.width() * 0.08f), if (stored.imbuement != null) stored.imbuement!!.accent else Color.rgb(190, 244, 78), true)
         }
@@ -3267,8 +3267,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float, color: Int) {
+        if (tool == BuildTool.BOLT) {
+            drawBitmapCentered(canvas, sprites.towerBase, x, y + size * 0.08f, size * 2.1f)
+            drawBitmapCentered(canvas, sprites.greenTurret, x, y, size * 2.0f)
+            return
+        }
         val bitmap: Bitmap? = when (tool) {
-            BuildTool.BOLT -> sprites.greenTurret
+            BuildTool.BOLT -> null
             BuildTool.FROST -> sprites.paleTurret
             BuildTool.CANNON -> sprites.cannonTurret
             BuildTool.EMBER -> sprites.emberFlame
@@ -3281,7 +3286,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.DIG -> null
         }
         if (bitmap != null) {
-            drawBitmapCentered(canvas, bitmap, x, y, size * 2.1f, if (tool == BuildTool.SPIKES) 90f else 0f)
+            drawBitmapCentered(canvas, bitmap, x, y, size * 2.1f)
         } else {
             paint.color = color
             canvas.drawRect(x - size * 0.45f, y - size * 0.14f, x + size * 0.45f, y + size * 0.14f, paint)
