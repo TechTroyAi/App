@@ -12,7 +12,7 @@
 - Permissions requested: none
 - Offline: yes
 - Size: ~2.5 MB
-- APK SHA-256: `07c4fa46c68e5fcb9ebf9ec0db90b4f7578d011bb6cc00a99640ff3218dfb9e3`
+- APK SHA-256: `e8fdff4024a1b9129ad7303659e3ee01e4eea05d5c42160e0f4ba9889036f59a`
 - Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
 - Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
 - Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`

@@ -755,8 +755,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 audio.play("cannon", 0.42f, 0.92f + random.nextFloat() * 0.08f)
                 screenShake = max(screenShake, 0.09f)
             }
-            TowerKind.EMBER -> audio.play("bolt", 0.27f, 0.72f + random.nextFloat() * 0.08f)
-            TowerKind.BEACON -> audio.play("frost", 0.26f, 1.25f + random.nextFloat() * 0.08f)
+            TowerKind.EMBER -> audio.play("ember", 0.28f, 0.94f + random.nextFloat() * 0.10f)
+            TowerKind.BEACON -> audio.play("beacon", 0.26f, 0.96f + random.nextFloat() * 0.10f)
         }
     }
 
@@ -851,6 +851,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun spawnImpact(x: Float, y: Float, kind: TowerKind) {
         impactEffects.add(ImpactFx(x, y, kind))
+        val pitch = when (kind) {
+            TowerKind.BOLT -> 1.08f + random.nextFloat() * 0.10f
+            TowerKind.FROST -> 1.18f + random.nextFloat() * 0.10f
+            TowerKind.CANNON -> 0.82f + random.nextFloat() * 0.08f
+            TowerKind.EMBER -> 0.90f + random.nextFloat() * 0.10f
+            TowerKind.BEACON -> 1.22f + random.nextFloat() * 0.10f
+        }
+        val volume = when (kind) {
+            TowerKind.CANNON -> 0.38f
+            TowerKind.EMBER -> 0.30f
+            else -> 0.24f
+        }
+        audio.play("impact", volume, pitch)
     }
 
     private fun thermalShock(target: Enemy, sourceDamage: Float) {

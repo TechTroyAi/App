@@ -146,7 +146,26 @@ def main() -> None:
         (tone(0.62, 784, 880, 0.40, "sine", 1.0), 0.54),
         (tone(0.55, 392, 440, 0.20, "sine", 1.0), 0.54),
     ))
-    print(f"Generated 10 original sound effects in {OUTPUT}")
+    # 1.3 Phase A+ — dedicated tower fire + shared impact
+    save("ember", soften(mix(
+        (noise(0.22, 0.55, 2.0, 0.35), 0.0),
+        (tone(0.18, 220, 110, 0.38, "triangle", 1.8), 0.0),
+        (tone(0.12, 540, 280, 0.22, "sine", 2.2), 0.02),
+        (noise(0.08, 0.22, 3.5, 0.1), 0.04),
+    ), 0.18))
+    save("beacon", mix(
+        (tone(0.20, 660, 880, 0.32, "sine", 1.4), 0.0),
+        (tone(0.18, 990, 1320, 0.24, "sine", 1.6), 0.02),
+        (tone(0.14, 1320, 990, 0.16, "triangle", 2.0), 0.05),
+        (tone(0.10, 1760, 1480, 0.10, "sine", 2.4), 0.07),
+    ))
+    save("impact", soften(mix(
+        (noise(0.10, 0.55, 3.0, 0.12), 0.0),
+        (tone(0.09, 420, 90, 0.48, "triangle", 2.4), 0.0),
+        (tone(0.06, 980, 640, 0.18, "sine", 2.8), 0.012),
+        (tone(0.045, 1480, 920, 0.12, "square", 3.2), 0.018),
+    ), 0.15))
+    print(f"Generated original sound effects in {OUTPUT}")
 
 
 if __name__ == "__main__":
