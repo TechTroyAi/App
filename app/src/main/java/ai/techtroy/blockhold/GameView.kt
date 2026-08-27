@@ -544,6 +544,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             tower.cooldown -= delta
             tower.recoil = max(0f, tower.recoil - delta * 4.2f)
             tower.evolveFlash = max(0f, tower.evolveFlash - delta * 2.4f)
+            tower.evolveAura = max(0f, tower.evolveAura - delta)
+            tower.evolveProof = max(0f, tower.evolveProof - delta)
             tower.disabledTimer = max(0f, tower.disabledTimer - delta)
             if (tower.disabledTimer > 0f) continue
             val target = findTarget(tower)
@@ -758,18 +760,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         var damage = tower.currentDamage()
         if (perkCount(ForgePerk.CORNER_AMBUSH) > 0 && enemyOnCorner(target)) damage *= 1f + perkCount(ForgePerk.CORNER_AMBUSH) * 0.22f
         tower.activationCount += 1
-        projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage, tower.kind.projectileSpeed, tower))
+        val evolveHot = tower.evolveProof > 0.02f
+        projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage, tower.kind.projectileSpeed, tower, evolveHot = evolveHot))
         if (tower.imbuement == Imbuement.ECHOES && tower.activationCount % 5 == 0) {
-            projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.65f, tower.kind.projectileSpeed * 1.12f, tower))
+            projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.65f, tower.kind.projectileSpeed * 1.12f, tower, evolveHot = evolveHot))
             floatingLabels.add(FloatingLabel("ECHO", tower.col + 0.5f, tower.row + 0.2f, Imbuement.ECHOES.accent))
         }
         if (tower.kind == TowerKind.BOLT && isNearTowerKind(tower.col, tower.row, TowerKind.BEACON, exclude = tower) && random.nextFloat() < 0.22f) {
             enemies.filter { it.targetable && it !== target }.sortedByDescending { it.progress }.firstOrNull()?.let {
-                projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, it, tower.kind, damage * 0.65f, tower.kind.projectileSpeed, tower))
+                projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, it, tower.kind, damage * 0.65f, tower.kind.projectileSpeed, tower, evolveHot = evolveHot))
             }
         }
         if (tower.kind == TowerKind.BEACON && perkCount(ForgePerk.RESONANCE_FEEDBACK) > 0 && random.nextFloat() < min(0.60f, perkCount(ForgePerk.RESONANCE_FEEDBACK) * 0.18f)) {
-            projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.55f, tower.kind.projectileSpeed * 1.15f, tower))
+            projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.55f, tower.kind.projectileSpeed * 1.15f, tower, evolveHot = evolveHot))
         }
         when (tower.kind) {
             TowerKind.BOLT -> audio.play("bolt", 0.22f, 0.94f + random.nextFloat() * 0.12f)
@@ -811,6 +814,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun impactProjectile(projectile: Projectile) {
         val tower = projectile.source
         spawnImpact(projectile.x, projectile.y, projectile.kind)
+        if (projectile.evolveHot) {
+            burst(projectile.x, projectile.y, Color.rgb(255, 215, 104), 10, 0.85f)
+            burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
+        }
         when (projectile.kind) {
             TowerKind.BOLT -> {
                 val pierce = if (tower.evolution == TowerEvolution.RAIL_SPIRE) 0.82f else 0f
@@ -2567,6 +2574,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTower = tower
         phase = GamePhase.BUILD
         tower.evolveFlash = 1f
+        tower.evolveAura = 2.4f
+        tower.evolveProof = 2.2f
         val evoTitle = tower.evolution!!.title.toUpperCase()
         setBanner("EVOLVED  $evoTitle", 2.6f)
         burst(tower.col + 0.5f, tower.row + 0.5f, tower.kind.accent, 36, 1.7f)
@@ -3011,7 +3020,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             spritePaint.alpha = 255
             canvas.drawBitmap(sprites.path, null, destination, spritePaint)
             val sheen = 0.5f + 0.5f * sin(ambientTime * 1.6f + col * 0.55f + row * 0.35f)
-            paint.color = Color.argb((10 + sheen * 14).toInt().coerceIn(0, 255), 255, 248, 210)
+            // E2: path cells near a freshly evolved tower glow warmer
+            var auraBoost = 0f
+            for (tower in towers) {
+                if (tower.evolveAura <= 0.02f) continue
+                val d2 = (tower.col - col) * (tower.col - col) + (tower.row - row) * (tower.row - row)
+                if (d2 <= 2) { // self + orthogonal neighbors (and diagonal at d2=2)
+                    auraBoost = max(auraBoost, tower.evolveAura / 2.4f * (1f - d2 * 0.28f))
+                }
+            }
+            val sheenAlpha = (10 + sheen * 14 + auraBoost * 55).toInt().coerceIn(0, 255)
+            paint.color = Color.argb(sheenAlpha, 255, 248, 210)
             canvas.drawRect(
                 left + tileSize * 0.12f,
                 top + tileSize * 0.18f,
@@ -3019,6 +3038,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 top + tileSize * 0.28f,
                 paint
             )
+            if (auraBoost > 0.08f) {
+                paint.color = Color.argb((auraBoost * 40).toInt().coerceIn(0, 255), 255, 215, 104)
+                canvas.drawCircle(left + tileSize * 0.5f, top + tileSize * 0.5f, tileSize * (0.12f + auraBoost * 0.08f), paint)
+            }
         } else {
             val sway = 0.5f + 0.5f * sin(ambientTime * 1.35f + col * 0.7f + row * 0.9f)
             spritePaint.alpha = (235 + (sway * 20f).toInt()).coerceIn(220, 255)
@@ -3167,6 +3190,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.strokeWidth = tileSize * 0.045f
             strokePaint.color = Color.rgb(255, 215, 104)
             canvas.drawCircle(x, y, tileSize * (0.38f + sin(ambientTime * 3f) * 0.025f), strokePaint)
+            if (tower.evolveAura > 0.02f) {
+                val a = (tower.evolveAura / 2.4f).coerceIn(0f, 1f)
+                strokePaint.strokeWidth = tileSize * 0.03f
+                strokePaint.color = Color.argb((90 * a).toInt().coerceIn(0, 255), 255, 230, 150)
+                canvas.drawCircle(x, y, tileSize * (0.48f + (1f - a) * 0.06f), strokePaint)
+            }
             val emblemPop = if (tower.evolveFlash > 0.02f) 1f + tower.evolveFlash * 0.55f else 1f
             drawBitmapCentered(
                 canvas,
@@ -3337,14 +3366,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strip.frameCount == 2 -> step % 2
             else -> 0
         }
+        val hot = projectile.evolveHot
+        val glowAlpha = if (hot) 95 else 50
+        val glowSize = if (hot) size * 0.58f else size * 0.42f
         paint.color = Color.argb(
-            50,
+            glowAlpha,
             Color.red(projectile.kind.accent),
             Color.green(projectile.kind.accent),
             Color.blue(projectile.kind.accent)
         )
-        canvas.drawCircle(x, y, size * 0.42f, paint)
-        drawSpriteFrameCentered(canvas, strip, frame, x, y, size, angle)
+        canvas.drawCircle(x, y, glowSize, paint)
+        if (hot) {
+            // gold trail mote
+            paint.color = Color.argb(70, 255, 215, 104)
+            canvas.drawCircle(x, y, size * 0.28f, paint)
+            drawSpriteFrameCentered(canvas, strip, frame, x, y, size * 1.12f, angle)
+        } else {
+            drawSpriteFrameCentered(canvas, strip, frame, x, y, size, angle)
+        }
     }
 
     private fun drawImpact(canvas: Canvas, fx: ImpactFx) {

@@ -2,7 +2,7 @@
 
 ## Download this one (installable v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of v1.2 Forgeworks plus Batches 06–07, 15–19, and **1.3 Phases A–D + C** (projectile flight, impact bursts, dedicated SFX, enemy death dissolve, UI banner/resource pops, board ambient life, evolution confirm beat). Install this on an Android phone.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of v1.2 Forgeworks plus Batches 06–07, 15–19, and **1.3 Phases A–D + C** (projectile flight, impact bursts, dedicated SFX, enemy death dissolve, UI banner/resource pops, board ambient life, evolution confirm beat + E2 board acknowledgment). Install this on an Android phone.
 
 - Package: `ai.techtroy.blockhold`
 - Version: `1.2.0` (`12`) — content includes full 1.3 ladder (A–D + C + E1 evolution confirm)
@@ -12,7 +12,7 @@
 - Permissions requested: none
 - Offline: yes
 - Size: ~2.5 MB
-- APK SHA-256: `87e9150d662d53932cf0470508eee803e5446e937ddbfeccf2d62e4827b9edd4`
+- APK SHA-256: `0ec0d9a8ed3e4680d4d5422e7dabdc7e390fab1b274bed16823986654537b613`
 - Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
 - Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
 - Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
@@ -30,7 +30,7 @@
 
 `Blockhold-Defense-v1.2-unsigned.apk` is the rebuilt v1.2 Forgeworks + 1.3 content payload before signing (from the latest apktool rebuild).
 
-- APK SHA-256: `1c014dd5a900ce5b4f3200c09bd0864ebdc816f30bc35c3eb057b4daa94ee069`
+- APK SHA-256: `7440079e4509f6fad7fe4ef689a6b4f27f7d6c53765e959014bd3eccd60ae437`
 - Signing state: **unsigned** (cannot install until signed)
 
 For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.

@@ -288,6 +288,10 @@ internal class Tower(
     var recoil = 0f
     /** 1 → 0 after evolution confirm (E1 rim + emblem pop). */
     var evolveFlash = 0f
+    /** Neighbor path sheen after evolve (E2), seconds remaining. */
+    var evolveAura = 0f
+    /** Hotter next shot trail while >0 (E2), seconds remaining. */
+    var evolveProof = 0f
 
     fun upgradeCost(): Int {
         val base = if (level < 3) kind.cost / 2 + level * 28 else min(2_000_000_000, (kind.cost * 0.82 * 1.24.pow(overcharge.toDouble())).toInt().coerceAtLeast(kind.cost))
@@ -450,7 +454,9 @@ internal class Projectile(
     val kind: TowerKind,
     val damage: Float,
     val speed: Float,
-    val source: Tower
+    val source: Tower,
+    /** E2: fired while tower still has evolveProof — hotter trail/impact. */
+    val evolveHot: Boolean = false
 ) {
     var alive = true
     var age = 0f
