@@ -50,6 +50,10 @@ Ember Forge and Resonance Beacon base/effect layers are retained in `batch-09/`.
 
 The six evolution emblems for Bolt Tower, Frost Prism, and Core Cannon are retained in `batch-10/`. Their iconography directly communicates each specialization while remaining part of the shared forge-built family.
 
+## Batch 11 — support tower evolutions
+
+The four evolution emblems for Ember Forge and Resonance Beacon are retained in `batch-11/`. All ten tower evolution branches now use original, mechanic-specific iconography.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.
