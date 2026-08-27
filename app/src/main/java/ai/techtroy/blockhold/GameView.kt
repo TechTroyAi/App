@@ -2970,16 +2970,21 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.BEACON -> sprites.beaconBase
         }
         drawBitmapCentered(canvas, base, x, y + tileSize * 0.05f, tileSize * 0.88f)
+        val firingFrame = when {
+            tower.recoil > 0.70f -> 2
+            tower.recoil > 0.20f -> 1
+            else -> 0
+        }
         when (tower.kind) {
-            TowerKind.BOLT -> drawBitmapCentered(canvas, sprites.greenTurret, x, y - tower.recoil * tileSize * 0.035f, tileSize * 0.86f, tower.angle * 57.29578f)
+            TowerKind.BOLT -> drawSpriteFrameCentered(canvas, sprites.greenTurret, firingFrame, x, y, tileSize * 0.86f, tower.angle * 57.29578f)
             TowerKind.FROST -> {
-                drawBitmapCentered(canvas, sprites.paleTurret, x, y, tileSize * 0.82f, tower.angle * 57.29578f)
+                drawSpriteFrameCentered(canvas, sprites.paleTurret, firingFrame, x, y, tileSize * 0.82f, tower.angle * 57.29578f)
                 paint.color = Color.argb(80, 93, 220, 255)
                 canvas.drawCircle(x, y, tileSize * 0.21f, paint)
             }
-            TowerKind.CANNON -> drawBitmapCentered(canvas, sprites.cannonTurret, x, y - tileSize * 0.04f, tileSize * 0.82f, tower.angle * 57.29578f)
-            TowerKind.EMBER -> drawBitmapCentered(canvas, sprites.emberFlame, x, y - tileSize * 0.10f, tileSize * (0.70f + sin(ambientTime * 6f) * 0.03f))
-            TowerKind.BEACON -> drawBitmapCentered(canvas, sprites.beaconPulse, x, y - tileSize * 0.03f, tileSize * (0.70f + sin(ambientTime * 4f) * 0.05f), ambientTime * 30f)
+            TowerKind.CANNON -> drawSpriteFrameCentered(canvas, sprites.cannonTurret, firingFrame, x, y - tileSize * 0.04f, tileSize * 0.82f, tower.angle * 57.29578f)
+            TowerKind.EMBER -> drawSpriteFrameCentered(canvas, sprites.emberFlame, firingFrame, x, y - tileSize * 0.10f, tileSize * (0.70f + sin(ambientTime * 6f) * 0.03f))
+            TowerKind.BEACON -> drawSpriteFrameCentered(canvas, sprites.beaconPulse, firingFrame, x, y - tileSize * 0.03f, tileSize * (0.70f + sin(ambientTime * 4f) * 0.05f), ambientTime * 30f)
         }
         if (tower.evolution != null) {
             strokePaint.strokeWidth = tileSize * 0.045f
@@ -3278,7 +3283,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float, color: Int) {
-        val towerLayers: Pair<Bitmap, Bitmap>? = when (tool) {
+        val towerLayers: Pair<Bitmap, SpriteStrip>? = when (tool) {
             BuildTool.BOLT -> Pair(sprites.towerBase, sprites.greenTurret)
             BuildTool.FROST -> Pair(sprites.frostBase, sprites.paleTurret)
             BuildTool.CANNON -> Pair(sprites.cannonBase, sprites.cannonTurret)
@@ -3286,7 +3291,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         if (towerLayers != null) {
             drawBitmapCentered(canvas, towerLayers.first, x, y + size * 0.08f, size * 2.1f)
-            drawBitmapCentered(canvas, towerLayers.second, x, y, size * 2.0f)
+            drawSpriteFrameCentered(canvas, towerLayers.second, 0, x, y, size * 2.0f)
             return
         }
         if (tool == BuildTool.EMBER || tool == BuildTool.BEACON) {
@@ -3294,7 +3299,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val effect = if (tool == BuildTool.EMBER) sprites.emberFlame else sprites.beaconPulse
             val effectSize = if (tool == BuildTool.EMBER) size * 0.96f else size * 1.22f
             drawBitmapCentered(canvas, base, x, y + size * 0.08f, size * 2.1f)
-            drawBitmapCentered(canvas, effect, x, y - size * 0.08f, effectSize)
+            drawSpriteFrameCentered(canvas, effect, 0, x, y - size * 0.08f, effectSize)
             return
         }
         val trapKind = toolTrapKind(tool)
@@ -3429,14 +3434,21 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, secondary, endSecondaryRect.centerX(), endSecondaryRect.centerY(), dp(13f), Color.WHITE, true)
     }
 
-    private fun drawSpriteFrameCentered(canvas: Canvas, strip: SpriteStrip, frame: Int, x: Float, y: Float, size: Float) {
+    private fun drawSpriteFrameCentered(canvas: Canvas, strip: SpriteStrip, frame: Int, x: Float, y: Float, size: Float, rotation: Float = 0f) {
         val frameIndex = frame.coerceIn(0, strip.frameCount - 1)
         val source = Rect(frameIndex * strip.frameWidth, 0, (frameIndex + 1) * strip.frameWidth, strip.bitmap.height)
         val scale = size / max(strip.frameWidth, strip.bitmap.height).toFloat()
         val halfWidth = strip.frameWidth * scale * 0.5f
         val halfHeight = strip.bitmap.height * scale * 0.5f
         val destination = RectF(x - halfWidth, y - halfHeight, x + halfWidth, y + halfHeight)
-        canvas.drawBitmap(strip.bitmap, source, destination, spritePaint)
+        if (rotation != 0f) {
+            canvas.save()
+            canvas.rotate(rotation, x, y)
+            canvas.drawBitmap(strip.bitmap, source, destination, spritePaint)
+            canvas.restore()
+        } else {
+            canvas.drawBitmap(strip.bitmap, source, destination, spritePaint)
+        }
     }
 
     private fun drawBitmapCentered(canvas: Canvas, bitmap: Bitmap, x: Float, y: Float, size: Float, rotation: Float = 0f) {

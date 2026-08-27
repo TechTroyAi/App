@@ -39,11 +39,11 @@ internal class SpriteCatalog(private val context: Context) {
     val cannonBase = load("tower_cannon_base")
     val emberBase = load("tower_ember_base")
     val beaconBase = load("tower_beacon_base")
-    val greenTurret = load("tower_bolt_turret")
-    val paleTurret = load("tower_frost_turret")
-    val cannonTurret = load("tower_cannon_turret")
-    val emberFlame = load("tower_ember_flame")
-    val beaconPulse = load("tower_beacon_pulse")
+    val greenTurret = loadStrip("tower_bolt_turret")
+    val paleTurret = loadStrip("tower_frost_turret")
+    val cannonTurret = loadStrip("tower_cannon_turret")
+    val emberFlame = loadStrip("tower_ember_flame")
+    val beaconPulse = loadStrip("tower_beacon_pulse")
 
     private val traps = mapOf(
         TrapKind.SPIKE to loadStrip("trap_spike_bed"),
