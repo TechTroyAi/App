@@ -2,7 +2,7 @@
 
 ## Download this one (installable v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of the verified v1.2 Forgeworks game, plus Animation Batch 06 (Ember/Beacon tops), Batch 07 (utilities), Batch 15 Option B (projectile flight strips), and **1.3 Phase A–D (impacts, SFX, enemy death dissolve)** (tower impact bursts). Install this on an Android phone.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of v1.2 Forgeworks plus Batches 06–07, 15, and **1.3 Phases A–D** (projectile flight, impact bursts, dedicated SFX, enemy death dissolve, UI banner/resource pops). Install this on an Android phone.
 
 - Package: `ai.techtroy.blockhold`
 - Version: `1.2.0` (`12`) — content includes early 1.3 combat FX
@@ -12,7 +12,7 @@
 - Permissions requested: none
 - Offline: yes
 - Size: ~2.5 MB
-- APK SHA-256: `ff4a9f81ccc4ae1497d9ebe79a15bc9d7e851132f2460db3ab7835e80d2b1ea7`
+- APK SHA-256: `a96bec7b30195b6fed49353742b468f747a31db33014973c9c98b0f84715fc30`
 - Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
 - Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
 - Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
@@ -30,7 +30,7 @@
 
 `Blockhold-Defense-v1.2-unsigned.apk` is the verified v1.2 Forgeworks build before signing.
 
-- APK SHA-256: `ff4a9f81ccc4ae1497d9ebe79a15bc9d7e851132f2460db3ab7835e80d2b1ea7`
+- APK SHA-256: `a96bec7b30195b6fed49353742b468f747a31db33014973c9c98b0f84715fc30`
 - Signing state: **unsigned** (cannot install until signed)
 
 For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.
@@ -41,7 +41,7 @@ For a production update compatible with existing v1.0 installs, re-sign the unsi
 
 - Package: `ai.techtroy.blockhold`
 - Version: `1.0.0` (`10`)
-- APK SHA-256: `ff4a9f81ccc4ae1497d9ebe79a15bc9d7e851132f2460db3ab7835e80d2b1ea7`
+- APK SHA-256: `a96bec7b30195b6fed49353742b468f747a31db33014973c9c98b0f84715fc30`
 - Signing certificate SHA-256: `14d779957005aee528fe603c5b5df2d7ec5ad8ed66141a7f24a78736aa98795a`
 - Signing identity: `CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
 
