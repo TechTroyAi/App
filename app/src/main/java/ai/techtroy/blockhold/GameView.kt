@@ -85,6 +85,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val pendingSpawns = ArrayList<Enemy>()
     private val projectiles = ArrayList<Projectile>()
     private val particles = ArrayList<Particle>()
+    private val impactEffects = ArrayList<ImpactFx>()
     private val floatingLabels = ArrayList<FloatingLabel>()
     private val waveQueue = ArrayList<SpawnSpec>()
 
@@ -786,13 +787,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun impactProjectile(projectile: Projectile) {
         val tower = projectile.source
+        spawnImpact(projectile.x, projectile.y, projectile.kind)
         when (projectile.kind) {
             TowerKind.BOLT -> {
                 val pierce = if (tower.evolution == TowerEvolution.RAIL_SPIRE) 0.82f else 0f
                 damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, pierce)
                 val chainCount = (if (tower.evolution == TowerEvolution.CHAIN_CONDUCTOR) 3 else 0) + perkCount(ForgePerk.FORKED_BOLTS)
-                if (chainCount > 0) enemies.filter { it.alive && it !== projectile.target && abs(it.progress - projectile.target.progress) < 2.0f }.take(chainCount).forEachIndexed { index, enemy -> damageEnemy(enemy, projectile.damage * max(0.35f, 0.68f - index * 0.10f), projectile.kind.accent, 0.45f) }
-                if (tower.evolution == TowerEvolution.RAIL_SPIRE) enemies.filter { it.alive && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.3f }.take(2).forEach { damageEnemy(it, projectile.damage * 0.62f, projectile.kind.accent, 0.82f) }
+                if (chainCount > 0) enemies.filter { it.alive && it !== projectile.target && abs(it.progress - projectile.target.progress) < 2.0f }.take(chainCount).forEachIndexed { index, enemy ->
+                    damageEnemy(enemy, projectile.damage * max(0.35f, 0.68f - index * 0.10f), projectile.kind.accent, 0.45f)
+                    spawnImpact(enemy.x, enemy.y, projectile.kind)
+                }
+                if (tower.evolution == TowerEvolution.RAIL_SPIRE) enemies.filter { it.alive && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.3f }.take(2).forEach {
+                    damageEnemy(it, projectile.damage * 0.62f, projectile.kind.accent, 0.82f)
+                    spawnImpact(it.x, it.y, projectile.kind)
+                }
                 if (projectile.target.rootTimer > 0f && isNearTrapKind(tower.col, tower.row, TrapKind.ROOT)) damageEnemy(projectile.target, projectile.damage * 0.35f, Color.rgb(91, 196, 99), 0.4f)
                 burst(projectile.x, projectile.y, projectile.kind.accent, 5, 0.55f)
             }
@@ -835,9 +843,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 chain.forEachIndexed { index, enemy ->
                     damageEnemy(enemy, projectile.damage * max(0.32f, 1f - index * if (tower.evolution == TowerEvolution.STORM_CHOIR) 0.08f else 0.14f), projectile.kind.accent, 0.70f)
                     burst(enemy.x, enemy.y, projectile.kind.accent, 5, 0.55f)
+                    if (index > 0) spawnImpact(enemy.x, enemy.y, projectile.kind)
                 }
             }
         }
+    }
+
+    private fun spawnImpact(x: Float, y: Float, kind: TowerKind) {
+        impactEffects.add(ImpactFx(x, y, kind))
     }
 
     private fun thermalShock(target: Enemy, sourceDamage: Float) {
@@ -909,6 +922,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             particle.velocityX *= 0.985f
         }
         particles.removeAll { it.life <= 0f }
+        for (fx in impactEffects) fx.age += delta
+        impactEffects.removeAll { !it.alive }
         for (label in floatingLabels) {
             label.life -= delta
             label.y -= delta * 0.38f
@@ -1391,6 +1406,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             pendingSpawns.clear()
             projectiles.clear()
             particles.clear()
+            impactEffects.clear()
             floatingLabels.clear()
             waveQueue.clear()
             pathComplete = true
@@ -1461,6 +1477,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         pendingSpawns.clear()
         projectiles.clear()
         particles.clear()
+        impactEffects.clear()
         floatingLabels.clear()
         waveQueue.clear()
         gold = STARTING_BLOCKS
@@ -2817,6 +2834,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (utility in utilities) drawUtility(canvas, utility, utility === chosenUtility)
         for (enemy in enemies) drawEnemy(canvas, enemy)
         for (projectile in projectiles) drawProjectile(canvas, projectile)
+        for (fx in impactEffects) drawImpact(canvas, fx)
         for (particle in particles) drawParticle(canvas, particle)
         for (label in floatingLabels) {
             val alpha = (min(1f, label.life * 2f) * 255f).toInt()
@@ -3128,6 +3146,44 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         )
         canvas.drawCircle(x, y, size * 0.42f, paint)
         drawSpriteFrameCentered(canvas, strip, frame, x, y, size, angle)
+    }
+
+    private fun drawImpact(canvas: Canvas, fx: ImpactFx) {
+        val x = gridX(fx.x)
+        val y = gridY(fx.y)
+        val strip = sprites.impact(fx.kind)
+        val size = when (fx.kind) {
+            TowerKind.BOLT -> tileSize * 0.72f
+            TowerKind.FROST -> tileSize * 0.78f
+            TowerKind.CANNON -> tileSize * 0.95f
+            TowerKind.EMBER -> tileSize * 0.85f
+            TowerKind.BEACON -> tileSize * 0.88f
+        }
+        val t = (fx.age / fx.duration).coerceIn(0f, 0.999f)
+        val frame = when {
+            strip.frameCount >= 3 -> when {
+                t < 0.28f -> 0
+                t < 0.62f -> 1
+                else -> 2
+            }
+            strip.frameCount == 2 -> if (t < 0.5f) 0 else 1
+            else -> 0
+        }
+        val fade = when {
+            t < 0.15f -> t / 0.15f
+            t > 0.72f -> ((1f - t) / 0.28f).coerceIn(0f, 1f)
+            else -> 1f
+        }
+        paint.color = Color.argb(
+            (42 * fade).toInt().coerceIn(0, 255),
+            Color.red(fx.kind.accent),
+            Color.green(fx.kind.accent),
+            Color.blue(fx.kind.accent)
+        )
+        canvas.drawCircle(x, y, size * 0.38f, paint)
+        spritePaint.alpha = (255 * fade).toInt().coerceIn(0, 255)
+        drawSpriteFrameCentered(canvas, strip, frame, x, y, size * (0.88f + 0.18f * t), 0f)
+        spritePaint.alpha = 255
     }
 
     private fun drawParticle(canvas: Canvas, particle: Particle) {

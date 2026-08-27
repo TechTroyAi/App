@@ -120,6 +120,14 @@ internal class SpriteCatalog(private val context: Context) {
         TowerKind.BEACON to loadStrip("projectile_beacon")
     )
 
+    private val impacts = mapOf(
+        TowerKind.BOLT to loadStrip("impact_bolt"),
+        TowerKind.FROST to loadStrip("impact_frost"),
+        TowerKind.CANNON to loadStrip("impact_cannon"),
+        TowerKind.EMBER to loadStrip("impact_ember"),
+        TowerKind.BEACON to loadStrip("impact_beacon")
+    )
+
     fun enemy(kind: EnemyKind): SpriteStrip = enemies.getValue(kind)
 
     fun trap(kind: TrapKind): SpriteStrip = traps.getValue(kind)
@@ -127,6 +135,8 @@ internal class SpriteCatalog(private val context: Context) {
     fun utility(kind: UtilityKind): SpriteStrip = utilities.getValue(kind)
 
     fun projectile(kind: TowerKind): SpriteStrip = projectiles.getValue(kind)
+
+    fun impact(kind: TowerKind): SpriteStrip = impacts.getValue(kind)
 
     fun corruption(kind: CorruptionKind): Bitmap = corruptions.getValue(kind)
 

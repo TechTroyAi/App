@@ -461,6 +461,17 @@ internal class Particle(
     val square: Boolean
 )
 
+/** One-shot A/B/C hit burst at a grid point (Batch 16 / 1.3 Phase A). */
+internal class ImpactFx(
+    var x: Float,
+    var y: Float,
+    val kind: TowerKind,
+    var age: Float = 0f,
+    val duration: Float = 0.28f
+) {
+    val alive: Boolean get() = age < duration
+}
+
 internal class FloatingLabel(
     val message: String,
     var x: Float,

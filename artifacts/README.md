@@ -2,18 +2,18 @@
 
 ## Download this one (installable v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of the verified v1.2 Forgeworks game, plus Animation Batch 06 (Ember/Beacon tops), Batch 07 (all 7 Utility ambient idle strips), and Batch 15 Option B (5 tower projectile flight strips with rotation + glow). Install this on an Android phone.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of the verified v1.2 Forgeworks game, plus Animation Batch 06 (Ember/Beacon tops), Batch 07 (utilities), Batch 15 Option B (projectile flight strips), and **1.3 Phase A / Batch 16** (tower impact bursts). Install this on an Android phone.
 
 - Package: `ai.techtroy.blockhold`
-- Version: `1.2.0` (`12`)
+- Version: `1.2.0` (`12`) — content includes early 1.3 combat FX
 - Minimum Android: 7.0 / API 24
 - Target Android API: 35
 - Orientation: landscape
 - Permissions requested: none
 - Offline: yes
-- Size: ~2.4 MB
-- APK SHA-256: `a2ec1063b228dc63155df13084a8a35a43c1d13ef2d2cf5cd42f9171515cfeb3`
-- Multi-frame strips: **35** (30 prior + 5 projectiles: bolt/frost/cannon/ember/beacon)
+- Size: ~2.5 MB
+- APK SHA-256: `07c4fa46c68e5fcb9ebf9ec0db90b4f7578d011bb6cc00a99640ff3218dfb9e3`
+- Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
 - Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
 - Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
 - Certificate SHA-256: `dbcf288d01f8114d8e38a63c6c6fa059521bb49c4ad30a664a9625d0371da55a`
