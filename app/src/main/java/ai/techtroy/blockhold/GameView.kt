@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
@@ -3048,7 +3049,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             canvas.drawCircle(x, y, size * 0.50f, strokePaint)
         }
         spritePaint.alpha = if (enemy.flashTimer > 0f) 155 else 255
-        drawBitmapCentered(canvas, sprites.enemy(enemy.kind), x, y, size * 1.02f)
+        val enemySprite = sprites.enemy(enemy.kind)
+        val animationStep = floor(enemy.animation * 1.25f).toInt()
+        val animationFrame = when {
+            enemySprite.frameCount >= 3 -> when (animationStep % 4) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+            enemySprite.frameCount == 2 -> animationStep % 2
+            else -> 0
+        }
+        drawSpriteFrameCentered(canvas, enemySprite, animationFrame, x, y, size * 1.02f)
         spritePaint.alpha = 255
         if (enemy.slowTimer > 0f || enemy.stunTimer > 0f) {
             strokePaint.strokeWidth = max(1.5f, tileSize * 0.025f)
@@ -3424,6 +3432,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, primary, endPrimaryRect.centerX(), endPrimaryRect.centerY(), dp(13f), Color.rgb(12, 21, 16), true)
         drawRoundedRect(canvas, endSecondaryRect.left, endSecondaryRect.top, endSecondaryRect.right, endSecondaryRect.bottom, dp(14f), Color.rgb(29, 43, 34))
         drawCenteredText(canvas, secondary, endSecondaryRect.centerX(), endSecondaryRect.centerY(), dp(13f), Color.WHITE, true)
+    }
+
+    private fun drawSpriteFrameCentered(canvas: Canvas, strip: SpriteStrip, frame: Int, x: Float, y: Float, size: Float) {
+        val frameIndex = frame.coerceIn(0, strip.frameCount - 1)
+        val source = Rect(frameIndex * strip.frameWidth, 0, (frameIndex + 1) * strip.frameWidth, strip.bitmap.height)
+        val scale = size / max(strip.frameWidth, strip.bitmap.height).toFloat()
+        val halfWidth = strip.frameWidth * scale * 0.5f
+        val halfHeight = strip.bitmap.height * scale * 0.5f
+        val destination = RectF(x - halfWidth, y - halfHeight, x + halfWidth, y + halfHeight)
+        canvas.drawBitmap(strip.bitmap, source, destination, spritePaint)
     }
 
     private fun drawBitmapCentered(canvas: Canvas, bitmap: Bitmap, x: Float, y: Float, size: Float, rotation: Float = 0f) {

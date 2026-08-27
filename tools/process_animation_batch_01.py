@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""Build anchored three-frame strips for the first regular-enemy animation batch."""
+
+from __future__ import annotations
+
+import colorsys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from PIL import Image, ImageDraw, ImageFont
+
+from process_sprite_prototypes import isolate, remove_enclosed_neutral_background
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "artwork" / "animation-production" / "batch-01"
+PROCESSED = SOURCE / "processed"
+SELECTED = SOURCE / "selected"
+NEUTRAL = SOURCE / "neutral"
+DRAWABLES = ROOT / "app" / "src" / "main" / "res" / "drawable-nodpi"
+PROCESSED.mkdir(parents=True, exist_ok=True)
+SELECTED.mkdir(parents=True, exist_ok=True)
+NEUTRAL.mkdir(parents=True, exist_ok=True)
+
+# Some generations returned several unlabeled pose candidates on one white canvas.
+# Keep only the reviewed candidate: indices are zero-based, left to right.
+POSES = {
+    "mosser": {
+        "a": ("enemy_mosser_frame_a_source.png", 0),
+        "c": ("enemy_mosser_frame_c_source.png", 2),
+    },
+    "runner": {
+        "a": ("enemy_runner_frame_a_source.png", 0),
+        "c": ("enemy_runner_frame_c_source.png", 3),
+    },
+    "brute": {
+        "a": ("enemy_brute_frame_a_source.png", None),
+        "c": ("enemy_brute_frame_c_source.png", None),
+    },
+    "shellback": {
+        "a": ("enemy_shellback_frame_a_source.png", None),
+        "c": ("enemy_shellback_frame_c_source.png", None),
+    },
+}
+
+
+def foreground_column_spans(image: Image.Image) -> list[tuple[int, int]]:
+    rgb = image.convert("RGB")
+    active: list[bool] = []
+    for x in range(rgb.width):
+        active.append(any(min(rgb.getpixel((x, y))) < 238 for y in range(rgb.height)))
+
+    spans: list[tuple[int, int]] = []
+    start: int | None = None
+    for x, occupied in enumerate(active + [False]):
+        if occupied and start is None:
+            start = x
+        elif not occupied and start is not None:
+            if x - start > 20:
+                spans.append((start, x))
+            start = None
+    return spans
+
+
+def select_pose(source: Path, candidate: int | None, destination: Path) -> None:
+    image = Image.open(source).convert("RGBA")
+    if candidate is not None:
+        spans = foreground_column_spans(image)
+        if candidate >= len(spans):
+            raise RuntimeError(f"Pose {candidate} missing from {source}; found {len(spans)}")
+        left, right = spans[candidate]
+        margin = 10
+        image = image.crop((max(0, left - margin), 0, min(image.width, right + margin), image.height))
+    image.save(destination)
+
+
+def recolor_runner_energy(path: Path) -> None:
+    """Restore the approved acid-lime energy palette on the selected C pose."""
+    image = Image.open(path).convert("RGBA")
+    corrected = []
+    for red, green, blue, alpha in image.getdata():
+        hue, saturation, value = colorsys.rgb_to_hsv(red / 255, green / 255, blue / 255)
+        orange_energy = (
+            alpha > 0
+            and 0.025 <= hue <= 0.16
+            and saturation >= 0.62
+            and value >= 0.48
+            and red > green * 1.15
+        )
+        if orange_energy:
+            new_red, new_green, new_blue = colorsys.hsv_to_rgb(0.235, min(1.0, saturation * 1.04), value)
+            corrected.append((round(new_red * 255), round(new_green * 255), round(new_blue * 255), alpha))
+        else:
+            corrected.append((red, green, blue, alpha))
+    image.putdata(corrected)
+    image.save(path)
+
+
+def align_to_neutral(frame: Path, neutral: Path) -> None:
+    moving = Image.open(frame).convert("RGBA")
+    reference = Image.open(neutral).convert("RGBA")
+    moving_box = moving.getchannel("A").getbbox()
+    reference_box = reference.getchannel("A").getbbox()
+    if moving_box is None or reference_box is None:
+        raise RuntimeError(f"Missing alpha bounds for {frame} or {neutral}")
+
+    moving_center = (moving_box[0] + moving_box[2]) / 2
+    reference_center = (reference_box[0] + reference_box[2]) / 2
+    shift_x = round(reference_center - moving_center)
+    shift_y = reference_box[3] - moving_box[3]
+
+    aligned = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    aligned.alpha_composite(moving, (shift_x, shift_y))
+    aligned.save(frame, optimize=True)
+
+
+def build_strip(role: str) -> tuple[Image.Image, Image.Image, Image.Image]:
+    neutral_path = NEUTRAL / f"enemy_{role}.png"
+    if not neutral_path.exists():
+        current = Image.open(DRAWABLES / f"enemy_{role}.png").convert("RGBA")
+        if current.size != (64, 64):
+            raise RuntimeError(f"Cannot recover neutral frame for {role} from {current.size}")
+        current.save(neutral_path, optimize=True)
+    frames: dict[str, Image.Image] = {}
+    with TemporaryDirectory() as temporary:
+        temporary_path = Path(temporary)
+        for key in ("a", "c"):
+            source_name, candidate = POSES[role][key]
+            selected_path = SELECTED / f"enemy_{role}_frame_{key}_selected.png"
+            select_pose(SOURCE / source_name, candidate, selected_path)
+            if role == "runner" and key == "c":
+                recolor_runner_energy(selected_path)
+
+            destination = PROCESSED / f"enemy_{role}_frame_{key}.png"
+            isolate(selected_path, destination)
+            remove_enclosed_neutral_background(destination)
+            align_to_neutral(destination, neutral_path)
+            frames[key] = Image.open(destination).convert("RGBA").copy()
+
+    frames["b"] = Image.open(neutral_path).convert("RGBA")
+    strip = Image.new("RGBA", (192, 64), (0, 0, 0, 0))
+    for index, key in enumerate(("a", "b", "c")):
+        strip.alpha_composite(frames[key], (index * 64, 0))
+    strip.save(DRAWABLES / f"enemy_{role}.png", optimize=True)
+    strip.save(PROCESSED / f"enemy_{role}_strip.png", optimize=True)
+    return frames["a"], frames["b"], frames["c"]
+
+
+def review_contact(frames_by_role: dict[str, tuple[Image.Image, Image.Image, Image.Image]]) -> None:
+    scale = 4
+    cell_width, cell_height = 256, 300
+    review = Image.new("RGB", (cell_width * 3, cell_height * len(frames_by_role)), "#172019")
+    draw = ImageDraw.Draw(review)
+    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 18)
+    title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 20)
+    for row, (role, frames) in enumerate(frames_by_role.items()):
+        for column, (label, frame) in enumerate(zip(("FRAME A", "NEUTRAL B", "FRAME C"), frames)):
+            sprite = frame.resize((64 * scale, 64 * scale), Image.Resampling.NEAREST)
+            x, y = column * cell_width, row * cell_height
+            review.paste(sprite, (x, y), sprite)
+            box = draw.textbbox((0, 0), label, font=font)
+            draw.text((x + (cell_width - (box[2] - box[0])) / 2, y + 258), label, fill="#e7efe9", font=font)
+        draw.text((12, row * cell_height + 10), role.upper(), fill="#bef44e", font=title_font)
+    review.save(SOURCE / "regular-enemy-frame-review.png")
+
+
+def animated_review(frames_by_role: dict[str, tuple[Image.Image, Image.Image, Image.Image]]) -> None:
+    scale = 4
+    tile = 256
+    label_height = 34
+    sequence = (0, 1, 2, 1)
+    output_frames: list[Image.Image] = []
+    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 18)
+    roles = list(frames_by_role)
+    for frame_index in sequence:
+        canvas = Image.new("RGB", (tile * 2, (tile + label_height) * 2), "#172019")
+        draw = ImageDraw.Draw(canvas)
+        for index, role in enumerate(roles):
+            column, row = index % 2, index // 2
+            x, y = column * tile, row * (tile + label_height)
+            sprite = frames_by_role[role][frame_index].resize((tile, tile), Image.Resampling.NEAREST)
+            canvas.paste(sprite, (x, y), sprite)
+            box = draw.textbbox((0, 0), role.upper(), font=font)
+            draw.text((x + (tile - (box[2] - box[0])) / 2, y + tile + 5), role.upper(), fill="#e7efe9", font=font)
+        output_frames.append(canvas)
+    output_frames[0].save(
+        SOURCE / "regular-enemy-animation-review.gif",
+        save_all=True,
+        append_images=output_frames[1:],
+        duration=145,
+        loop=0,
+        optimize=False,
+    )
+
+
+def main() -> None:
+    frames_by_role = {role: build_strip(role) for role in POSES}
+    review_contact(frames_by_role)
+    animated_review(frames_by_role)
+    for role in POSES:
+        print(DRAWABLES / f"enemy_{role}.png")
+
+
+if __name__ == "__main__":
+    main()

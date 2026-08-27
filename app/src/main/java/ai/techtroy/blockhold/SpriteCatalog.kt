@@ -4,7 +4,15 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 
-/** Loads the compact, offline CC0 sprite layer once for the lifetime of the game view. */
+internal data class SpriteStrip(val bitmap: Bitmap, val frameCount: Int) {
+    val frameWidth: Int = bitmap.width / frameCount
+
+    init {
+        check(frameCount >= 1 && bitmap.width % frameCount == 0) { "Invalid sprite strip dimensions" }
+    }
+}
+
+/** Loads the compact, offline original sprite layer once for the lifetime of the game view. */
 internal class SpriteCatalog(private val context: Context) {
     private val resources = context.resources
     private val options = BitmapFactory.Options().apply { inScaled = false }
@@ -13,17 +21,17 @@ internal class SpriteCatalog(private val context: Context) {
     val path = load("terrain_path")
 
     private val enemies = mapOf(
-        EnemyKind.MOSSER to load("enemy_mosser"),
-        EnemyKind.RUNNER to load("enemy_runner"),
-        EnemyKind.BRUTE to load("enemy_brute"),
-        EnemyKind.SHELLBACK to load("enemy_shellback"),
-        EnemyKind.SPLITLING to load("enemy_splitling"),
-        EnemyKind.IRONHIDE to load("enemy_ironhide"),
-        EnemyKind.BLINK_STALKER to load("enemy_blink"),
-        EnemyKind.ROOTCALLER to load("enemy_rootcaller"),
-        EnemyKind.HEX_WEAVER to load("enemy_hex"),
-        EnemyKind.SIEGE_COLOSSUS to load("enemy_siege"),
-        EnemyKind.OVERGROWTH to load("enemy_overgrowth")
+        EnemyKind.MOSSER to loadStrip("enemy_mosser"),
+        EnemyKind.RUNNER to loadStrip("enemy_runner"),
+        EnemyKind.BRUTE to loadStrip("enemy_brute"),
+        EnemyKind.SHELLBACK to loadStrip("enemy_shellback"),
+        EnemyKind.SPLITLING to loadStrip("enemy_splitling"),
+        EnemyKind.IRONHIDE to loadStrip("enemy_ironhide"),
+        EnemyKind.BLINK_STALKER to loadStrip("enemy_blink"),
+        EnemyKind.ROOTCALLER to loadStrip("enemy_rootcaller"),
+        EnemyKind.HEX_WEAVER to loadStrip("enemy_hex"),
+        EnemyKind.SIEGE_COLOSSUS to loadStrip("enemy_siege"),
+        EnemyKind.OVERGROWTH to loadStrip("enemy_overgrowth")
     )
 
     val towerBase = load("tower_bolt_base")
@@ -102,7 +110,7 @@ internal class SpriteCatalog(private val context: Context) {
         UtilityKind.SALVAGE_YARD to load("utility_salvage_yard")
     )
 
-    fun enemy(kind: EnemyKind): Bitmap = enemies.getValue(kind)
+    fun enemy(kind: EnemyKind): SpriteStrip = enemies.getValue(kind)
 
     fun utility(kind: UtilityKind): Bitmap = utilities.getValue(kind)
 
@@ -113,6 +121,12 @@ internal class SpriteCatalog(private val context: Context) {
     fun craftedItem(kind: CraftedItem): Bitmap = craftedItems.getValue(kind)
 
     fun imbuement(kind: Imbuement): Bitmap = imbuements.getValue(kind)
+
+    private fun loadStrip(name: String): SpriteStrip {
+        val bitmap = load(name)
+        check(bitmap.width % bitmap.height == 0) { "Sprite strip $name must contain square horizontal frames" }
+        return SpriteStrip(bitmap, bitmap.width / bitmap.height)
+    }
 
     private fun load(name: String): Bitmap {
         val id = resources.getIdentifier(name, "drawable", context.packageName)

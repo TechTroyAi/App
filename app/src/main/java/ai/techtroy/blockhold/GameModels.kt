@@ -428,7 +428,7 @@ internal class Enemy(
     var burnTimer = 0f
     var burnDamagePerSecond = 0f
     var flashTimer = 0f
-    var animation = 0f
+    var animation = (id * 1.618f) % 6.283185f
     var abilityTimer = 2.4f
     var alive = true
     var rewarded = false
