@@ -2852,13 +2852,33 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
         if (pathCells.size > 1) {
             strokePaint.style = Paint.Style.STROKE
-            strokePaint.strokeWidth = max(2f, tileSize * 0.055f)
             strokePaint.strokeCap = Paint.Cap.ROUND
-            strokePaint.color = Color.argb(125, 255, 241, 195)
+            // Soft base route
+            strokePaint.strokeWidth = max(2f, tileSize * 0.055f)
+            strokePaint.color = Color.argb(110, 255, 241, 195)
             val route = Path()
             route.moveTo(cellCenterX(pathCells[0].col), cellCenterY(pathCells[0].row))
             for (i in 1 until pathCells.size) route.lineTo(cellCenterX(pathCells[i].col), cellCenterY(pathCells[i].row))
             canvas.drawPath(route, strokePaint)
+            // Traveling shimmer dashes along the path (1.3 Phase C — quiet ambient)
+            val shimmerPhase = ambientTime * 0.55f
+            val segmentCount = pathCells.size - 1
+            for (i in 0 until segmentCount) {
+                val local = ((shimmerPhase + i * 0.17f) % 1.4f)
+                if (local > 1f) continue
+                val t = local
+                val a = pathCells[i]
+                val b = pathCells[i + 1]
+                val x1 = cellCenterX(a.col)
+                val y1 = cellCenterY(a.row)
+                val x2 = cellCenterX(b.col)
+                val y2 = cellCenterY(b.row)
+                val sx = x1 + (x2 - x1) * t
+                val sy = y1 + (y2 - y1) * t
+                val fade = if (t < 0.15f) t / 0.15f else if (t > 0.85f) (1f - t) / 0.15f else 1f
+                paint.color = Color.argb((28 * fade).toInt().coerceIn(0, 255), 255, 250, 210)
+                canvas.drawCircle(sx, sy, tileSize * 0.07f, paint)
+            }
         }
 
         drawDefenseSynergies(canvas)
@@ -2971,11 +2991,33 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val top = boardTop + row * tileSize
         val destination = RectF(left, top, left + tileSize, top + tileSize)
         val pathTile = isPathCell(GridCell(col, row))
-        spritePaint.alpha = 255
-        canvas.drawBitmap(if (pathTile) sprites.path else sprites.grass, null, destination, spritePaint)
-        if ((col * 41 + row * 67) % 5 == 0 && !pathTile) {
-            paint.color = Color.argb(45, 20, 83, 35)
-            canvas.drawCircle(left + tileSize * 0.23f, top + tileSize * 0.70f, tileSize * 0.07f, paint)
+        if (pathTile) {
+            spritePaint.alpha = 255
+            canvas.drawBitmap(sprites.path, null, destination, spritePaint)
+            val sheen = 0.5f + 0.5f * sin(ambientTime * 1.6f + col * 0.55f + row * 0.35f)
+            paint.color = Color.argb((10 + sheen * 14).toInt().coerceIn(0, 255), 255, 248, 210)
+            canvas.drawRect(
+                left + tileSize * 0.12f,
+                top + tileSize * 0.18f,
+                left + tileSize * 0.88f,
+                top + tileSize * 0.28f,
+                paint
+            )
+        } else {
+            val sway = 0.5f + 0.5f * sin(ambientTime * 1.35f + col * 0.7f + row * 0.9f)
+            spritePaint.alpha = (235 + (sway * 20f).toInt()).coerceIn(220, 255)
+            canvas.drawBitmap(sprites.grass, null, destination, spritePaint)
+            spritePaint.alpha = 255
+            if ((col * 41 + row * 67) % 5 == 0) {
+                val tip = sway * tileSize * 0.02f
+                paint.color = Color.argb((40 + sway * 18).toInt().coerceIn(0, 255), 20, 83, 35)
+                canvas.drawCircle(left + tileSize * 0.23f, top + tileSize * 0.70f - tip, tileSize * 0.07f, paint)
+            }
+            if ((col * 17 + row * 29) % 7 == 0) {
+                val tip = sin(ambientTime * 1.35f + col * 0.7f + row * 0.9f) * tileSize * 0.015f
+                paint.color = Color.argb((8 + sway * 10).toInt().coerceIn(0, 255), 90, 160, 70)
+                canvas.drawCircle(left + tileSize * 0.72f, top + tileSize * 0.28f + tip, tileSize * 0.05f, paint)
+            }
         }
         strokePaint.style = Paint.Style.STROKE
         strokePaint.strokeWidth = max(1f, tileSize * 0.015f)
@@ -2989,6 +3031,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val pulse = 0.88f + sin(ambientTime * 3f) * 0.07f
         val gateStep = floor(ambientTime * 2.0f).toInt() % 4
         val gateFrame = when (gateStep) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+        paint.color = Color.argb((30 + pulse * 25).toInt().coerceIn(0, 255), 190, 244, 78)
+        canvas.drawCircle(x, y, tileSize * (0.42f + pulse * 0.04f), paint)
         drawSpriteFrameCentered(canvas, sprites.gatePart, gateFrame, x, y, tileSize * 0.90f)
         strokePaint.strokeWidth = tileSize * 0.045f
         strokePaint.color = Color.argb(190, 190, 244, 78)
@@ -2999,14 +3043,34 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawCore(canvas: Canvas) {
         val x = cellCenterX(COLS - 1)
         val y = cellCenterY(START_ROW)
-        val pulse = 0.5f + 0.5f * sin(ambientTime * 3.5f)
-        paint.color = Color.argb((45 + pulse * 55).toInt(), 190, 244, 78)
+        val healthRatio = if (maxCore > 0) lives.toFloat() / maxCore.toFloat() else 1f
+        val beatHz = if (healthRatio < 0.35f) 5.2f else if (healthRatio < 0.6f) 4.2f else 3.2f
+        val pulse = 0.5f + 0.5f * sin(ambientTime * beatHz)
+        val secondary = 0.5f + 0.5f * sin(ambientTime * beatHz * 0.5f + 1.1f)
+        val danger = (1f - healthRatio).coerceIn(0f, 1f)
+        val glowR = (190 + danger * 55).toInt().coerceIn(0, 255)
+        val glowG = (244 - danger * 140).toInt().coerceIn(0, 255)
+        val glowB = (78 - danger * 20).toInt().coerceIn(0, 255)
+        paint.color = Color.argb((28 + pulse * 40 + danger * 20).toInt().coerceIn(0, 255), glowR, glowG, glowB)
+        canvas.drawCircle(x, y, tileSize * (0.52f + pulse * 0.07f + secondary * 0.02f), paint)
+        paint.color = Color.argb((45 + pulse * 55).toInt().coerceIn(0, 255), glowR, glowG, glowB)
         canvas.drawCircle(x, y, tileSize * (0.47f + pulse * 0.05f), paint)
         val coreStep = floor(ambientTime * 2.5f).toInt() % 4
         val coreFrame = when (coreStep) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
-        drawSpriteFrameCentered(canvas, sprites.corePart, coreFrame, x, y, tileSize * 0.96f)
-        paint.color = Color.rgb(224, 255, 169)
-        canvas.drawCircle(x, y, tileSize * (0.09f + pulse * 0.015f), paint)
+        drawSpriteFrameCentered(canvas, sprites.corePart, coreFrame, x, y, tileSize * (0.94f + pulse * 0.04f))
+        paint.color = Color.argb(
+            255,
+            (224 + danger * 30).toInt().coerceIn(0, 255),
+            (255 - danger * 80).toInt().coerceIn(0, 255),
+            (169 - danger * 40).toInt().coerceIn(0, 255)
+        )
+        canvas.drawCircle(x, y, tileSize * (0.09f + pulse * 0.02f), paint)
+        if (pulse > 0.92f) {
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeWidth = max(1.5f, tileSize * 0.03f)
+            strokePaint.color = Color.argb((50 + danger * 40).toInt().coerceIn(0, 255), glowR, glowG, glowB)
+            canvas.drawCircle(x, y, tileSize * (0.58f + (pulse - 0.92f) * 1.2f), strokePaint)
+        }
     }
 
     private fun drawTrap(canvas: Canvas, trap: SpikeTrap, selected: Boolean) {
