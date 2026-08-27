@@ -467,6 +467,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
         for (enemy in enemies) {
             if (!enemy.alive) continue
+            if (enemy.dying) {
+                enemy.deathTimer -= delta
+                enemy.flashTimer = max(0f, enemy.flashTimer - delta)
+                enemy.animation += delta * 6f
+                if (enemy.deathTimer <= 0f) {
+                    enemy.deathTimer = 0f
+                    enemy.alive = false
+                }
+                continue
+            }
             enemy.animation += delta * (4f + enemy.moveSpeed * 2f)
             enemy.flashTimer = max(0f, enemy.flashTimer - delta)
             enemy.slowTimer = max(0f, enemy.slowTimer - delta)
@@ -480,7 +490,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 damageEnemy(enemy, enemy.burnDamagePerSecond * delta, Color.rgb(255, 104, 55), 0.45f, false)
                 if (perkCount(ForgePerk.SPREADING_EMBERS) > 0) {
                     val spread = enemy.burnDamagePerSecond * (0.10f + perkCount(ForgePerk.SPREADING_EMBERS) * 0.04f) * delta
-                    enemies.filter { it.alive && it !== enemy && abs(it.progress - enemy.progress) < 0.85f }.take(1 + perkCount(ForgePerk.SPREADING_EMBERS)).forEach {
+                    enemies.filter { it.targetable && it !== enemy && abs(it.progress - enemy.progress) < 0.85f }.take(1 + perkCount(ForgePerk.SPREADING_EMBERS)).forEach {
                         damageEnemy(it, spread, Color.rgb(255, 104, 55), 0.4f, false)
                         it.burnTimer = max(it.burnTimer, 0.35f)
                     }
@@ -488,7 +498,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             val regeneration = enemy.kind.regeneration + if (waveNumber % 8 == 4) 0.006f else 0f
             if (regeneration > 0f && enemy.health > 0f && enemy.health < enemy.maxHealth) enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * regeneration * delta)
-            if (!enemy.alive) continue
+            if (!enemy.alive || enemy.dying) continue
             updateEnemyAbility(enemy)
 
             val slowMultiplier = if (enemy.slowTimer > 0f) 0.56f else 1f
@@ -670,7 +680,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             when (trap.kind) {
                 TrapKind.SPIKE -> {
                     damageEnemy(enemy, damage, trap.kind.accent)
-                    if (perkCount(ForgePerk.CONDUCTIVE_SPIKES) > 0) enemies.filter { it.alive && it !== enemy }.minBy { abs(it.progress - enemy.progress) }?.let { damageEnemy(it, damage * 0.38f, TrapKind.ARC.accent, 0.5f) }
+                    if (perkCount(ForgePerk.CONDUCTIVE_SPIKES) > 0) enemies.filter { it.targetable && it !== enemy }.minBy { abs(it.progress - enemy.progress) }?.let { damageEnemy(it, damage * 0.38f, TrapKind.ARC.accent, 0.5f) }
                     if (isNearTowerKind(trap.col, trap.row, TowerKind.EMBER)) ignite(enemy, damage * 0.16f, 2.4f)
                 }
                 TrapKind.ROOT -> {
@@ -688,7 +698,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     enemy.stunTimer = max(enemy.stunTimer, (0.55f + trap.level * 0.10f) * tempoStatus)
                     val stormNetwork = isNearTowerKind(trap.col, trap.row, TowerKind.BEACON)
                     val targets = 2 + perkCount(ForgePerk.EXPANDED_ARC) + if (stormNetwork) 2 else 0
-                    enemies.filter { it.alive && it !== enemy && abs(it.progress - enemy.progress) < (if (stormNetwork) 2.2f else 1.4f) + if (trap.imbuement == Imbuement.REACH) 0.8f else 0f }.take(targets).forEach {
+                    enemies.filter { it.targetable && it !== enemy && abs(it.progress - enemy.progress) < (if (stormNetwork) 2.2f else 1.4f) + if (trap.imbuement == Imbuement.REACH) 0.8f else 0f }.take(targets).forEach {
                         damageEnemy(it, damage * if (stormNetwork) 0.70f else 0.55f, trap.kind.accent, 0.65f)
                     }
                 }
@@ -716,13 +726,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun findTarget(tower: Tower): Enemy? {
+        // targetable excludes dying corpses (1.3 Phase B)
         var best: Enemy? = null
         var bestProgress = -1f
         val centerX = tower.col + 0.5f
         val centerY = tower.row + 0.5f
         val rangeSquared = tower.currentRange() * tower.currentRange()
         for (enemy in enemies) {
-            if (!enemy.alive) continue
+            if (!enemy.targetable) continue
             if (distanceSquared(enemy.x, enemy.y, centerX, centerY) <= rangeSquared && enemy.progress > bestProgress) {
                 best = enemy
                 bestProgress = enemy.progress
@@ -741,7 +752,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             floatingLabels.add(FloatingLabel("ECHO", tower.col + 0.5f, tower.row + 0.2f, Imbuement.ECHOES.accent))
         }
         if (tower.kind == TowerKind.BOLT && isNearTowerKind(tower.col, tower.row, TowerKind.BEACON, exclude = tower) && random.nextFloat() < 0.22f) {
-            enemies.filter { it.alive && it !== target }.sortedByDescending { it.progress }.firstOrNull()?.let {
+            enemies.filter { it.targetable && it !== target }.sortedByDescending { it.progress }.firstOrNull()?.let {
                 projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, it, tower.kind, damage * 0.65f, tower.kind.projectileSpeed, tower))
             }
         }
@@ -764,7 +775,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (projectile in projectiles) {
             if (!projectile.alive) continue
             projectile.age += delta
-            if (!projectile.target.alive) {
+            if (!projectile.target.alive || projectile.target.dying) {
                 projectile.alive = false
                 continue
             }
@@ -793,11 +804,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 val pierce = if (tower.evolution == TowerEvolution.RAIL_SPIRE) 0.82f else 0f
                 damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, pierce)
                 val chainCount = (if (tower.evolution == TowerEvolution.CHAIN_CONDUCTOR) 3 else 0) + perkCount(ForgePerk.FORKED_BOLTS)
-                if (chainCount > 0) enemies.filter { it.alive && it !== projectile.target && abs(it.progress - projectile.target.progress) < 2.0f }.take(chainCount).forEachIndexed { index, enemy ->
+                if (chainCount > 0) enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 2.0f }.take(chainCount).forEachIndexed { index, enemy ->
                     damageEnemy(enemy, projectile.damage * max(0.35f, 0.68f - index * 0.10f), projectile.kind.accent, 0.45f)
                     spawnImpact(enemy.x, enemy.y, projectile.kind)
                 }
-                if (tower.evolution == TowerEvolution.RAIL_SPIRE) enemies.filter { it.alive && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.3f }.take(2).forEach {
+                if (tower.evolution == TowerEvolution.RAIL_SPIRE) enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.3f }.take(2).forEach {
                     damageEnemy(it, projectile.damage * 0.62f, projectile.kind.accent, 0.82f)
                     spawnImpact(it.x, it.y, projectile.kind)
                 }
@@ -809,7 +820,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 damageEnemy(projectile.target, projectile.damage * if (wasFrozen && tower.evolution == TowerEvolution.SHATTER_CRYSTAL) 2.15f else 1f, projectile.kind.accent, 0.75f)
                 val frostTime = (1.9f + perkCount(ForgePerk.LINGERING_FROST) * 0.75f)
                 projectile.target.slowTimer = max(projectile.target.slowTimer, frostTime)
-                if (tower.evolution == TowerEvolution.BLIZZARD_LENS) enemies.filter { it.alive && abs(it.progress - projectile.target.progress) < 1.25f }.forEach { it.slowTimer = max(it.slowTimer, frostTime * 0.8f) }
+                if (tower.evolution == TowerEvolution.BLIZZARD_LENS) enemies.filter { it.targetable && abs(it.progress - projectile.target.progress) < 1.25f }.forEach { it.slowTimer = max(it.slowTimer, frostTime * 0.8f) }
                 if (projectile.target.burnTimer > 0f && isNearTowerKind(tower.col, tower.row, TowerKind.EMBER)) thermalShock(projectile.target, projectile.damage)
                 burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
             }
@@ -818,7 +829,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 if (projectile.kind == TowerKind.CANNON) radius += perkCount(ForgePerk.CANNON_SHRAPNEL) * 0.14f
                 if (tower.evolution == TowerEvolution.SIEGE_MORTAR) radius += 0.55f
                 for (enemy in enemies) {
-                    if (!enemy.alive) continue
+                    if (!enemy.targetable) continue
                     val distance = sqrt(distanceSquared(enemy.x, enemy.y, projectile.x, projectile.y))
                     if (distance <= radius) {
                         val multiplier = (1f - distance * 0.24f) * if (projectile.kind == TowerKind.CANNON) (1f + perkCount(ForgePerk.CANNON_SHRAPNEL) * 0.18f) else 1f
@@ -831,7 +842,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         }
                     }
                 }
-                if (projectile.kind == TowerKind.CANNON && isNearTrapKind(tower.col, tower.row, TrapKind.ARC)) enemies.filter { it.alive }.sortedBy { abs(it.progress - projectile.target.progress) }.take(2).forEach { damageEnemy(it, projectile.damage * 0.28f, TrapKind.ARC.accent, 0.65f) }
+                if (projectile.kind == TowerKind.CANNON && isNearTrapKind(tower.col, tower.row, TrapKind.ARC)) enemies.filter { it.targetable }.sortedBy { abs(it.progress - projectile.target.progress) }.take(2).forEach { damageEnemy(it, projectile.damage * 0.28f, TrapKind.ARC.accent, 0.65f) }
                 if (projectile.kind == TowerKind.CANNON && isNearTrapKind(tower.col, tower.row, TrapKind.CRUSHER)) resetCrushersNear(tower.col + 0.5f, tower.row + 0.5f)
                 burst(projectile.x, projectile.y, projectile.kind.accent, if (projectile.kind == TowerKind.CANNON) 18 else 13, 1.4f)
                 screenShake = max(screenShake, if (projectile.kind == TowerKind.CANNON) 0.18f else 0.08f)
@@ -839,7 +850,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.BEACON -> {
                 val count = if (tower.evolution == TowerEvolution.STORM_CHOIR) 7 else 4
                 val range = if (tower.evolution == TowerEvolution.STORM_CHOIR) 3.2f else 2.1f
-                val chain = enemies.filter { it.alive && abs(it.progress - projectile.target.progress) < range }.sortedBy { abs(it.progress - projectile.target.progress) }.take(count)
+                val chain = enemies.filter { it.targetable && abs(it.progress - projectile.target.progress) < range }.sortedBy { abs(it.progress - projectile.target.progress) }.take(count)
                 chain.forEachIndexed { index, enemy ->
                     damageEnemy(enemy, projectile.damage * max(0.32f, 1f - index * if (tower.evolution == TowerEvolution.STORM_CHOIR) 0.08f else 0.14f), projectile.kind.accent, 0.70f)
                     burst(enemy.x, enemy.y, projectile.kind.accent, 5, 0.55f)
@@ -867,7 +878,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun thermalShock(target: Enemy, sourceDamage: Float) {
-        enemies.filter { it.alive && abs(it.progress - target.progress) < 0.8f }.forEach { damageEnemy(it, sourceDamage * 0.45f, Color.rgb(255, 232, 180), 0.7f) }
+        enemies.filter { it.targetable && abs(it.progress - target.progress) < 0.8f }.forEach { damageEnemy(it, sourceDamage * 0.45f, Color.rgb(255, 232, 180), 0.7f) }
         target.burnTimer = 0f
         burst(target.x, target.y, Color.rgb(255, 232, 180), 12, 0.9f)
     }
@@ -884,17 +895,27 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun damageEnemy(enemy: Enemy, amount: Float, effectColor: Int, armorPierce: Float = 0f, showLabel: Boolean = true) {
-        if (!enemy.alive) return
+        if (!enemy.alive || enemy.dying) return
         var armor = enemy.kind.armor
         if (enemy.armoredTimer > 0f) armor += 0.24f
         if (challengeModifier == ChallengeModifier.ARMORED_HORDE) armor += 0.15f
         armor = min(0.82f, armor) * (1f - armorPierce)
         val actual = max(0.5f, amount * (1f - armor))
         enemy.health -= actual
-        enemy.flashTimer = 0.11f
+        enemy.flashTimer = if (enemy.kind.boss) 0.18f else 0.14f
         if (showLabel && random.nextFloat() < 0.22f) floatingLabels.add(FloatingLabel(actual.toInt().toString(), enemy.x, enemy.y - 0.25f, effectColor, 0.7f))
         if (enemy.health > 0f) return
-        enemy.alive = false
+        beginEnemyDeath(enemy)
+    }
+
+    private fun beginEnemyDeath(enemy: Enemy) {
+        if (enemy.dying || !enemy.alive) return
+        enemy.health = 0f
+        enemy.deathTimer = if (enemy.kind.boss) 0.55f else if (enemy.kind.elite) 0.38f else 0.28f
+        enemy.flashTimer = enemy.deathTimer
+        enemy.burnTimer = 0f
+        enemy.slowTimer = 0f
+        enemy.stunTimer = 0f
         if (!enemy.rewarded) {
             enemy.rewarded = true
             var bounty = enemy.bounty
@@ -3089,37 +3110,70 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun drawEnemy(canvas: Canvas, enemy: Enemy) {
         if (!enemy.alive) return
+        val dying = enemy.dying
+        val deathMax = if (enemy.kind.boss) 0.55f else if (enemy.kind.elite) 0.38f else 0.28f
+        val deathT = if (dying) (1f - (enemy.deathTimer / deathMax).coerceIn(0f, 1f)) else 0f
         val x = gridX(enemy.x)
-        val bob = sin(enemy.animation) * tileSize * 0.025f
-        val y = gridY(enemy.y) + bob
-        val size = tileSize * enemy.kind.scale
+        val bob = if (dying) 0f else sin(enemy.animation) * tileSize * 0.025f
+        val y = gridY(enemy.y) + bob + if (dying) deathT * tileSize * 0.12f else 0f
+        val size = tileSize * enemy.kind.scale * if (dying) (1f - deathT * 0.35f) else 1f
         val healthRatio = max(0f, enemy.health / enemy.maxHealth)
-        paint.color = Color.argb(90, 0, 0, 0)
+        val bodyAlpha = if (dying) (1f - deathT).coerceIn(0f, 1f) else 1f
+        paint.color = Color.argb((90 * bodyAlpha).toInt(), 0, 0, 0)
         canvas.drawOval(x - size * 0.34f, y + size * 0.25f, x + size * 0.34f, y + size * 0.42f, paint)
-        paint.color = Color.argb(if (enemy.kind.elite || enemy.kind.boss) 115 else 70, Color.red(enemy.kind.color), Color.green(enemy.kind.color), Color.blue(enemy.kind.color))
+        paint.color = Color.argb(
+            ((if (enemy.kind.elite || enemy.kind.boss) 115 else 70) * bodyAlpha).toInt(),
+            Color.red(enemy.kind.color), Color.green(enemy.kind.color), Color.blue(enemy.kind.color)
+        )
         canvas.drawCircle(x, y, size * 0.46f, paint)
         if (enemy.kind.elite || enemy.kind.boss) {
             strokePaint.strokeWidth = tileSize * (if (enemy.kind.boss) 0.055f else 0.035f)
-            strokePaint.color = if (enemy.kind.boss) Color.rgb(255, 207, 90) else enemy.kind.color
+            strokePaint.color = Color.argb(
+                (220 * bodyAlpha).toInt(),
+                Color.red(if (enemy.kind.boss) Color.rgb(255, 207, 90) else enemy.kind.color),
+                Color.green(if (enemy.kind.boss) Color.rgb(255, 207, 90) else enemy.kind.color),
+                Color.blue(if (enemy.kind.boss) Color.rgb(255, 207, 90) else enemy.kind.color)
+            )
             canvas.drawCircle(x, y, size * 0.50f, strokePaint)
         }
-        spritePaint.alpha = if (enemy.flashTimer > 0f) 155 else 255
+        // Hurt flash + death dissolve alpha
+        val flash = enemy.flashTimer > 0f && !dying
+        spritePaint.alpha = when {
+            dying -> (255 * bodyAlpha * (0.55f + 0.45f * sin(enemy.animation * 8f).let { (it + 1f) * 0.5f })).toInt().coerceIn(0, 255)
+            flash -> 130
+            else -> 255
+        }
         val enemySprite = sprites.enemy(enemy.kind)
         val animationStep = floor(enemy.animation * 1.25f).toInt()
         val animationFrame = when {
+            dying && enemySprite.frameCount >= 3 -> 2
             enemySprite.frameCount >= 3 -> when (animationStep % 4) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
             enemySprite.frameCount == 2 -> animationStep % 2
             else -> 0
         }
         drawSpriteFrameCentered(canvas, enemySprite, animationFrame, x, y, size * 1.02f)
+        if (flash) {
+            // brief white hit rim
+            paint.color = Color.argb(90, 255, 255, 255)
+            canvas.drawCircle(x, y, size * 0.48f, paint)
+        }
+        // Boss ability windup tell: ring pulse when ability is about to fire
+        if (!dying && enemy.kind.boss && enemy.abilityTimer in 0f..0.85f) {
+            val wind = 1f - (enemy.abilityTimer / 0.85f)
+            strokePaint.strokeWidth = max(2f, tileSize * 0.04f)
+            strokePaint.color = Color.argb((80 + wind * 140).toInt(), 255, 120, 90)
+            canvas.drawCircle(x, y, size * (0.55f + wind * 0.35f), strokePaint)
+            paint.color = Color.argb((40 + wind * 50).toInt(), 255, 90, 70)
+            canvas.drawCircle(x, y, size * (0.40f + wind * 0.15f), paint)
+        }
         spritePaint.alpha = 255
-        if (enemy.slowTimer > 0f || enemy.stunTimer > 0f) {
+        if (!dying && (enemy.slowTimer > 0f || enemy.stunTimer > 0f)) {
             strokePaint.strokeWidth = max(1.5f, tileSize * 0.025f)
             strokePaint.color = if (enemy.stunTimer > 0f) Color.rgb(195, 120, 255) else Color.rgb(93, 220, 255)
             canvas.drawCircle(x, y, size * 0.53f, strokePaint)
         }
-        if (enemy.burnTimer > 0f) drawSpriteFrameCentered(canvas, sprites.trap(TrapKind.EMBER), 0, x + size * 0.25f, y - size * 0.26f, size * 0.35f)
-        if (healthRatio < 0.995f || enemy.kind.elite || enemy.kind.boss) {
+        if (!dying && enemy.burnTimer > 0f) drawSpriteFrameCentered(canvas, sprites.trap(TrapKind.EMBER), 0, x + size * 0.25f, y - size * 0.26f, size * 0.35f)
+        if (!dying && (healthRatio < 0.995f || enemy.kind.elite || enemy.kind.boss)) {
             val barWidth = size * 0.90f
             val barY = y - size * 0.62f
             val barHeight = max(3f, tileSize * 0.06f)
@@ -3128,7 +3182,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             paint.color = if (healthRatio > 0.35f) Color.rgb(190, 244, 78) else Color.rgb(255, 91, 84)
             canvas.drawRoundRect(x - barWidth * 0.5f, barY, x - barWidth * 0.5f + barWidth * healthRatio, barY + barHeight, tileSize * 0.03f, tileSize * 0.03f, paint)
         }
-        if (enemy.kind.boss) drawCenteredText(canvas, "T${enemy.bossTier}", x, y + size * 0.58f, max(dp(7f), tileSize * 0.12f), Color.rgb(255, 222, 126), true)
+        if (!dying && enemy.kind.boss) drawCenteredText(canvas, "T${enemy.bossTier}", x, y + size * 0.58f, max(dp(7f), tileSize * 0.12f), Color.rgb(255, 222, 126), true)
     }
 
     private fun drawProjectile(canvas: Canvas, projectile: Projectile) {

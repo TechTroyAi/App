@@ -428,12 +428,17 @@ internal class Enemy(
     var burnTimer = 0f
     var burnDamagePerSecond = 0f
     var flashTimer = 0f
+    /** >0 while playing death dissolve (1.3 Phase B). */
+    var deathTimer = 0f
     var animation = (id * 1.618f) % 6.283185f
     var abilityTimer = 2.4f
     var alive = true
     var rewarded = false
     val trapTriggerCounts = HashMap<Int, Int>()
     val triggeredCorruptions = HashSet<Int>()
+
+    val dying: Boolean get() = deathTimer > 0f
+    val targetable: Boolean get() = alive && !dying && health > 0f
 }
 
 internal class Projectile(
