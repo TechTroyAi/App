@@ -87,6 +87,10 @@ Timed banner entrance/fade, floating label pop, gold/forge resource pulses. See 
 
 Quiet path shimmer, grass sway, gate intake glow, health-linked core heartbeat. See `batch-19-board-life/`.
 
+## Batch 20 — evolution moments (E1)
+
+Confirm-only evolve beat: rim flash, emblem pop, banner, SFX. See `batch-20-evolution-moments/`.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

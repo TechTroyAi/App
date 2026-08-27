@@ -543,6 +543,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (tower in towers) {
             tower.cooldown -= delta
             tower.recoil = max(0f, tower.recoil - delta * 4.2f)
+            tower.evolveFlash = max(0f, tower.evolveFlash - delta * 2.4f)
             tower.disabledTimer = max(0f, tower.disabledTimer - delta)
             if (tower.disabledTimer > 0f) continue
             val target = findTarget(tower)
@@ -2565,8 +2566,23 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         evolutionTower = null
         selectedTower = tower
         phase = GamePhase.BUILD
-        setBanner("EVOLVED  ${tower.evolution!!.title.toUpperCase()}", 2.4f)
-        burst(tower.col + 0.5f, tower.row + 0.5f, tower.kind.accent, 28, 1.5f)
+        tower.evolveFlash = 1f
+        val evoTitle = tower.evolution!!.title.toUpperCase()
+        setBanner("EVOLVED  $evoTitle", 2.6f)
+        burst(tower.col + 0.5f, tower.row + 0.5f, tower.kind.accent, 36, 1.7f)
+        burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 215, 104), 18, 1.1f)
+        floatingLabels.add(
+            FloatingLabel(
+                evoTitle,
+                tower.col + 0.5f,
+                tower.row + 0.15f,
+                Color.rgb(255, 215, 104),
+                life = 1.35f,
+                pop = 1.55f
+            )
+        )
+        audio.play("build", 0.72f, 0.62f)
+        audio.play("ui_click", 0.40f, 1.35f)
         saveRun()
     }
 
@@ -3109,6 +3125,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.WHITE
             canvas.drawCircle(x, y, tileSize * 0.42f, strokePaint)
         }
+        // E1: evolution confirm flash — lime→gold rim expanding from the cell
+        val evoFlash = tower.evolveFlash
+        if (evoFlash > 0.02f) {
+            val flashT = 1f - evoFlash
+            val rimR = (190 + (255 - 190) * flashT).toInt().coerceIn(0, 255)
+            val rimG = (244 + (215 - 244) * flashT).toInt().coerceIn(0, 255)
+            val rimB = (78 + (104 - 78) * flashT).toInt().coerceIn(0, 255)
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeWidth = tileSize * (0.08f + evoFlash * 0.06f)
+            strokePaint.color = Color.argb((220 * evoFlash).toInt().coerceIn(0, 255), rimR, rimG, rimB)
+            canvas.drawCircle(x, y, tileSize * (0.36f + (1f - evoFlash) * 0.22f), strokePaint)
+            paint.color = Color.argb((55 * evoFlash).toInt().coerceIn(0, 255), rimR, rimG, rimB)
+            canvas.drawCircle(x, y, tileSize * (0.40f + evoFlash * 0.08f), paint)
+        }
         val base = when (tower.kind) {
             TowerKind.BOLT -> sprites.towerBase
             TowerKind.FROST -> sprites.frostBase
@@ -3137,7 +3167,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.strokeWidth = tileSize * 0.045f
             strokePaint.color = Color.rgb(255, 215, 104)
             canvas.drawCircle(x, y, tileSize * (0.38f + sin(ambientTime * 3f) * 0.025f), strokePaint)
-            drawBitmapCentered(canvas, sprites.evolution(tower.evolution!!), x - tileSize * 0.27f, y - tileSize * 0.27f, tileSize * 0.34f)
+            val emblemPop = if (tower.evolveFlash > 0.02f) 1f + tower.evolveFlash * 0.55f else 1f
+            drawBitmapCentered(
+                canvas,
+                sprites.evolution(tower.evolution!!),
+                x - tileSize * 0.27f,
+                y - tileSize * 0.27f,
+                tileSize * 0.34f * emblemPop
+            )
         }
         if (tower.disabledTimer > 0f) {
             paint.color = Color.argb(145, 130, 48, 165)

@@ -286,6 +286,8 @@ internal class Tower(
     var disabledTimer = 0f
     var angle = -1.5708f
     var recoil = 0f
+    /** 1 → 0 after evolution confirm (E1 rim + emblem pop). */
+    var evolveFlash = 0f
 
     fun upgradeCost(): Int {
         val base = if (level < 3) kind.cost / 2 + level * 28 else min(2_000_000_000, (kind.cost * 0.82 * 1.24.pow(overcharge.toDouble())).toInt().coerceAtLeast(kind.cost))

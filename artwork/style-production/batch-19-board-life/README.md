@@ -11,4 +11,4 @@ Runtime polish (no new drawables). Keeps ambient **subtle** vs combat FX:
 Kotlin source in `GameView.kt` is the full design. Sideload APK includes the smali port of the above.
 
 - Installable APK: `artifacts/Blockhold-Defense-v1.2-installable.apk`
-- APK SHA-256: `187c4ef3ac2782ebcdf62bfd4fe555aacb92c59eb290a9dd6d260b39dae67749`
+- APK SHA-256: `87e9150d662d53932cf0470508eee803e5446e937ddbfeccf2d62e4827b9edd4`
