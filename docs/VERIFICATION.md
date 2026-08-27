@@ -18,8 +18,8 @@ Verification date: 2026-08-27
 
 ## Artifact integrity and signing state
 
-- APK SHA-256: `ebd8d574ca433b67545f89d026001c4f8f77ae1ecee26cfdf0cead4986fb2556`
-- Size: 2,147,570 bytes
+- APK SHA-256: `6da96d8281d7309fec14e77d9efab8f100f771aa5390f33c905fa2648a113cdf`
+- Size: 2,197,758 bytes
 - ZIP archive test: passed with no compressed-data errors
 - Four-byte ZIP alignment: passed
 - DEX: version 037, one `classes.dex`, 706 class definitions
@@ -43,7 +43,7 @@ The v1.0 production certificate SHA-256 remains `14d779957005aee528fe603c5b5df2d
 - All sampled Utility, corruption, evolution, Supply, imbuement, material, and Cache images are present in the APK.
 - All 70 active drawable PNGs are packaged and original to Blockhold Defense: seamless terrain, gate/core landmarks, all five layered base towers, all ten tower-evolution emblems, all eight crafted supplies, all six bound sigils, all three resources, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, and all six corruption mutations.
 - The drawable roster exactly matches the 70 runtime `SpriteCatalog` loads. Fifteen obsolete unreferenced Kenney drawables were removed after the final original replacements were integrated.
-- Mosser, Runner, Brute, and Shellback now package anchored 192×64 A/B/C movement strips. The renderer selects square source frames in an A → B → C → B loop at movement-linked cadence, with deterministic per-enemy phase offsets; all other enemy resources continue to load as one-frame strips.
+- All five regular enemies plus Ironhide Champion, Blink Stalker, and Rootcaller now package anchored 192×64 A/B/C movement strips. The renderer selects square source frames in an A → B → C → B loop at movement-linked cadence, with deterministic per-enemy phase offsets; the three remaining enemy resources continue to load as one-frame strips.
 - The original Forgeworks family still contains exactly 40 scoped images; all repository PNGs pass ImageMagick decoding.
 - `ci/verify-forgeworks.sh`, `git diff --check`, shell syntax checks, and Python syntax compilation passed.
 

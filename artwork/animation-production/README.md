@@ -10,3 +10,8 @@ This directory extends the approved original Blockhold Defense sprites with deli
 - Use at most ten image generations per reviewed production session, retaining correction capacity whenever possible.
 
 Three-frame loops play in the order A → B → C → B. Android resources store horizontal strips with one 64×64 cell per frame.
+
+Completed animation batches:
+
+- Batch 01: Mosser, Runner, Brute, and Shellback
+- Batch 02: Splitling, Ironhide Champion, Blink Stalker, and Rootcaller
