@@ -18,8 +18,8 @@ Verification date: 2026-08-27
 
 ## Artifact integrity and signing state
 
-- APK SHA-256: `50e8e4b8412ccb416a7a1e3f4094381ad39382b720856697e89a312ccacecf01`
-- Size: 2,273,902 bytes
+- APK SHA-256: `be84a01d8034ca58c3c7caffb9d94df04aa7e466afe49a519e568361b2d814cf`
+- Size: 2,298,790 bytes
 - ZIP archive test: passed with no compressed-data errors
 - Four-byte ZIP alignment: passed
 - DEX: version 037, one `classes.dex`, 706 class definitions
@@ -44,7 +44,7 @@ The v1.0 production certificate SHA-256 remains `14d779957005aee528fe603c5b5df2d
 - All 70 active drawable PNGs are packaged and original to Blockhold Defense: seamless terrain, gate/core landmarks, all five layered base towers, all ten tower-evolution emblems, all eight crafted supplies, all six bound sigils, all three resources, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, and all six corruption mutations.
 - The drawable roster exactly matches the 70 runtime `SpriteCatalog` loads. Fifteen obsolete unreferenced Kenney drawables were removed after the final original replacements were integrated.
 - The complete enemy roster—five regular enemies, five elites, and The Overgrowth—now packages anchored 192×64 A/B/C movement strips. The renderer selects square source frames in an A → B → C → B loop at movement-linked cadence, with deterministic per-enemy phase offsets.
-- Enemy Gate and Player Core package anchored 192×64 ambient strips. Spike Bed and Root Snare package 192×64 armed/neutral/triggered strips driven by each placed trap's existing activation pulse; toolbar and cached-trap previews remain on armed frame A.
+- Enemy Gate and Player Core package anchored 192×64 ambient strips. All five traps package 192×64 armed/neutral/triggered strips driven by each placed trap's existing activation pulse; toolbar, status, and cached-trap previews remain on armed frame A.
 - The original Forgeworks family still contains exactly 40 scoped images; all repository PNGs pass ImageMagick decoding.
 - `ci/verify-forgeworks.sh`, `git diff --check`, shell syntax checks, and Python syntax compilation passed.
 

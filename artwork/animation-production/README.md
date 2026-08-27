@@ -17,3 +17,4 @@ Completed animation batches:
 - Batch 02: Splitling, Ironhide Champion, Blink Stalker, and Rootcaller
 - Batch 03: Hex Weaver, Siege Colossus, and The Overgrowth; completes the enemy roster
 - Batch 04: Enemy Gate, Player Core, Spike Bed, and Root Snare
+- Batch 05: Ember Rune, Arc Plate, and Crusher Block; completes the trap roster
