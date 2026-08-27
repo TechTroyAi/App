@@ -54,6 +54,10 @@ The six evolution emblems for Bolt Tower, Frost Prism, and Core Cannon are retai
 
 The four evolution emblems for Ember Forge and Resonance Beacon are retained in `batch-11/`. All ten tower evolution branches now use original, mechanic-specific iconography.
 
+## Batch 12 — crafted supplies
+
+The complete eight-item crafted-supply family is retained in `batch-12/`. Each inventory icon has a mechanic-specific physical silhouette, including a deliberately unmarked Blank Sigil.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

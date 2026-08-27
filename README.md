@@ -152,7 +152,7 @@ The bounded version-three save reader migrates v1.0/v1.1 checkpoints, including 
 
 ## Visual and audio assets
 
-The game uses a coherent top-down sprite layer instead of color-only entities. Forgeworks adds 40 Utility, corruption, evolution, Supply, imbuement, material, and Cache images. A fully original dark industrial forge-fantasy revision is now replacing the earlier mixed layer in reviewed batches; the integrated roles now cover all five base towers, all ten tower evolutions, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, terrain, gate, and core. High-resolution sources and processing records live under `artwork/prototype/` and `artwork/style-production/`. Remaining Kenney visuals are CC0 and retain an auditable record in `docs/ASSET_LICENSES.md` until their categories are replaced.
+The game uses a coherent top-down sprite layer instead of color-only entities. Forgeworks adds 40 Utility, corruption, evolution, Supply, imbuement, material, and Cache images. A fully original dark industrial forge-fantasy revision is now replacing the earlier mixed layer in reviewed batches; the integrated roles now cover all five base towers, all ten tower evolutions, all eight crafted supplies, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, terrain, gate, and core. High-resolution sources and processing records live under `artwork/prototype/` and `artwork/style-production/`. Remaining Kenney visuals are CC0 and retain an auditable record in `docs/ASSET_LICENSES.md` until their categories are replaced.
 
 All sound effects are original deterministic synthesis. Regenerate them with:
 
