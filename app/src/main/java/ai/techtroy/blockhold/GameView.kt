@@ -2578,8 +2578,44 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         tower.evolveProof = 2.2f
         val evoTitle = tower.evolution!!.title.toUpperCase()
         setBanner("EVOLVED  $evoTitle", 2.6f)
-        burst(tower.col + 0.5f, tower.row + 0.5f, tower.kind.accent, 36, 1.7f)
-        burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 215, 104), 18, 1.1f)
+        val cx = tower.col + 0.5f
+        val cy = tower.row + 0.5f
+        // E3: per-family confirm flavor (burst shape + SFX)
+        when (tower.kind) {
+            TowerKind.BOLT -> {
+                burst(cx, cy, tower.kind.accent, 42, 2.0f)
+                burst(cx, cy, Color.rgb(255, 255, 200), 16, 1.4f)
+                audio.play("bolt", 0.55f, 1.25f)
+                audio.play("build", 0.50f, 0.70f)
+            }
+            TowerKind.FROST -> {
+                burst(cx, cy, tower.kind.accent, 28, 1.2f)
+                burst(cx, cy, Color.rgb(200, 245, 255), 24, 0.9f)
+                burst(cx, cy, Color.rgb(255, 255, 255), 12, 0.7f)
+                audio.play("frost", 0.55f, 1.10f)
+                audio.play("build", 0.45f, 0.85f)
+            }
+            TowerKind.CANNON -> {
+                burst(cx, cy, tower.kind.accent, 48, 2.2f)
+                burst(cx, cy, Color.rgb(255, 180, 90), 22, 1.5f)
+                audio.play("cannon", 0.50f, 0.92f)
+                audio.play("build", 0.60f, 0.55f)
+            }
+            TowerKind.EMBER -> {
+                burst(cx, cy, tower.kind.accent, 40, 1.8f)
+                burst(cx, cy, Color.rgb(255, 120, 40), 28, 1.3f)
+                burst(cx, cy, Color.rgb(255, 220, 100), 14, 1.0f)
+                audio.play("ember", 0.52f, 0.95f)
+                audio.play("build", 0.55f, 0.60f)
+            }
+            TowerKind.BEACON -> {
+                burst(cx, cy, tower.kind.accent, 32, 1.4f)
+                burst(cx, cy, Color.rgb(230, 180, 255), 26, 1.1f)
+                burst(cx, cy, Color.rgb(255, 215, 104), 14, 0.95f)
+                audio.play("beacon", 0.55f, 1.15f)
+                audio.play("build", 0.48f, 0.75f)
+            }
+        }
         floatingLabels.add(
             FloatingLabel(
                 evoTitle,
@@ -2590,8 +2626,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 pop = 1.55f
             )
         )
-        audio.play("build", 0.72f, 0.62f)
-        audio.play("ui_click", 0.40f, 1.35f)
+        audio.play("ui_click", 0.35f, 1.35f)
         saveRun()
     }
 
@@ -3148,19 +3183,73 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.WHITE
             canvas.drawCircle(x, y, tileSize * 0.42f, strokePaint)
         }
-        // E1: evolution confirm flash — lime→gold rim expanding from the cell
+        // E1/E3: evolution confirm flash — family-tinted rim expanding from the cell
         val evoFlash = tower.evolveFlash
         if (evoFlash > 0.02f) {
             val flashT = 1f - evoFlash
-            val rimR = (190 + (255 - 190) * flashT).toInt().coerceIn(0, 255)
-            val rimG = (244 + (215 - 244) * flashT).toInt().coerceIn(0, 255)
-            val rimB = (78 + (104 - 78) * flashT).toInt().coerceIn(0, 255)
+            val accent = tower.kind.accent
+            // start color = family accent; end color = warm gold
+            val rimR = (Color.red(accent) + (255 - Color.red(accent)) * flashT).toInt().coerceIn(0, 255)
+            val rimG = (Color.green(accent) + (215 - Color.green(accent)) * flashT).toInt().coerceIn(0, 255)
+            val rimB = (Color.blue(accent) + (104 - Color.blue(accent)) * flashT).toInt().coerceIn(0, 255)
+            val rimThick = when (tower.kind) {
+                TowerKind.BOLT -> 0.06f + evoFlash * 0.05f   // snap thin
+                TowerKind.FROST -> 0.07f + evoFlash * 0.05f  // ice rim
+                TowerKind.CANNON -> 0.10f + evoFlash * 0.08f // heavy
+                TowerKind.EMBER -> 0.09f + evoFlash * 0.07f  // coal bloom
+                TowerKind.BEACON -> 0.07f + evoFlash * 0.06f // resonance
+            }
+            val rimExpand = when (tower.kind) {
+                TowerKind.BOLT -> 0.28f
+                TowerKind.FROST -> 0.24f
+                TowerKind.CANNON -> 0.20f
+                TowerKind.EMBER -> 0.26f
+                TowerKind.BEACON -> 0.30f
+            }
             strokePaint.style = Paint.Style.STROKE
-            strokePaint.strokeWidth = tileSize * (0.08f + evoFlash * 0.06f)
+            strokePaint.strokeWidth = tileSize * rimThick
             strokePaint.color = Color.argb((220 * evoFlash).toInt().coerceIn(0, 255), rimR, rimG, rimB)
-            canvas.drawCircle(x, y, tileSize * (0.36f + (1f - evoFlash) * 0.22f), strokePaint)
-            paint.color = Color.argb((55 * evoFlash).toInt().coerceIn(0, 255), rimR, rimG, rimB)
+            canvas.drawCircle(x, y, tileSize * (0.36f + (1f - evoFlash) * rimExpand), strokePaint)
+            // fill wash
+            val fillA = when (tower.kind) {
+                TowerKind.EMBER -> 70
+                TowerKind.FROST -> 45
+                TowerKind.CANNON -> 60
+                else -> 55
+            }
+            paint.color = Color.argb((fillA * evoFlash).toInt().coerceIn(0, 255), rimR, rimG, rimB)
             canvas.drawCircle(x, y, tileSize * (0.40f + evoFlash * 0.08f), paint)
+            // E3 secondary ring: frost ice / beacon resonance / bolt snap spark
+            when (tower.kind) {
+                TowerKind.FROST -> {
+                    strokePaint.strokeWidth = tileSize * 0.035f
+                    strokePaint.color = Color.argb((160 * evoFlash).toInt().coerceIn(0, 255), 220, 250, 255)
+                    canvas.drawCircle(x, y, tileSize * (0.30f + (1f - evoFlash) * 0.18f), strokePaint)
+                }
+                TowerKind.BEACON -> {
+                    strokePaint.strokeWidth = tileSize * 0.028f
+                    strokePaint.color = Color.argb((140 * evoFlash).toInt().coerceIn(0, 255), 210, 160, 255)
+                    canvas.drawCircle(x, y, tileSize * (0.50f + (1f - evoFlash) * 0.12f), strokePaint)
+                }
+                TowerKind.BOLT -> {
+                    // snap cross sparks
+                    paint.color = Color.argb((180 * evoFlash).toInt().coerceIn(0, 255), 255, 255, 210)
+                    val s = tileSize * (0.18f + (1f - evoFlash) * 0.15f)
+                    canvas.drawCircle(x + s, y, tileSize * 0.05f, paint)
+                    canvas.drawCircle(x - s, y, tileSize * 0.05f, paint)
+                    canvas.drawCircle(x, y + s, tileSize * 0.05f, paint)
+                    canvas.drawCircle(x, y - s, tileSize * 0.05f, paint)
+                }
+                TowerKind.EMBER -> {
+                    paint.color = Color.argb((90 * evoFlash).toInt().coerceIn(0, 255), 255, 90, 40)
+                    canvas.drawCircle(x, y, tileSize * (0.22f + evoFlash * 0.12f), paint)
+                }
+                TowerKind.CANNON -> {
+                    strokePaint.strokeWidth = tileSize * 0.05f
+                    strokePaint.color = Color.argb((120 * evoFlash).toInt().coerceIn(0, 255), 255, 140, 60)
+                    canvas.drawCircle(x, y, tileSize * (0.28f + evoFlash * 0.06f), strokePaint)
+                }
+            }
         }
         val base = when (tower.kind) {
             TowerKind.BOLT -> sprites.towerBase

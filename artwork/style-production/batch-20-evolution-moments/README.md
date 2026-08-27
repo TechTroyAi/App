@@ -1,24 +1,30 @@
-# Batch 20 / E1+E2 — evolution moments
+# Batch 20 / E1–E3 — evolution moments
 
 Runtime polish when the player **commits** a tower evolution (not browse).
 
 ## E1 — confirm beat
-- **Rim flash**: lime → gold stroke expanding from the cell (~0.4s via `Tower.evolveFlash`)
-- **Fill glow**: soft accent wash under the rim
-- **Emblem pop**: evolution icon scales up while flash is live
-- **Particles**: kind accent burst + gold secondary burst
-- **Floating label**: evolution title in gold with high pop
+- **Rim flash** expanding from the cell (~0.4s via `Tower.evolveFlash`)
+- **Emblem pop**, dual particle bursts, gold floating title
 - **Banner**: `EVOLVED  <TITLE>` (~2.6s)
-- **SFX**: low forge `build` sting + bright `ui_click`
 
 ## E2 — board acknowledgment (~2.2–2.4s)
-- **`Tower.evolveAura`**: neighbor path tiles (Chebyshev ≤√2) get a warmer sheen boost; tower keeps a soft gold outer ring while aura lasts
-- **`Tower.evolveProof`**: shots fired during the window are marked `Projectile.evolveHot` — larger glow, gold trail mote, slightly bigger sprite, dual impact spark bursts on hit
+- **`evolveAura`**: neighbor path sheen boost + soft gold outer ring
+- **`evolveProof`**: hotter projectile trail/impact (`Projectile.evolveHot`)
 
-No new drawables — uses existing evolution emblems (batches 10–11).
+## E3 — per-family flavor
+Confirm beat is **family-tinted** (accent → gold) and plays the tower’s own voice:
 
-## Later (not shipped)
-- **E3**: per-family confirm flavor (bolt snap / frost rim / ember coal)
+| Family | Burst feel | SFX |
+|--------|------------|-----|
+| **Bolt** | White-hot snap sparks | `bolt` + low `build` |
+| **Frost** | Cyan + white ice bloom | `frost` + soft `build` |
+| **Cannon** | Heavy orange punch | `cannon` + deep `build` |
+| **Ember** | Coal orange + gold cinders | `ember` + `build` |
+| **Beacon** | Violet resonance + gold | `beacon` + `build` |
+
+Kotlin also draws family secondary rings/sparks during the flash (bolt cross-sparks, frost ice rim, beacon outer ring, ember core wash, cannon heavy stroke). Sideload APK includes family bursts, accent-tinted rim, and family SFX.
+
+No new drawables.
 
 - Installable APK: `artifacts/Blockhold-Defense-v1.2-installable.apk`
-- APK SHA-256: `0ec0d9a8ed3e4680d4d5422e7dabdc7e390fab1b274bed16823986654537b613`
+- APK SHA-256: `c1036b2b0f13e22c92cfe8c13105bcd07cedd6ff1c9811d09555131067185ccf`

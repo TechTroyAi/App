@@ -89,7 +89,7 @@ Quiet path shimmer, grass sway, gate intake glow, health-linked core heartbeat. 
 
 ## Batch 20 — evolution moments (E1)
 
-Confirm-only evolve beat: rim flash, emblem pop, banner, SFX. See `batch-20-evolution-moments/`.
+E1–E3 evolve moments: confirm beat, path aura/hot trail, per-family flavor. See `batch-20-evolution-moments/`.
 
 ## Production rules
 
