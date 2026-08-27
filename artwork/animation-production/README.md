@@ -15,3 +15,4 @@ Completed animation batches:
 
 - Batch 01: Mosser, Runner, Brute, and Shellback
 - Batch 02: Splitling, Ironhide Champion, Blink Stalker, and Rootcaller
+- Batch 03: Hex Weaver, Siege Colossus, and The Overgrowth; completes the enemy roster
