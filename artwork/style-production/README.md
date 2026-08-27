@@ -58,6 +58,10 @@ The four evolution emblems for Ember Forge and Resonance Beacon are retained in 
 
 The complete eight-item crafted-supply family is retained in `batch-12/`. Each inventory icon has a mechanic-specific physical silhouette, including a deliberately unmarked Blank Sigil.
 
+## Batch 13 — bound sigils
+
+The complete six-imbuement sigil family is retained in `batch-13/`. Their shared physical seal ties them directly to the Blank Sigil while mechanic-specific inlays keep every persistent effect recognizable.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

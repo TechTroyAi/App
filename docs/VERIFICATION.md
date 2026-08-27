@@ -18,8 +18,8 @@ Verification date: 2026-08-27
 
 ## Artifact integrity and signing state
 
-- APK SHA-256: `397f87d5fc1e9115641c3762ccb307b07ba9a5e16f3aa194c45425644e595fae`
-- Size: 2,057,489 bytes
+- APK SHA-256: `44955bde3014c95f51b91a14675ca4569208e2aacf6763bde28953e53bedf2a1`
+- Size: 2,094,509 bytes
 - ZIP archive test: passed with no compressed-data errors
 - Four-byte ZIP alignment: passed
 - DEX: version 037, one `classes.dex`, 706 class definitions
@@ -41,7 +41,7 @@ The v1.0 production certificate SHA-256 remains `14d779957005aee528fe603c5b5df2d
 - DEX string inspection found no HTTP URL, localhost endpoint, or Internet permission.
 - Both embedded Kenney CC0 license texts are present.
 - All sampled Utility, corruption, evolution, Supply, imbuement, material, and Cache images are present in the APK.
-- All 85 drawable PNGs are packaged; the approved original-style batches include seamless terrain, gate/core landmarks, all five layered base towers, all ten tower-evolution emblems, all eight crafted supplies, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, and all six corruption mutations.
+- All 85 drawable PNGs are packaged; the approved original-style batches include seamless terrain, gate/core landmarks, all five layered base towers, all ten tower-evolution emblems, all eight crafted supplies, all six bound sigils, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, and all six corruption mutations.
 - The original Forgeworks family still contains exactly 40 scoped images; all repository PNGs pass ImageMagick decoding.
 - `ci/verify-forgeworks.sh`, `git diff --check`, shell syntax checks, and Python syntax compilation passed.
 
