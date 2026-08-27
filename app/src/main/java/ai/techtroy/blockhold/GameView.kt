@@ -3020,7 +3020,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.WHITE
             canvas.drawCircle(x, y, tileSize * 0.43f, strokePaint)
         }
-        drawBitmapCentered(canvas, sprites.utility(utility.kind), x, y, tileSize * (0.86f + sin(ambientTime * 2f + utility.kind.ordinal) * 0.015f))
+        val strip = sprites.utility(utility.kind)
+        val phase = ambientTime * 1.6f + utility.kind.ordinal * 0.85f + utility.col * 0.37f + utility.row * 0.21f
+        val step = floor(phase).toInt()
+        val frame = when {
+            strip.frameCount >= 3 -> when (step % 4) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+            strip.frameCount == 2 -> step % 2
+            else -> 0
+        }
+        drawSpriteFrameCentered(
+            canvas,
+            strip,
+            frame,
+            x,
+            y,
+            tileSize * (0.86f + sin(ambientTime * 2f + utility.kind.ordinal) * 0.015f)
+        )
         if (utility.disabledTimer > 0f) {
             paint.color = Color.argb(150, 130, 48, 165)
             canvas.drawCircle(x, y, tileSize * 0.34f, paint)
@@ -3088,21 +3103,31 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawProjectile(canvas: Canvas, projectile: Projectile) {
         val x = gridX(projectile.x)
         val y = gridY(projectile.y)
-        val radius = when (projectile.kind) {
-            TowerKind.BOLT -> tileSize * 0.07f
-            TowerKind.FROST -> tileSize * 0.09f
-            TowerKind.CANNON -> tileSize * 0.14f
-            TowerKind.EMBER -> tileSize * 0.11f
-            TowerKind.BEACON -> tileSize * 0.085f
+        val strip = sprites.projectile(projectile.kind)
+        val size = when (projectile.kind) {
+            TowerKind.BOLT -> tileSize * 0.42f
+            TowerKind.FROST -> tileSize * 0.48f
+            TowerKind.CANNON -> tileSize * 0.58f
+            TowerKind.EMBER -> tileSize * 0.50f
+            TowerKind.BEACON -> tileSize * 0.52f
         }
-        paint.color = Color.argb(55, Color.red(projectile.kind.accent), Color.green(projectile.kind.accent), Color.blue(projectile.kind.accent))
-        canvas.drawCircle(x, y, radius * 2.2f, paint)
-        paint.color = projectile.kind.accent
-        canvas.drawCircle(x, y, radius, paint)
-        if (projectile.kind == TowerKind.FROST || projectile.kind == TowerKind.BEACON) {
-            paint.color = Color.WHITE
-            canvas.drawCircle(x - radius * 0.25f, y - radius * 0.25f, radius * 0.28f, paint)
+        val dx = projectile.target.x - projectile.x
+        val dy = projectile.target.y - projectile.y
+        val angle = if (abs(dx) + abs(dy) < 0.0001f) 0f else atan2(dy, dx) * 57.29578f
+        val step = floor(projectile.age * 14f).toInt()
+        val frame = when {
+            strip.frameCount >= 3 -> when (step % 4) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+            strip.frameCount == 2 -> step % 2
+            else -> 0
         }
+        paint.color = Color.argb(
+            50,
+            Color.red(projectile.kind.accent),
+            Color.green(projectile.kind.accent),
+            Color.blue(projectile.kind.accent)
+        )
+        canvas.drawCircle(x, y, size * 0.42f, paint)
+        drawSpriteFrameCentered(canvas, strip, frame, x, y, size, angle)
     }
 
     private fun drawParticle(canvas: Canvas, particle: Particle) {
@@ -3233,7 +3258,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) kind.accent else Color.rgb(25, 38, 30))
             if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
             spritePaint.alpha = if (unlocked) 255 else 95
-            drawBitmapCentered(canvas, sprites.utility(kind), rect.centerX(), rect.top + rect.height() * 0.35f, min(rect.width(), rect.height()) * 0.54f)
+            drawSpriteFrameCentered(
+                canvas,
+                sprites.utility(kind),
+                1,
+                rect.centerX(),
+                rect.top + rect.height() * 0.35f,
+                min(rect.width(), rect.height()) * 0.54f
+            )
             spritePaint.alpha = 255
             drawCenteredText(canvas, kind.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.70f, min(dp(8f), rect.width() * 0.09f), if (unlocked) Color.WHITE else Color.rgb(105, 116, 108), true)
             drawCenteredText(canvas, if (unlocked) kind.cost.toString() else "WAVE 10", rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (unlocked && gold >= kind.cost) Color.rgb(190, 244, 78) else Color.rgb(255, 111, 100), true)

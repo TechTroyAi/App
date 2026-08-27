@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build firing strips for the first three tower top layers."""
+"""Build firing strips for all five tower top layers."""
 
 from __future__ import annotations
 
@@ -19,11 +19,13 @@ DRAWABLES = ROOT / "app" / "src" / "main" / "res" / "drawable-nodpi"
 for directory in (PROCESSED, SELECTED, NEUTRAL):
     directory.mkdir(parents=True, exist_ok=True)
 
-ROLES = ("tower_bolt_turret", "tower_frost_turret", "tower_cannon_turret")
+ROLES = ("tower_bolt_turret", "tower_frost_turret", "tower_cannon_turret", "tower_ember_flame", "tower_beacon_pulse")
 LABELS = {
     "tower_bolt_turret": "BOLT TURRET",
     "tower_frost_turret": "FROST TURRET",
     "tower_cannon_turret": "CANNON TURRET",
+    "tower_ember_flame": "EMBER FLAME",
+    "tower_beacon_pulse": "BEACON PULSE",
 }
 ANCHOR_OFFSETS = {("tower_cannon_turret", "a"): (1, 0)}
 

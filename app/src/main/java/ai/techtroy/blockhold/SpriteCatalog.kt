@@ -103,20 +103,30 @@ internal class SpriteCatalog(private val context: Context) {
     val forgeCache = load("icon_forge_cache")
 
     private val utilities = mapOf(
-        UtilityKind.BLOCK_GENERATOR to load("utility_block_generator"),
-        UtilityKind.CACHE_DEPOT to load("utility_cache_depot"),
-        UtilityKind.FORGE_WORKSHOP to load("utility_forge_workshop"),
-        UtilityKind.PURIFIER_TOTEM to load("utility_purifier_totem"),
-        UtilityKind.SURVEYOR_STATION to load("utility_surveyor_station"),
-        UtilityKind.REFORGE_ANCHOR to load("utility_reforge_anchor"),
-        UtilityKind.SALVAGE_YARD to load("utility_salvage_yard")
+        UtilityKind.BLOCK_GENERATOR to loadStrip("utility_block_generator"),
+        UtilityKind.CACHE_DEPOT to loadStrip("utility_cache_depot"),
+        UtilityKind.FORGE_WORKSHOP to loadStrip("utility_forge_workshop"),
+        UtilityKind.PURIFIER_TOTEM to loadStrip("utility_purifier_totem"),
+        UtilityKind.SURVEYOR_STATION to loadStrip("utility_surveyor_station"),
+        UtilityKind.REFORGE_ANCHOR to loadStrip("utility_reforge_anchor"),
+        UtilityKind.SALVAGE_YARD to loadStrip("utility_salvage_yard")
+    )
+
+    private val projectiles = mapOf(
+        TowerKind.BOLT to loadStrip("projectile_bolt"),
+        TowerKind.FROST to loadStrip("projectile_frost"),
+        TowerKind.CANNON to loadStrip("projectile_cannon"),
+        TowerKind.EMBER to loadStrip("projectile_ember"),
+        TowerKind.BEACON to loadStrip("projectile_beacon")
     )
 
     fun enemy(kind: EnemyKind): SpriteStrip = enemies.getValue(kind)
 
     fun trap(kind: TrapKind): SpriteStrip = traps.getValue(kind)
 
-    fun utility(kind: UtilityKind): Bitmap = utilities.getValue(kind)
+    fun utility(kind: UtilityKind): SpriteStrip = utilities.getValue(kind)
+
+    fun projectile(kind: TowerKind): SpriteStrip = projectiles.getValue(kind)
 
     fun corruption(kind: CorruptionKind): Bitmap = corruptions.getValue(kind)
 

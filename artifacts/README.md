@@ -1,8 +1,8 @@
 # Build artifacts
 
-## v1.2 Forgeworks signing input
+## Download this one (installable v1.2)
 
-`Blockhold-Defense-v1.2-unsigned.apk` is the verified v1.2 Forgeworks build.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of the verified v1.2 Forgeworks game, plus Animation Batch 06 (Ember/Beacon tops), Batch 07 (all 7 Utility ambient idle strips), and Batch 15 Option B (5 tower projectile flight strips with rotation + glow). Install this on an Android phone.
 
 - Package: `ai.techtroy.blockhold`
 - Version: `1.2.0` (`12`)
@@ -11,14 +11,33 @@
 - Orientation: landscape
 - Permissions requested: none
 - Offline: yes
-- APK SHA-256: `a429a231b0194f3630f96736178dcbe80ddeecba2f28670f54f995af368ba8e3`
-- Signing state: **unsigned**
+- Size: ~2.4 MB
+- APK SHA-256: `a2ec1063b228dc63155df13084a8a35a43c1d13ef2d2cf5cd42f9171515cfeb3`
+- Multi-frame strips: **35** (30 prior + 5 projectiles: bolt/frost/cannon/ember/beacon)
+- Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
+- Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
+- Certificate SHA-256: `dbcf288d01f8114d8e38a63c6c6fa059521bb49c4ad30a664a9625d0371da55a`
 
-This APK cannot be installed until it is signed. It must be signed with the permanent v1.0 Blockhold Defense key before distribution as an update. Do not generate a replacement production key; Android would reject it over an existing installation. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.
+### Install on Android
+
+1. Copy `Blockhold-Defense-v1.2-installable.apk` to the phone (download, USB, Drive, etc.).
+2. Open the file and allow **Install unknown apps** for your file manager/browser if prompted.
+3. Tap Install.
+
+**Note:** This uses a **sideload/debug key**, not the permanent v1.0 production release key (which is not present in this workspace). If you already have production `ai.techtroy.blockhold` installed from the v1.0 release APK, uninstall that first — Android will reject an update signed with a different key.
+
+## v1.2 Forgeworks signing input
+
+`Blockhold-Defense-v1.2-unsigned.apk` is the verified v1.2 Forgeworks build before signing.
+
+- APK SHA-256: `a429a231b0194f3630f96736178dcbe80ddeecba2f28670f54f995af368ba8e3`
+- Signing state: **unsigned** (cannot install until signed)
+
+For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.
 
 ## Last signed production build
 
-`Blockhold-Defense-v1.0-release.apk` remains the last directly installable artifact in this checkout.
+`Blockhold-Defense-v1.0-release.apk` remains the last production-key-signed artifact in this checkout.
 
 - Package: `ai.techtroy.blockhold`
 - Version: `1.0.0` (`10`)
