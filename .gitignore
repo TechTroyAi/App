@@ -1,0 +1,37 @@
+# Android Studio / IntelliJ
+*.iml
+.idea/
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local Android SDK configuration
+local.properties
+
+# Signing material
+.signing/
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+
+# Native build output
+.externalNativeBuild/
+.cxx/
+
+# Python tooling
+__pycache__/
+*.py[cod]
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# APKs are generated artifacts; keep only the requested installable milestones.
+*.apk
+!artifacts/Blockhold-Defense-v0.1-debug.apk
+!artifacts/Blockhold-Defense-v1.0-release.apk
+!artifacts/Blockhold-Defense-v1.2-unsigned.apk
