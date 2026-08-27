@@ -36,7 +36,7 @@ The Blockhold route-and-core icon family, store icon, interface composition, tar
 
 The initial v1.2 Forgeworks pass added 33 repository-generated vector-style PNG compositions through `tools/generate_forgeworks_art.sh`. Those placeholders and the seven former CC0-derived Utility compositions have since been replaced by the reviewed original sprite-production batches retained under `artwork/style-production/`.
 
-`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `8279322d7522ff90e23eb684b4106d5af6a717e95343e326577d281c180c8f3c`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
+`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `e5ee3d9715c369df4c82f4bfb4ffb85cc6e56de64f88b0737f949998244b039c`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
 
 ## Original sprite-revision production
 
@@ -46,7 +46,7 @@ The completed roster covers all five base towers, all ten tower evolutions, all 
 
 All 70 PNGs under `app/src/main/res/drawable-nodpi/` are active original Blockhold Defense assets. Every `SpriteCatalog` runtime load maps to one of those files, and no obsolete third-party drawable is packaged.
 
-The limited-animation extension is retained under `artwork/animation-production/`. It uses the approved project-specific high-resolution concepts and neutral gameplay sprites as identity references, then packages reviewed poses into anchored horizontal strips. Animation Batches 01–03 add original movement poses for all five regular enemies, all five elites, and The Overgrowth without introducing third-party source pixels.
+The limited-animation extension is retained under `artwork/animation-production/`. It uses the approved project-specific high-resolution concepts and neutral gameplay sprites as identity references, then packages reviewed poses into anchored horizontal strips. Animation Batches 01–04 add original movement poses for all five regular enemies, all five elites, and The Overgrowth, ambient states for both landmarks, and trigger states for Spike Bed and Root Snare without introducing third-party source pixels.
 
 ## Audio
 

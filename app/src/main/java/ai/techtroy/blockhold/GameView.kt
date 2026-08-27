@@ -2904,7 +2904,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val x = cellCenterX(0)
         val y = cellCenterY(START_ROW)
         val pulse = 0.88f + sin(ambientTime * 3f) * 0.07f
-        drawBitmapCentered(canvas, sprites.gatePart, x, y, tileSize * 0.90f)
+        val gateStep = floor(ambientTime * 2.0f).toInt() % 4
+        val gateFrame = when (gateStep) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+        drawSpriteFrameCentered(canvas, sprites.gatePart, gateFrame, x, y, tileSize * 0.90f)
         strokePaint.strokeWidth = tileSize * 0.045f
         strokePaint.color = Color.argb(190, 190, 244, 78)
         canvas.drawCircle(x, y, tileSize * 0.25f * pulse, strokePaint)
@@ -2917,7 +2919,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val pulse = 0.5f + 0.5f * sin(ambientTime * 3.5f)
         paint.color = Color.argb((45 + pulse * 55).toInt(), 190, 244, 78)
         canvas.drawCircle(x, y, tileSize * (0.47f + pulse * 0.05f), paint)
-        drawBitmapCentered(canvas, sprites.corePart, x, y, tileSize * 0.96f)
+        val coreStep = floor(ambientTime * 2.5f).toInt() % 4
+        val coreFrame = when (coreStep) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+        drawSpriteFrameCentered(canvas, sprites.corePart, coreFrame, x, y, tileSize * 0.96f)
         paint.color = Color.rgb(224, 255, 169)
         canvas.drawCircle(x, y, tileSize * (0.09f + pulse * 0.015f), paint)
     }
@@ -2926,19 +2930,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val x = cellCenterX(trap.col)
         val y = cellCenterY(trap.row)
         val scale = tileSize * (0.74f + trap.pulse * 0.10f)
-        val bitmap = when (trap.kind) {
-            TrapKind.SPIKE -> sprites.spikeTrap
-            TrapKind.ROOT -> sprites.rootTrap
-            TrapKind.EMBER -> sprites.emberTrap
-            TrapKind.ARC -> sprites.arcTrap
-            TrapKind.CRUSHER -> sprites.crusherTrap
+        val strip = sprites.trap(trap.kind)
+        val frame = when {
+            strip.frameCount == 1 -> 0
+            trap.pulse > 0.70f -> 2
+            trap.pulse > 0.20f -> 1
+            else -> 0
         }
         if (selected) {
             strokePaint.strokeWidth = tileSize * 0.05f
             strokePaint.color = Color.WHITE
             canvas.drawCircle(x, y, tileSize * 0.39f, strokePaint)
         }
-        drawBitmapCentered(canvas, bitmap, x, y, scale)
+        drawSpriteFrameCentered(canvas, strip, frame, x, y, scale)
         if (trap.kind == TrapKind.ARC) {
             strokePaint.strokeWidth = tileSize * 0.035f
             strokePaint.color = trap.kind.accent
@@ -3063,7 +3067,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = if (enemy.stunTimer > 0f) Color.rgb(195, 120, 255) else Color.rgb(93, 220, 255)
             canvas.drawCircle(x, y, size * 0.53f, strokePaint)
         }
-        if (enemy.burnTimer > 0f) drawBitmapCentered(canvas, sprites.emberTrap, x + size * 0.25f, y - size * 0.26f, size * 0.35f)
+        if (enemy.burnTimer > 0f) drawSpriteFrameCentered(canvas, sprites.trap(TrapKind.EMBER), 0, x + size * 0.25f, y - size * 0.26f, size * 0.35f)
         if (healthRatio < 0.995f || enemy.kind.elite || enemy.kind.boss) {
             val barWidth = size * 0.90f
             val barY = y - size * 0.62f
@@ -3234,8 +3238,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val selected = selectedStoredTrapIndex == index
             drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) stored.kind.accent else Color.rgb(25, 38, 30))
             if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
-            val bitmap = when (stored.kind) { TrapKind.SPIKE -> sprites.spikeTrap; TrapKind.ROOT -> sprites.rootTrap; TrapKind.EMBER -> sprites.emberTrap; TrapKind.ARC -> sprites.arcTrap; TrapKind.CRUSHER -> sprites.crusherTrap }
-            drawBitmapCentered(canvas, bitmap, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
+            drawSpriteFrameCentered(canvas, sprites.trap(stored.kind), 0, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
             drawCenteredText(canvas, stored.kind.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
             drawCenteredText(canvas, stored.rankLabel(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(7f), rect.width() * 0.08f), if (stored.imbuement != null) stored.imbuement!!.accent else Color.rgb(190, 244, 78), true)
         }
@@ -3294,21 +3297,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawBitmapCentered(canvas, effect, x, y - size * 0.08f, effectSize)
             return
         }
-        val bitmap: Bitmap? = when (tool) {
-            BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON, BuildTool.EMBER, BuildTool.BEACON -> null
-            BuildTool.SPIKES -> sprites.spikeTrap
-            BuildTool.ROOT -> sprites.rootTrap
-            BuildTool.RUNE -> sprites.emberTrap
-            BuildTool.ARC -> sprites.arcTrap
-            BuildTool.CRUSHER -> sprites.crusherTrap
-            BuildTool.DIG -> null
+        val trapKind = toolTrapKind(tool)
+        if (trapKind != null) {
+            drawSpriteFrameCentered(canvas, sprites.trap(trapKind), 0, x, y, size * 2.1f)
+            return
         }
-        if (bitmap != null) {
-            drawBitmapCentered(canvas, bitmap, x, y, size * 2.1f)
-        } else {
-            paint.color = color
-            canvas.drawRect(x - size * 0.45f, y - size * 0.14f, x + size * 0.45f, y + size * 0.14f, paint)
-        }
+        paint.color = color
+        canvas.drawRect(x - size * 0.45f, y - size * 0.14f, x + size * 0.45f, y + size * 0.14f, paint)
     }
 
     private fun drawDefensePanel(canvas: Canvas) {

@@ -45,14 +45,16 @@ internal class SpriteCatalog(private val context: Context) {
     val emberFlame = load("tower_ember_flame")
     val beaconPulse = load("tower_beacon_pulse")
 
-    val spikeTrap = load("trap_spike_bed")
-    val rootTrap = load("trap_root_snare")
-    val emberTrap = load("trap_ember_rune")
-    val arcTrap = load("trap_arc_plate")
-    val crusherTrap = load("trap_crusher_block")
+    private val traps = mapOf(
+        TrapKind.SPIKE to loadStrip("trap_spike_bed"),
+        TrapKind.ROOT to loadStrip("trap_root_snare"),
+        TrapKind.EMBER to loadStrip("trap_ember_rune"),
+        TrapKind.ARC to loadStrip("trap_arc_plate"),
+        TrapKind.CRUSHER to loadStrip("trap_crusher_block")
+    )
 
-    val gatePart = load("landmark_gate")
-    val corePart = load("landmark_core")
+    val gatePart = loadStrip("landmark_gate")
+    val corePart = loadStrip("landmark_core")
 
     private val corruptions = mapOf(
         CorruptionKind.SPORE_PATH to load("corruption_spore_path"),
@@ -111,6 +113,8 @@ internal class SpriteCatalog(private val context: Context) {
     )
 
     fun enemy(kind: EnemyKind): SpriteStrip = enemies.getValue(kind)
+
+    fun trap(kind: TrapKind): SpriteStrip = traps.getValue(kind)
 
     fun utility(kind: UtilityKind): Bitmap = utilities.getValue(kind)
 
