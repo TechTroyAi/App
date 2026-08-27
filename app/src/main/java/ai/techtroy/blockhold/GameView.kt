@@ -120,9 +120,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var ambientTime = 0f
     private var bannerText = ""
     private var bannerTimer = 0f
+    private var bannerDuration = 2.4f
     private var screenShake = 0f
     private var diggingGesture = false
     private var waveTheme = "FORGE THE FIRST ROUTE"
+    private var goldPulse = 0f
+    private var forgePulse = 0f
+    private var lastDisplayedGold = -1
+    private var lastDisplayedForge = -1
     private var savedRunAvailable = preferences.getBoolean("has_saved_run", false)
 
     private var viewWidth = 1f
@@ -447,6 +452,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun update(delta: Float) {
         ambientTime += delta
         if (bannerTimer > 0f) bannerTimer -= delta
+        goldPulse = max(0f, goldPulse - delta * 2.8f)
+        forgePulse = max(0f, forgePulse - delta * 2.8f)
+        if (lastDisplayedGold >= 0 && gold > lastDisplayedGold) goldPulse = 1f
+        if (lastDisplayedForge >= 0 && forgeCharges > lastDisplayedForge) forgePulse = 1f
+        lastDisplayedGold = gold
+        lastDisplayedForge = forgeCharges
         if (screenShake > 0f) screenShake -= delta
         if (phase == GamePhase.WAVE) updateWave(delta)
         updateEffects(delta)
@@ -925,10 +936,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (enemy.kind.elite || enemy.kind.boss) {
                 val parts = if (enemy.kind.boss) 3 else 1
                 salvageParts = safeAdd(salvageParts, parts)
-                floatingLabels.add(FloatingLabel("+$parts PARTS", enemy.x, enemy.y - 0.25f, Color.rgb(202, 177, 137)))
+                floatingLabels.add(FloatingLabel("+$parts PARTS", enemy.x, enemy.y - 0.25f, Color.rgb(202, 177, 137), life = 1.25f, pop = 1.35f))
             }
             if (enemy.kind.boss) growthEssence = safeAdd(growthEssence, 2)
-            floatingLabels.add(FloatingLabel("+$bounty", enemy.x, enemy.y, Color.rgb(190, 244, 78)))
+            floatingLabels.add(FloatingLabel("+$bounty", enemy.x, enemy.y, Color.rgb(190, 244, 78), life = 1.2f, pop = 1.28f))
             burst(enemy.x, enemy.y, enemy.kind.color, if (enemy.kind.boss) 34 else if (enemy.kind.elite) 20 else 12, 1.2f)
             audio.play("enemy_down", if (enemy.kind.boss) 0.65f else 0.22f, if (enemy.kind.boss) 0.65f else 1.05f)
             if (enemy.kind == EnemyKind.SPLITLING && enemy.splitDepth < 1) {
@@ -960,7 +971,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         impactEffects.removeAll { !it.alive }
         for (label in floatingLabels) {
             label.life -= delta
-            label.y -= delta * 0.38f
+            val boost = if (label.pop > 1.05f) 1.25f else 1f
+            label.y -= delta * 0.38f * boost
         }
         floatingLabels.removeAll { it.life <= 0f }
     }
@@ -1014,7 +1026,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     utility.activationCount += 1
                     if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) produced += produced / 2
                     income = safeAdd(income, produced)
-                    floatingLabels.add(FloatingLabel("+$produced", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent))
+                    floatingLabels.add(FloatingLabel("+$produced", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.15f, pop = 1.32f))
                 }
                 UtilityKind.FORGE_WORKSHOP -> {
                     utility.productionProgress += 1
@@ -1533,7 +1545,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         diggingGesture = false
         waveTheme = "FORGE THE FIRST ROUTE"
         bannerText = if (mode == GameMode.ENDLESS) "DRAG FROM THE GATE TO THE CORE" else "${challengeModifier.title.toUpperCase()}  SEED $runSeed"
+        bannerDuration = 3.4f
         bannerTimer = 3.4f
+        goldPulse = 0f
+        forgePulse = 0f
+        lastDisplayedGold = gold
+        lastDisplayedForge = forgeCharges
         audio.play("ui_click", 0.5f, 1.04f)
     }
 
@@ -1637,7 +1654,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun setBanner(message: String, duration: Float) {
         bannerText = message
-        bannerTimer = duration
+        bannerDuration = max(0.35f, duration)
+        bannerTimer = bannerDuration
     }
 
     private fun burst(x: Float, y: Float, color: Int, count: Int, force: Float) {
@@ -2871,9 +2889,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (fx in impactEffects) drawImpact(canvas, fx)
         for (particle in particles) drawParticle(canvas, particle)
         for (label in floatingLabels) {
-            val alpha = (min(1f, label.life * 2f) * 255f).toInt()
+            val lifeRatio = (label.life / max(0.05f, label.maxLife)).coerceIn(0f, 1f)
+            val alpha = (min(1f, label.life * 2.2f) * 255f).toInt().coerceIn(0, 255)
             val labelColor = Color.argb(alpha, Color.red(label.color), Color.green(label.color), Color.blue(label.color))
-            drawCenteredText(canvas, label.message, gridX(label.x), gridY(label.y), max(dp(9f), tileSize * 0.20f), labelColor, true)
+            // Pop scale: overshoot at spawn, settle, then slight shrink on fade
+            val spawnT = 1f - lifeRatio
+            val popScale = when {
+                spawnT < 0.18f -> 0.72f + (spawnT / 0.18f) * (label.pop * 1.18f - 0.72f)
+                spawnT < 0.32f -> label.pop * (1.18f - (spawnT - 0.18f) / 0.14f * 0.18f)
+                else -> label.pop * (1f - (1f - lifeRatio) * 0.12f)
+            }
+            val textSize = max(dp(9f), tileSize * 0.20f) * popScale
+            if (label.pop > 1.05f) {
+                paint.color = Color.argb((alpha * 0.22f).toInt().coerceIn(0, 255), Color.red(label.color), Color.green(label.color), Color.blue(label.color))
+                canvas.drawCircle(gridX(label.x), gridY(label.y), textSize * 0.85f, paint)
+            }
+            drawCenteredText(canvas, label.message, gridX(label.x), gridY(label.y), textSize, labelColor, true)
         }
     }
 
@@ -3276,9 +3307,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
         val statStart = min(viewWidth * 0.27f, dp(265f))
         val statGap = min(dp(102f), viewWidth * 0.115f)
-        drawStat(canvas, statStart, "BLOCKS", formatNumber(gold), Color.rgb(190, 244, 78))
+        drawStat(canvas, statStart, "BLOCKS", formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
         drawStat(canvas, statStart + statGap, "CORE", "$lives/$maxCore", Color.rgb(255, 111, 100))
         drawStat(canvas, statStart + statGap * 2f, "WAVE", waveNumber.toString(), Color.rgb(93, 220, 255))
+        // Forge charge pulse on the resource strip under the title
+        if (forgePulse > 0.02f) {
+            paint.color = Color.argb((forgePulse * 90f).toInt().coerceIn(0, 255), 255, 187, 116)
+            canvas.drawCircle(dp(72f), topBarHeight * 0.72f, dp(14f) * forgePulse, paint)
+        }
 
         when {
             phase == GamePhase.REFORGE -> drawTopButton(canvas, resetPathRect, "CANCEL", Color.rgb(67, 42, 37), Color.rgb(255, 188, 126), true)
@@ -3298,9 +3334,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawTopButton(canvas, pauseRect, "II", Color.rgb(31, 44, 35), Color.WHITE, true)
     }
 
-    private fun drawStat(canvas: Canvas, x: Float, label: String, value: String, accent: Int) {
+    private fun drawStat(canvas: Canvas, x: Float, label: String, value: String, accent: Int, pulse: Float = 0f) {
         drawText(canvas, label, x, topBarHeight * 0.37f, min(dp(8f), topBarHeight * 0.16f), Color.rgb(115, 135, 121), Paint.Align.LEFT, true)
-        drawText(canvas, value, x, topBarHeight * 0.70f, min(dp(15f), topBarHeight * 0.30f), accent, Paint.Align.LEFT, true, true)
+        val valueSize = min(dp(15f), topBarHeight * 0.30f) * (1f + pulse * 0.18f)
+        if (pulse > 0.02f) {
+            paint.color = Color.argb((pulse * 70f).toInt().coerceIn(0, 255), Color.red(accent), Color.green(accent), Color.blue(accent))
+            canvas.drawCircle(x + dp(22f), topBarHeight * 0.62f, dp(16f) * pulse, paint)
+        }
+        drawText(canvas, value, x, topBarHeight * 0.70f, valueSize, accent, Paint.Align.LEFT, true, true)
     }
 
     private fun drawTopButton(canvas: Canvas, rect: RectF, label: String, background: Int, foreground: Int, active: Boolean) {
@@ -3529,8 +3570,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawBanner(canvas: Canvas) {
+        val timed = bannerTimer > 0f
         val instruction = when {
-            bannerTimer > 0f -> bannerText
+            timed -> bannerText
             phase == GamePhase.DIG -> "DRAG ONE BLOCK AT A TIME  •  BACKTRACK TO UNDO  •  MAX ${currentPathLimit()}"
             phase == GamePhase.REFORGE -> "PREVIEW • CONFIRM/CANCEL • F${effectiveReforgeCost()}/$forgeCharges • RECOVERY ${reforgeRecoveryCost()} B • CACHE ${storedTraps.size + displacedReforgeTraps().size}/${cacheCapacity()}"
             phase == GamePhase.BUILD && waveNumber == 0 && towers.isEmpty() -> "CHOOSE A DEFENSE BELOW  •  TAP A FREE BLOCK TO BUILD"
@@ -3540,13 +3582,45 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             else -> ""
         }
         if (instruction.isEmpty()) return
-        val alpha = if (bannerTimer in 0f..0.35f) (bannerTimer / 0.35f * 220f).toInt() else 220
-        val width = min(viewWidth * 0.69f, dp(610f))
-        val height = min(dp(28f), tileSize * 0.48f)
+        val elapsed = if (timed) (bannerDuration - bannerTimer).coerceAtLeast(0f) else 0f
+        val enter = if (timed) (elapsed / 0.22f).coerceIn(0f, 1f) else 1f
+        // Ease-out entrance
+        val enterEase = 1f - (1f - enter) * (1f - enter)
+        val fadeOut = if (timed && bannerTimer in 0f..0.38f) (bannerTimer / 0.38f) else 1f
+        val alpha = (if (timed) 235f * fadeOut else 200f).toInt().coerceIn(0, 255)
+        val baseWidth = min(viewWidth * 0.69f, dp(610f))
+        val baseHeight = min(dp(28f), tileSize * 0.48f)
+        val widthScale = if (timed) 0.82f + 0.18f * enterEase else 1f
+        val heightScale = if (timed) 0.88f + 0.20f * enterEase else 1f
+        val width = baseWidth * widthScale
+        val height = baseHeight * heightScale
         val left = (viewWidth - width) * 0.5f
-        val top = boardTop + dp(7f)
+        val top = boardTop + dp(7f) - (1f - enterEase) * dp(10f)
+        // Accent rim on timed banners (wave / forge / boss)
+        if (timed) {
+            val rim = Color.argb((alpha * 0.55f).toInt().coerceIn(0, 255), 190, 244, 78)
+            drawRoundedRect(canvas, left - dp(2f), top - dp(2f), left + width + dp(2f), top + height + dp(2f), height * 0.5f, rim)
+            // Soft glow under bar
+            paint.color = Color.argb((alpha * 0.18f).toInt().coerceIn(0, 255), 190, 244, 78)
+            canvas.drawRoundRect(left, top + height * 0.35f, left + width, top + height + dp(6f), height * 0.45f, height * 0.45f, paint)
+        }
         drawRoundedRect(canvas, left, top, left + width, top + height, height * 0.45f, Color.argb(alpha, 14, 23, 18))
-        drawCenteredText(canvas, instruction, viewWidth * 0.5f, top + height * 0.52f, min(dp(9f), height * 0.34f), Color.argb(min(255, alpha + 25), 224, 232, 226), true)
+        val textSize = min(dp(9f), height * 0.34f) * (if (timed) 0.92f + 0.12f * enterEase else 1f)
+        drawCenteredText(
+            canvas,
+            instruction,
+            viewWidth * 0.5f,
+            top + height * 0.52f,
+            textSize,
+            Color.argb(min(255, alpha + 25), 224, 232, 226),
+            true
+        )
+        // Thin progress tick for timed announcements
+        if (timed && bannerDuration > 0.01f) {
+            val progress = (bannerTimer / bannerDuration).coerceIn(0f, 1f)
+            paint.color = Color.argb((alpha * 0.85f).toInt().coerceIn(0, 255), 190, 244, 78)
+            canvas.drawRect(left + dp(8f), top + height - dp(3f), left + dp(8f) + (width - dp(16f)) * progress, top + height - dp(1f), paint)
+        }
     }
 
     private fun drawPauseOverlay(canvas: Canvas) {

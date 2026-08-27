@@ -2,7 +2,7 @@
 
 ## Download this one (installable v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of the verified v1.2 Forgeworks game, plus Animation Batch 06 (Ember/Beacon tops), Batch 07 (utilities), Batch 15 Option B (projectile flight strips), and **1.3 Phase A–B (impacts, SFX, enemy death dissolve)** (tower impact bursts). Install this on an Android phone.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of the verified v1.2 Forgeworks game, plus Animation Batch 06 (Ember/Beacon tops), Batch 07 (utilities), Batch 15 Option B (projectile flight strips), and **1.3 Phase A–D (impacts, SFX, enemy death dissolve)** (tower impact bursts). Install this on an Android phone.
 
 - Package: `ai.techtroy.blockhold`
 - Version: `1.2.0` (`12`) — content includes early 1.3 combat FX

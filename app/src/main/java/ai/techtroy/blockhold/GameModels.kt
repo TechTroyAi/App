@@ -482,5 +482,8 @@ internal class FloatingLabel(
     var x: Float,
     var y: Float,
     val color: Int,
-    var life: Float = 1.1f
+    var life: Float = 1.1f,
+    val maxLife: Float = life,
+    /** Visual emphasis — resource / forge pops use >1. */
+    val pop: Float = 1f
 )
