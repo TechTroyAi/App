@@ -66,6 +66,27 @@ The complete six-imbuement sigil family is retained in `batch-13/`. Their shared
 
 The final Salvage Parts, Growth Essence, and Forge Cache icons are retained in `batch-14/`. This batch completes the essential original-sprite roster. Obsolete unreferenced third-party drawables were removed from Android resources after integration.
 
+
+## Batch 15 — tower projectiles
+
+Runtime projectile flight strips for the five tower families (Option B). See `batch-15-projectiles/`.
+
+## Batch 16 — impact bursts (1.3 Phase A)
+
+Dedicated impact burst strips + hit SFX wiring. See `batch-16-impacts/`.
+
+## Batch 17 — enemy death & hurt (1.3 Phase B)
+
+Death dissolve timing by tier and stronger hurt flash (runtime FX). See `batch-17-enemy-fx/`.
+
+## Batch 18 — UI moments (1.3 Phase D)
+
+Timed banner entrance/fade, floating label pop, gold/forge resource pulses. See `batch-18-ui-moments/`.
+
+## Batch 19 — board life (1.3 Phase C)
+
+Quiet path shimmer, grass sway, gate intake glow, health-linked core heartbeat. See `batch-19-board-life/`.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.

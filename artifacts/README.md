@@ -2,17 +2,17 @@
 
 ## Download this one (installable v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of v1.2 Forgeworks plus Batches 06–07, 15, and **1.3 Phases A–D + C** (projectile flight, impact bursts, dedicated SFX, enemy death dissolve, UI banner/resource pops, board ambient life). Install this on an Android phone.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of v1.2 Forgeworks plus Batches 06–07, 15–19, and **1.3 Phases A–D + C** (projectile flight, impact bursts, dedicated SFX, enemy death dissolve, UI banner/resource pops, board ambient life). Install this on an Android phone.
 
 - Package: `ai.techtroy.blockhold`
-- Version: `1.2.0` (`12`) — content includes 1.3 A–D combat/UI FX + Phase C board ambient
+- Version: `1.2.0` (`12`) — content includes full 1.3 ladder (A combat → B death → D UI → C board ambient)
 - Minimum Android: 7.0 / API 24
 - Target Android API: 35
 - Orientation: landscape
 - Permissions requested: none
 - Offline: yes
 - Size: ~2.5 MB
-- APK SHA-256: `8a81e7bc51b067020accb5c61cb6ad2fc34d239a830b9301a173f97c95a42b19`
+- APK SHA-256: `187c4ef3ac2782ebcdf62bfd4fe555aacb92c59eb290a9dd6d260b39dae67749`
 - Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
 - Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
 - Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
@@ -28,9 +28,9 @@
 
 ## v1.2 Forgeworks signing input
 
-`Blockhold-Defense-v1.2-unsigned.apk` is the verified v1.2 Forgeworks build before signing.
+`Blockhold-Defense-v1.2-unsigned.apk` is the rebuilt v1.2 Forgeworks + 1.3 content payload before signing (from the latest apktool rebuild).
 
-- APK SHA-256: `8a81e7bc51b067020accb5c61cb6ad2fc34d239a830b9301a173f97c95a42b19`
+- APK SHA-256: `32cec9f1871eae1b71e2b01a36c00168a032fb0976a8e06da0486dd04e612f1f`
 - Signing state: **unsigned** (cannot install until signed)
 
 For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.
@@ -41,7 +41,7 @@ For a production update compatible with existing v1.0 installs, re-sign the unsi
 
 - Package: `ai.techtroy.blockhold`
 - Version: `1.0.0` (`10`)
-- APK SHA-256: `a96bec7b30195b6fed49353742b468f747a31db33014973c9c98b0f84715fc30`
+- APK SHA-256: `838eb6770d9d14b328be78f3f22b729de826c4601b90e31afa41c74c5517b5fc`
 - Signing certificate SHA-256: `14d779957005aee528fe603c5b5df2d7ec5ad8ed66141a7f24a78736aa98795a`
 - Signing identity: `CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
 

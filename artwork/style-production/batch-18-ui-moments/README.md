@@ -7,3 +7,5 @@ Runtime polish (no new drawables):
 - **Top bar**: BLOCKS value pulse when gold increases; forge pulse field when charges gain
 
 Kotlin source is the full design (entrance ease, rim, gold/forge pulse). Sideload APK includes banner fade/progress, label pop scale, and top-bar gold pulse.
+
+Follow-on: board ambient is Batch 19 / Phase C (`batch-19-board-life/`).

@@ -6,9 +6,9 @@ Runtime polish (no new drawables). Keeps ambient **subtle** vs combat FX:
 - **Path tiles**: warm sheen pulse staggered by cell
 - **Grass tiles**: slight alpha sway + existing tip flecks
 - **Gate**: soft lime intake glow under the sprite (pulse-driven)
-- **Core**: health-linked heartbeat (`beatHz` faster when wounded), dual glow rings, danger-tinted RGB, sprite scale breath, hot center mote
+- **Core**: health-linked heartbeat (`beatHz` faster when wounded), dual glow rings, danger-tinted RGB, sprite scale breath, hot center mote, peak shock ring
 
 Kotlin source in `GameView.kt` is the full design. Sideload APK includes the smali port of the above.
 
 - Installable APK: `artifacts/Blockhold-Defense-v1.2-installable.apk`
-- APK SHA-256: `8a81e7bc51b067020accb5c61cb6ad2fc34d239a830b9301a173f97c95a42b19`
+- APK SHA-256: `187c4ef3ac2782ebcdf62bfd4fe555aacb92c59eb290a9dd6d260b39dae67749`
