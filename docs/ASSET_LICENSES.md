@@ -1,6 +1,6 @@
 # Asset sources and licenses
 
-Blockhold Defense is designed to work fully offline. Every third-party visual included in the app is from a verified Creative Commons Zero source. No Minecraft artwork, names, sounds, characters, maps, UI, or code are included.
+Blockhold Defense is designed to work fully offline. The current APK's gameplay drawable roster is entirely original to this project; the Kenney records below document the verified CC0 material used by earlier visual iterations and retained in repository history. No Minecraft artwork, names, sounds, characters, maps, UI, or code are included.
 
 ## Kenney — Tower Defense (Top-Down)
 
@@ -14,7 +14,7 @@ Blockhold Defense is designed to work fully offline. Every third-party visual in
 - Snapshot date: 2026-08-27; upstream publishes no semantic pack version
 - Redistribution audit: commercial use, modification, APK embedding, attribution-free distribution, and redistribution are permitted by CC0 1.0
 
-Included and adapted material covers terrain, route tiles, tower bodies, turrets, enemies, traps, gate/core details, projectiles, effect sprites, and the neutral bases used in the seven Forgeworks Utility compositions. App PNGs may be cropped, recolored, outlined, layered, or composited with original machinery motifs; those derivatives remain freely reusable under CC0.
+Earlier releases adapted this pack for terrain, route tiles, tower bodies, turrets, traps, gate/core details, and Forgeworks placeholders. Batch 14 removed the final unreferenced Kenney drawables from Android resources; none of these pack PNGs remain in the current APK.
 
 ## Kenney — Top-down Shooter
 
@@ -28,23 +28,23 @@ Included and adapted material covers terrain, route tiles, tower bodies, turrets
 - Snapshot date: 2026-08-27; upstream publishes no semantic pack version
 - Redistribution audit: commercial use, modification, APK embedding, attribution-free distribution, and redistribution are permitted by CC0 1.0
 
-Included material supplies the Mosser, Runner, Brute, Shellback, Ironhide Champion, Blink Stalker, Rootcaller, and Hex Weaver silhouettes. Images are recolored and composited into the game's original rings, health bars, status effects, and movement treatment.
+Earlier releases adapted this pack for several enemy silhouettes. Those runtime sprites were replaced during the reviewed original-style production batches; none of these pack PNGs remain in the current APK.
 
 ## Original application artwork
 
 The Blockhold route-and-core icon family, store icon, interface composition, targeting indicators, particles, health bars, status effects, and procedural animation are original to this repository. The store icon source is `artwork/blockhold-store-icon.svg`; its 512-pixel export is `artwork/blockhold-store-icon-512.png`.
 
-The v1.2 Forgeworks pass adds 33 fully original vector-style PNG compositions: six corruption mutations, ten tower-evolution badges, eight Supply cards, six imbuement sigils, two material icons, and one Forge Cache icon. Together with the seven CC0-derived Utility compositions, this is the 40-image Forgeworks family. The generation source is `tools/generate_forgeworks_art.sh`; it records every primitive, color, and output filename and introduces no new third-party pack.
+The initial v1.2 Forgeworks pass added 33 repository-generated vector-style PNG compositions through `tools/generate_forgeworks_art.sh`. Those placeholders and the seven former CC0-derived Utility compositions have since been replaced by the reviewed original sprite-production batches retained under `artwork/style-production/`.
 
-`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `e62b8c55b7783c0f7b21633725f32654f3a2425d9877a95fd1c093bbc4f791e1`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
+`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `3ca234018a493364d9fc423d4ce59e4a4f41ed888f1b3903fee4c47217ec41aa`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
 
 ## Original sprite-revision production
 
 The approved 2026-08-27 visual revision is produced specifically for Blockhold Defense with image-model concept generation followed by repository-local background isolation, cropping, scaling, layer preparation, and seamless-tile construction. No third-party sprite pack pixels are used in these new concepts. High-resolution sources, processed outputs, style constraints, and batch status are retained under `artwork/prototype/` and `artwork/style-production/`.
 
-The integrated roles are all five base towers, all ten tower evolutions, all eight crafted supplies, all six bound sigils, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, grass terrain, route terrain, enemy gate, and player core. The Bolt Tower uses separate centered base and turret layers so gameplay rotation is preserved. `tools/process_sprite_prototypes.py` and `tools/process_sprite_batch_02.py` provide the reproducible processing stage; opposite terrain edges are checked pixel-for-pixel before integration.
+The completed roster covers all five base towers, all ten tower evolutions, all eight crafted supplies, all six bound sigils, all three resource icons, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, grass terrain, route terrain, enemy gate, and player core. Layered towers preserve gameplay rotation and animation. `tools/process_sprite_prototypes.py` and the numbered batch processors provide the reproducible processing stage; opposite terrain edges are checked pixel-for-pixel before integration.
 
-The remaining Kenney-derived resources stay licensed under the records above until their category is replaced in later reviewed batches.
+All 70 PNGs under `app/src/main/res/drawable-nodpi/` are active original Blockhold Defense assets. Every `SpriteCatalog` runtime load maps to one of those files, and no obsolete third-party drawable is packaged.
 
 ## Audio
 
