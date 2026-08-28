@@ -140,7 +140,14 @@ internal enum class UtilityKind(
     WARD_BEACON("Ward Beacon", "Nearby towers shrug off Hex faster and gain brief immunity pulses", 200, Color.rgb(112, 220, 200)),
     BATTLE_BANNER("Battle Banner", "Towers near the banner deal extra damage during waves", 175, Color.rgb(255, 140, 70)),
     ESSENCE_STILL("Essence Still", "Converts wave pressure into Growth Essence over time", 230, Color.rgb(180, 120, 255)),
-    TRAP_LATTICE("Trap Lattice", "Path traps near the lattice deal more damage", 185, Color.rgb(200, 210, 170))
+    TRAP_LATTICE("Trap Lattice", "Path traps near the lattice deal more damage", 185, Color.rgb(200, 210, 170)),
+    // 1.4 F7 utilities
+    AEGIS_PYLON("Aegis Pylon", "Nearby towers take shorter Hex and gain a light shield pulse", 195, Color.rgb(100, 190, 220)),
+    GROWTH_NURSERY("Growth Nursery", "Cleared waves yield bonus Growth Essence", 170, Color.rgb(120, 210, 100)),
+    PATH_WARDEN("Path Warden", "Enemies on nearby path tiles move slightly slower", 165, Color.rgb(180, 160, 90)),
+    SPARK_RELAY("Spark Relay", "Nearby towers fire a touch faster", 190, Color.rgb(255, 210, 70)),
+    BOUNTY_BOARD("Bounty Board", "Kills near the board grant a small Blocks bonus", 150, Color.rgb(230, 190, 80)),
+    CINDER_KILN("Cinder Kiln", "Nearby Ember traps and Ember towers burn hotter", 180, Color.rgb(255, 120, 50))
 }
 
 internal enum class CraftedItem(
@@ -191,7 +198,12 @@ internal enum class Imbuement(val title: String, val description: String, val ac
     SURGE("Surge", "First few activations each wave hit harder", Color.rgb(255, 210, 80)),
     // 1.4 F6 imbuement pack
     BULWARK("Bulwark", "Structure gains bonus armor against elite and boss pressure", Color.rgb(90, 140, 200)),
-    HARVEST("Harvest", "Kills near this structure grant a small Blocks trickle", Color.rgb(210, 180, 70))
+    HARVEST("Harvest", "Kills near this structure grant a small Blocks trickle", Color.rgb(210, 180, 70)),
+    // 1.4 F7 imbuement pack
+    VOLLEY("Volley", "Every few shots fire a bonus fragment at a second target", Color.rgb(255, 160, 70)),
+    SIEGE("Siege", "Bonus damage against elites and bosses", Color.rgb(220, 100, 50)),
+    FORTUNE("Fortune", "Kills have a chance to drop extra Blocks", Color.rgb(255, 210, 90)),
+    BINDING("Binding", "Hits apply a brief root snare", Color.rgb(90, 180, 110))
 }
 
 internal enum class WorkshopTab {

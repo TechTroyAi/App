@@ -91,13 +91,31 @@ Quiet path shimmer, grass sway, gate intake glow, health-linked core heartbeat. 
 
 E1–E3 evolve moments: confirm beat, path aura/hot trail, per-family flavor. See `batch-20-evolution-moments/`.
 
-## Batch 23 — New blood F1 (1.4)
-
-+5 normals + Thornback elite. See `batch-23-new-blood-f1/`.
-
 ## Batch 22 — Wide Hold F0 (1.4)
 
 Larger 16×9 forge grid + pinch-zoom / drag-pan camera. See `batch-22-wide-hold-f0/`.
+
+## Batch 23+ — Era 1.4 content
+
+| Batch | Phase | Notes |
+|-------|-------|-------|
+| 23 | F1 New blood | enemy strips |
+| 24 | F2 Named threats | elite/boss strips |
+| 25 | F3 Toolkit | utils / crafts / sigils |
+| 26 | F4 New guns | tower layers + proj/impact |
+| 27 | F5 Field pests | enemy strips |
+| 28 | F6 + C3 | threats + crafts + sigils |
+| 29 | F7 Utils/imbues | 6 utils + 4 sigils |
+
+### Pipeline (required)
+
+Process with **`tools/process_style_batch.py`** (wraps classic `isolate` + strip assemble):
+
+- Sources: `*_source.png` under `batch-NN/sources/` on **light cream / neutral** studio bg (not pure black)
+- Icons (item/sigil/tower_base/evo): **64×64** transparent
+- Strips (enemy/utility/turret/projectile/impact): **192×64** A/B/C
+- Outputs: `processed/` + `app/src/main/res/drawable-nodpi/`
+- Review: `fN-family-review.png`
 
 ## Batch 21 — crafted supplies C1 (1.4)
 

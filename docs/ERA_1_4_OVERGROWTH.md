@@ -55,8 +55,11 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 ### F6 — Named threats + C3
 **Shipped:** elites Vein Lurker / Mirror Moth; bosses Tidal Root / Ashen Choir; C3 crafts×4; Bulwark + Harvest. See `docs/VERIFICATION_F6.md`.
 
-### F7+ — Fill quotas
-Towers (~7 full kits, heaviest art), utils (~6), enchants (~5).
+### F7 — Utils + imbues
+**Shipped:** +6 utilities (Aegis/Nursery/Warden/Relay/Bounty/Kiln), +4 imbuements (Volley/Siege/Fortune/Binding). Sprite pipeline aligned via `tools/process_style_batch.py`. See `docs/VERIFICATION_F7.md`.
+
+### F8+ — Towers last
+~7 tower full kits remain (heaviest art ~42 sheets).
 
 ## Crafts roadmap (+10)
 
@@ -87,6 +90,7 @@ Towers (~7 full kits, heaviest art), utils (~6), enchants (~5).
 - **1.4 F4 New guns** (see `artwork/style-production/batch-26-new-guns-f4/`, `docs/VERIFICATION_F4.md`)
 - **1.4 F5 Field pests** (see `artwork/style-production/batch-27-field-pests-f5/`, `docs/VERIFICATION_F5.md`)
 - **1.4 F6 threats + C3** (see `artwork/style-production/batch-28-f6-threats-c3/`, `docs/VERIFICATION_F6.md`)
+- **1.4 F7 utils + imbues** (see `artwork/style-production/batch-29-utils-imbues-f7/`, `docs/VERIFICATION_F7.md`)
 
 
 ## F3 status (2026-08-28)

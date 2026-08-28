@@ -141,7 +141,11 @@ internal class SpriteCatalog(private val context: Context) {
         Imbuement.LEECH to load("sigil_leech"),
         Imbuement.SURGE to load("sigil_surge"),
         Imbuement.BULWARK to load("sigil_bulwark"),
-        Imbuement.HARVEST to load("sigil_harvest")
+        Imbuement.HARVEST to load("sigil_harvest"),
+        Imbuement.VOLLEY to load("sigil_volley"),
+        Imbuement.SIEGE to load("sigil_siege"),
+        Imbuement.FORTUNE to load("sigil_fortune"),
+        Imbuement.BINDING to load("sigil_binding")
     )
 
     val salvageParts = load("icon_salvage_parts")
@@ -159,7 +163,13 @@ internal class SpriteCatalog(private val context: Context) {
         UtilityKind.WARD_BEACON to loadStrip("utility_ward_beacon"),
         UtilityKind.BATTLE_BANNER to loadStrip("utility_battle_banner"),
         UtilityKind.ESSENCE_STILL to loadStrip("utility_essence_still"),
-        UtilityKind.TRAP_LATTICE to loadStrip("utility_trap_lattice")
+        UtilityKind.TRAP_LATTICE to loadStrip("utility_trap_lattice"),
+        UtilityKind.AEGIS_PYLON to loadStrip("utility_aegis_pylon"),
+        UtilityKind.GROWTH_NURSERY to loadStrip("utility_growth_nursery"),
+        UtilityKind.PATH_WARDEN to loadStrip("utility_path_warden"),
+        UtilityKind.SPARK_RELAY to loadStrip("utility_spark_relay"),
+        UtilityKind.BOUNTY_BOARD to loadStrip("utility_bounty_board"),
+        UtilityKind.CINDER_KILN to loadStrip("utility_cinder_kiln")
     )
 
     private val projectiles = mapOf(

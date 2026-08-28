@@ -578,7 +578,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             var gateSlow = 1f
             if (routeOilWaves > 0 && enemy.progress < 4.5f) gateSlow = 0.55f
-            if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * gateSlow * delta
+            val wardenSlow = pathWardenSlow(enemy.x, enemy.y)
+            if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * gateSlow * wardenSlow * delta
             updateEnemyPosition(enemy)
             applyCorruptionToEnemy(enemy, delta)
             triggerTrapIfNeeded(enemy)
@@ -637,6 +638,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     fireTower(tower, target)
                     var interval = tower.currentInterval()
                     if (hasHarmonyNear(tower)) interval *= 0.80f
+                    interval *= sparkRelayIntervalMul(tower.col, tower.row)
                     if (perkCount(ForgePerk.LAST_BASTION) > 0 && distanceSquared(tower.col + 0.5f, tower.row + 0.5f, COLS - 0.5f, START_ROW + 0.5f) <= 14f) interval *= max(0.55f, 1f - perkCount(ForgePerk.LAST_BASTION) * 0.10f)
                     tower.cooldown = interval
                     tower.recoil = 1f
@@ -1033,6 +1035,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         var damage = tower.currentDamage()
         if (perkCount(ForgePerk.CORNER_AMBUSH) > 0 && enemyOnCorner(target)) damage *= 1f + perkCount(ForgePerk.CORNER_AMBUSH) * 0.22f
         damage *= battleBannerDamageBonus(tower.col, tower.row)
+        if (tower.imbuement == Imbuement.SIEGE && (target.kind.elite || target.kind.boss)) damage *= 1.22f
         tower.activationCount += 1
         if (tower.surgeCharges > 0) tower.surgeCharges -= 1
         val evolveHot = tower.evolveProof > 0.02f || tower.focusBoostTimer > 0f
@@ -1040,6 +1043,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (tower.imbuement == Imbuement.ECHOES && tower.activationCount % 5 == 0) {
             projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.65f, tower.kind.projectileSpeed * 1.12f, tower, evolveHot = evolveHot))
             floatingLabels.add(FloatingLabel("ECHO", tower.col + 0.5f, tower.row + 0.2f, Imbuement.ECHOES.accent))
+        }
+        if (tower.imbuement == Imbuement.VOLLEY && tower.activationCount % 4 == 0) {
+            val second = enemies.filter { it.targetable && it !== target }.maxByOrNull { it.progress }
+            if (second != null) {
+                projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, second, tower.kind, damage * 0.45f, tower.kind.projectileSpeed * 1.05f, tower, evolveHot = evolveHot))
+                floatingLabels.add(FloatingLabel("VOLLEY", tower.col + 0.5f, tower.row + 0.2f, Imbuement.VOLLEY.accent))
+            }
         }
         if (tower.kind == TowerKind.BOLT && isNearTowerKind(tower.col, tower.row, TowerKind.BEACON, exclude = tower) && random.nextFloat() < 0.22f) {
             enemies.filter { it.targetable && it !== target }.sortedByDescending { it.progress }.firstOrNull()?.let {
@@ -1092,6 +1102,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun impactProjectile(projectile: Projectile) {
         val tower = projectile.source
         spawnImpact(projectile.x, projectile.y, projectile.kind)
+        applyBindingFrom(tower, projectile.target)
         if (projectile.evolveHot) {
             burst(projectile.x, projectile.y, Color.rgb(255, 215, 104), 10, 0.85f)
             burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
@@ -1234,9 +1245,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (enemy in enemies) for (crusher in crushers) enemy.trapTriggerCounts.remove(crusher.id)
     }
 
-    private fun ignite(enemy: Enemy, damagePerSecond: Float, duration: Float) {
+    private fun ignite(enemy: Enemy, damagePerSecond: Float, duration: Float, sourceCol: Int = -1, sourceRow: Int = -1) {
+        var dps = damagePerSecond
+        if (sourceCol >= 0) dps *= cinderKilnBurnMul(sourceCol, sourceRow)
         enemy.burnTimer = max(enemy.burnTimer, duration)
-        enemy.burnDamagePerSecond = max(enemy.burnDamagePerSecond, damagePerSecond)
+        enemy.burnDamagePerSecond = max(enemy.burnDamagePerSecond, dps)
+    }
+
+    private fun applyBindingFrom(tower: Tower?, enemy: Enemy) {
+        if (tower?.imbuement != Imbuement.BINDING) return
+        enemy.rootTimer = max(enemy.rootTimer, 0.55f)
     }
 
     private fun damageEnemy(enemy: Enemy, amount: Float, effectColor: Int, armorPierce: Float = 0f, showLabel: Boolean = true) {
@@ -1326,6 +1344,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (harvest > 0) {
                 gold = safeAdd(gold, harvest)
                 if (random.nextFloat() < 0.35f) floatingLabels.add(FloatingLabel("+$harvest", enemy.x, enemy.y + 0.1f, Color.rgb(210, 180, 70), 0.45f))
+            }
+
+            // F7 Bounty Board + Fortune
+            var bountyBonus = 0
+            for (u in utilities) {
+                if (u.kind != UtilityKind.BOUNTY_BOARD || u.disabledTimer > 0f) continue
+                if (distanceSquared(u.col + 0.5f, u.row + 0.5f, enemy.x, enemy.y) <= 5.5f) {
+                    bountyBonus += 1 + utilityPowerLevel(u) / 2
+                }
+            }
+            for (tower in towers) {
+                if (tower.imbuement == Imbuement.FORTUNE && distanceSquared(tower.col + 0.5f, tower.row + 0.5f, enemy.x, enemy.y) <= 4.5f) {
+                    if (random.nextFloat() < 0.28f) bountyBonus += 2
+                }
+            }
+            if (bountyBonus > 0) {
+                gold = safeAdd(gold, bountyBonus)
+                floatingLabels.add(FloatingLabel("+$bountyBonus", enemy.x, enemy.y + 0.2f, Color.rgb(255, 210, 90), 0.5f))
             }
             if (enemy.kind.elite || enemy.kind.boss) {
                 val parts = if (enemy.kind.boss) 3 else 1
@@ -1482,6 +1518,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) essence += 1
                     growthEssence = safeAdd(growthEssence, essence)
                     floatingLabels.add(FloatingLabel("+$essence E", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.15f, pop = 1.32f))
+                }
+                UtilityKind.GROWTH_NURSERY -> {
+                    utility.activationCount += 1
+                    var essenceN = 1 + utilityPowerLevel(utility) / 2
+                    if (utility.imbuement == Imbuement.MIGHT) essenceN += 1
+                    growthEssence = safeAdd(growthEssence, essenceN)
+                    floatingLabels.add(FloatingLabel("+$essenceN E", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.1f, pop = 1.25f))
                 }
                 UtilityKind.WARD_BEACON -> {
                     utility.activationCount += 1
@@ -1842,6 +1885,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (tower.imbuement == Imbuement.WARD) d *= 0.55f
         if (tower.imbuement == Imbuement.BULWARK) d *= 0.65f
         if (hasWardBeaconNear(tower.col, tower.row)) d *= 0.70f
+        d *= aegisHexMul(tower.col, tower.row)
         tower.disabledTimer = max(tower.disabledTimer, d)
     }
 
@@ -1866,6 +1910,38 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
         }.maxBy { utilityPowerLevel(it) } ?: return 1f
         return 1f + 0.10f * utilityPowerLevel(lattice) + if (lattice.imbuement == Imbuement.MIGHT) 0.06f else 0f
+    }
+
+    private fun sparkRelayIntervalMul(col: Int, row: Int): Float {
+        val relay = utilities.filter {
+            it.kind == UtilityKind.SPARK_RELAY && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return max(0.72f, 1f - 0.05f * utilityPowerLevel(relay) - if (relay.imbuement == Imbuement.TEMPO) 0.04f else 0f)
+    }
+
+    private fun pathWardenSlow(x: Float, y: Float): Float {
+        val warden = utilities.filter {
+            it.kind == UtilityKind.PATH_WARDEN && it.disabledTimer <= 0f &&
+                distanceSquared(it.col + 0.5f, it.row + 0.5f, x, y) <= 5.5f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return max(0.70f, 1f - 0.06f * utilityPowerLevel(warden))
+    }
+
+    private fun cinderKilnBurnMul(col: Int, row: Int): Float {
+        val kiln = utilities.filter {
+            it.kind == UtilityKind.CINDER_KILN && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return 1f + 0.10f * utilityPowerLevel(kiln)
+    }
+
+    private fun aegisHexMul(col: Int, row: Int): Float {
+        val pylon = utilities.filter {
+            it.kind == UtilityKind.AEGIS_PYLON && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return max(0.55f, 1f - 0.08f * utilityPowerLevel(pylon))
     }
 
     private fun consumeSupply(item: CraftedItem): Boolean {
@@ -2411,7 +2487,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     return true
                 }
                 if (utilityPageRect.contains(x, y)) {
-                    if (buildPage == BuildPage.UTILITIES) utilityPageIndex = (utilityPageIndex + 1) % 3 else buildPage = BuildPage.UTILITIES
+                    if (buildPage == BuildPage.UTILITIES) utilityPageIndex = (utilityPageIndex + 1) % 5 else buildPage = BuildPage.UTILITIES
                     clearBuildSelections()
                     rebuildToolRects()
                     audio.play("ui_click", 0.28f, 1.08f)
@@ -4404,7 +4480,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawToolBar(canvas: Canvas) {
         drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR ${towerPageIndex + 1}/2", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
         drawPageTab(canvas, trapPageRect, if (challengeModifier == ChallengeModifier.TOWERS_ONLY) "LOCK" else "TRAP", buildPage == BuildPage.TRAPS, Color.rgb(93, 220, 255))
-        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/3", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
+        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/5", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
         drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, Color.rgb(195, 120, 255))
         for ((tool, rect) in toolRects) {
             val selected = selectedTool == tool && ((buildPage == BuildPage.TOWERS && tool.ordinal < BuildTool.SPIKES.ordinal) || (buildPage == BuildPage.TRAPS && tool.ordinal >= BuildTool.SPIKES.ordinal))
