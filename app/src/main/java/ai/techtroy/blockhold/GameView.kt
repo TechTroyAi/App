@@ -481,7 +481,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildPage.TOWERS -> {
                 val all = arrayOf(
                     BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON, BuildTool.EMBER,
-                    BuildTool.BEACON, BuildTool.THORN, BuildTool.LANCE, BuildTool.MIRE
+                    BuildTool.BEACON, BuildTool.THORN, BuildTool.LANCE, BuildTool.MIRE,
+                    BuildTool.GALE, BuildTool.SUNFORGE, BuildTool.LODESTONE
                 )
                 all.drop(towerPageIndex * 4).take(4).toTypedArray()
             }
@@ -1208,6 +1209,56 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 burst(projectile.x, projectile.y, projectile.kind.accent, 12, 0.95f)
             }
+            TowerKind.GALE -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.55f)
+                val shove = if (tower.evolution == TowerEvolution.CYCLONE_CROWN) 0.55f else 0.32f
+                projectile.target.progress = max(0f, projectile.target.progress - shove)
+                updateEnemyPosition(projectile.target)
+                if (tower.evolution == TowerEvolution.SHEAR_BLADE) {
+                    enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.1f }
+                        .minByOrNull { abs(it.progress - projectile.target.progress) }
+                        ?.let { secondary ->
+                            damageEnemy(secondary, projectile.damage * 0.72f, projectile.kind.accent, 0.45f)
+                            secondary.progress = max(0f, secondary.progress - shove * 0.55f)
+                            updateEnemyPosition(secondary)
+                            spawnImpact(secondary.x, secondary.y, projectile.kind)
+                        }
+                }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 7, 0.65f)
+            }
+            TowerKind.SUNFORGE -> {
+                var dmg = projectile.damage
+                if (tower.evolution == TowerEvolution.HEARTH_CORE) {
+                    val dist = sqrt(distanceSquared(projectile.target.x, projectile.target.y, tower.col + 0.5f, tower.row + 0.5f))
+                    if (dist < 2.4f) dmg *= 1.35f
+                }
+                damageEnemy(projectile.target, dmg, projectile.kind.accent, 0.40f)
+                ignite(projectile.target, dmg * 0.28f, 2.6f)
+                if (tower.evolution == TowerEvolution.SOLAR_FLARE) {
+                    enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.15f }
+                        .take(2).forEach { near ->
+                            damageEnemy(near, dmg * 0.45f, projectile.kind.accent, 0.25f)
+                            ignite(near, dmg * 0.18f, 2.0f)
+                            spawnImpact(near.x, near.y, projectile.kind)
+                        }
+                }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
+            }
+            TowerKind.LODESTONE -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.50f)
+                val yank = if (tower.evolution == TowerEvolution.PULL_WELL) 0.70f else 0.40f
+                projectile.target.progress = max(0f, projectile.target.progress - yank)
+                updateEnemyPosition(projectile.target)
+                if (tower.evolution == TowerEvolution.REPULSOR) {
+                    projectile.target.stunTimer = max(projectile.target.stunTimer, 0.65f)
+                }
+                enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.0f }
+                    .take(2).forEach { near ->
+                        near.progress = max(0f, near.progress - yank * 0.35f)
+                        updateEnemyPosition(near)
+                    }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 6, 0.6f)
+            }
         }
     }
 
@@ -1222,12 +1273,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.THORN -> 1.15f + random.nextFloat() * 0.10f
             TowerKind.LANCE -> 0.95f + random.nextFloat() * 0.08f
             TowerKind.MIRE -> 0.75f + random.nextFloat() * 0.10f
+            TowerKind.GALE -> 0.95f + random.nextFloat() * 0.10f
+            TowerKind.SUNFORGE -> 0.88f + random.nextFloat() * 0.10f
+            TowerKind.LODESTONE -> 0.70f + random.nextFloat() * 0.10f
         }
         val volume = when (kind) {
             TowerKind.CANNON -> 0.38f
             TowerKind.EMBER -> 0.30f
             TowerKind.LANCE -> 0.32f
             TowerKind.MIRE -> 0.28f
+            TowerKind.GALE -> 0.30f
+            TowerKind.SUNFORGE -> 0.32f
+            TowerKind.LODESTONE -> 0.30f
             else -> 0.24f
         }
         audio.play("impact", volume, pitch)
@@ -2467,7 +2524,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         setBanner("TRAPS ONLY CHALLENGE", 1.4f)
                         return true
                     }
-                    if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 2 else buildPage = BuildPage.TOWERS
+                    if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 3 else buildPage = BuildPage.TOWERS
                     if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
                     clearBuildSelections()
                     rebuildToolRects()
@@ -2670,6 +2727,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.THORN -> placeTower(cell, TowerKind.THORN)
             BuildTool.LANCE -> placeTower(cell, TowerKind.LANCE)
             BuildTool.MIRE -> placeTower(cell, TowerKind.MIRE)
+            BuildTool.GALE -> placeTower(cell, TowerKind.GALE)
+            BuildTool.SUNFORGE -> placeTower(cell, TowerKind.SUNFORGE)
+            BuildTool.LODESTONE -> placeTower(cell, TowerKind.LODESTONE)
             BuildTool.SPIKES -> placeTrap(cell, TrapKind.SPIKE)
             BuildTool.ROOT -> placeTrap(cell, TrapKind.ROOT)
             BuildTool.RUNE -> placeTrap(cell, TrapKind.EMBER)
@@ -4067,6 +4127,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.THORN -> sprites.thornBase
             TowerKind.LANCE -> sprites.lanceBase
             TowerKind.MIRE -> sprites.mireBase
+            TowerKind.GALE -> sprites.galeBase
+            TowerKind.SUNFORGE -> sprites.sunforgeBase
+            TowerKind.LODESTONE -> sprites.lodestoneBase
         }
         drawBitmapCentered(canvas, base, x, y + tileSize * 0.05f, tileSize * 0.88f)
         val firingFrame = when {
@@ -4087,6 +4150,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.THORN -> drawSpriteFrameCentered(canvas, sprites.thornTurret, firingFrame, x, y, tileSize * 0.84f, tower.angle * 57.29578f)
             TowerKind.LANCE -> drawSpriteFrameCentered(canvas, sprites.lanceTurret, firingFrame, x, y - tileSize * 0.02f, tileSize * 0.88f, tower.angle * 57.29578f)
             TowerKind.MIRE -> drawSpriteFrameCentered(canvas, sprites.mireTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.GALE -> drawSpriteFrameCentered(canvas, sprites.galeTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.SUNFORGE -> drawSpriteFrameCentered(canvas, sprites.sunforgeTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.LODESTONE -> drawSpriteFrameCentered(canvas, sprites.lodestoneTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
         }
         if (tower.evolution != null) {
             strokePaint.strokeWidth = tileSize * 0.045f
@@ -4478,7 +4544,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawToolBar(canvas: Canvas) {
-        drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR ${towerPageIndex + 1}/2", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
+        drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR ${towerPageIndex + 1}/3", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
         drawPageTab(canvas, trapPageRect, if (challengeModifier == ChallengeModifier.TOWERS_ONLY) "LOCK" else "TRAP", buildPage == BuildPage.TRAPS, Color.rgb(93, 220, 255))
         drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/5", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
         drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, Color.rgb(195, 120, 255))
@@ -4542,6 +4608,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.THORN -> TowerKind.THORN.accent
             BuildTool.LANCE -> TowerKind.LANCE.accent
             BuildTool.MIRE -> TowerKind.MIRE.accent
+            BuildTool.GALE -> TowerKind.GALE.accent
+            BuildTool.SUNFORGE -> TowerKind.SUNFORGE.accent
+            BuildTool.LODESTONE -> TowerKind.LODESTONE.accent
             BuildTool.SPIKES -> TrapKind.SPIKE.accent
             BuildTool.ROOT -> TrapKind.ROOT.accent
             BuildTool.RUNE -> TrapKind.EMBER.accent
@@ -4572,6 +4641,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.THORN -> Pair(sprites.thornBase, sprites.thornTurret)
             BuildTool.LANCE -> Pair(sprites.lanceBase, sprites.lanceTurret)
             BuildTool.MIRE -> Pair(sprites.mireBase, sprites.mireTurret)
+            BuildTool.GALE -> Pair(sprites.galeBase, sprites.galeTurret)
+            BuildTool.SUNFORGE -> Pair(sprites.sunforgeBase, sprites.sunforgeTurret)
+            BuildTool.LODESTONE -> Pair(sprites.lodestoneBase, sprites.lodestoneTurret)
             else -> null
         }
         if (towerLayers != null) {

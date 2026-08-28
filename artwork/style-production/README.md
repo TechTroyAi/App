@@ -129,3 +129,5 @@ Panic forge kit: Splinter Brace, Resin Seal, Cooling Flask. See `batch-21-crafte
 - Keep terrain opaque at 128×128 and verify opposite edges pixel-for-pixel.
 - Towers with directional targeting require separate centered base and rotating top layers.
 - Inspect every batch at enlarged nearest-neighbor scale and approximately actual gameplay scale before proceeding.
+
+- **batch-30-towers-f8a** — Gale / Sunforge / Lodestone kits + 6 evo emblems (F8a).

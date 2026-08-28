@@ -55,6 +55,9 @@ internal enum class BuildTool(val title: String, val cost: Int) {
     THORN("THORN", 95),
     LANCE("LANCE", 155),
     MIRE("MIRE", 135),
+    GALE("GALE", 140),
+    SUNFORGE("SUNFORGE", 160),
+    LODESTONE("LODESTONE", 150),
     SPIKES("SPIKES", 45),
     ROOT("ROOT", 65),
     RUNE("RUNE", 85),
@@ -79,7 +82,11 @@ internal enum class TowerKind(
     // 1.4 F4 New guns
     THORN("Thorn Spire", 95, 2.75f, 20f, 0.55f, 8.8f, Color.rgb(120, 210, 90)),
     LANCE("Shard Lance", 155, 3.35f, 52f, 1.45f, 11.5f, Color.rgb(140, 220, 255)),
-    MIRE("Mire Spout", 135, 2.40f, 28f, 1.05f, 5.8f, Color.rgb(70, 190, 150))
+    MIRE("Mire Spout", 135, 2.40f, 28f, 1.05f, 5.8f, Color.rgb(70, 190, 150)),
+    // 1.4 F8a towers
+    GALE("Gale Spire", 140, 2.90f, 22f, 0.70f, 9.0f, Color.rgb(100, 200, 230)),
+    SUNFORGE("Sunforge", 160, 2.70f, 36f, 0.92f, 7.5f, Color.rgb(255, 150, 40)),
+    LODESTONE("Lodestone", 150, 2.60f, 26f, 0.85f, 6.8f, Color.rgb(150, 100, 220))
 }
 
 internal enum class TowerEvolution(
@@ -103,7 +110,14 @@ internal enum class TowerEvolution(
     PRISM_RAIL("Prism Rail", "Lance pierces farther along the route", TowerKind.LANCE),
     SKEWER_ARRAY("Skewer Array", "Lance hits a second high-progress target", TowerKind.LANCE),
     BOG_KING("Bog King", "Mire pools are larger and stickier", TowerKind.MIRE),
-    TAR_FONT("Tar Font", "Mire also briefly stuns the primary target", TowerKind.MIRE);
+    TAR_FONT("Tar Font", "Mire also briefly stuns the primary target", TowerKind.MIRE),
+    // F8a
+    CYCLONE_CROWN("Cyclone Crown", "Gale gusts shove farther along the route", TowerKind.GALE),
+    SHEAR_BLADE("Shear Blade", "Gale cuts a second nearby foe", TowerKind.GALE),
+    SOLAR_FLARE("Solar Flare", "Sunforge burns spread on impact", TowerKind.SUNFORGE),
+    HEARTH_CORE("Hearth Core", "Sunforge shots hit harder up close", TowerKind.SUNFORGE),
+    PULL_WELL("Pull Well", "Lodestone yanks foes backward harder", TowerKind.LODESTONE),
+    REPULSOR("Repulsor", "Lodestone pulses a brief stun on hit", TowerKind.LODESTONE);
 
     companion object {
         fun choices(kind: TowerKind): List<TowerEvolution> = values().filter { it.kind == kind }

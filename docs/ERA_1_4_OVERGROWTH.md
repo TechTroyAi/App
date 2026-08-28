@@ -11,7 +11,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 | Lane | Count (approx) |
 |------|----------------|
 | Board | **16×9** + pan/zoom (F0) |
-| Towers | **8** + **16** evolutions (F4) |
+| Towers | **11** + **22** evolutions (F4+F8a) |
 | Traps | 5 |
 | Utilities | ~11 (F3 + prior) |
 | Imbuements (enchants) | 9 (F3 Ward/Leech/Surge) |
@@ -59,7 +59,11 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 **Shipped:** +6 utilities (Aegis/Nursery/Warden/Relay/Bounty/Kiln), +4 imbuements (Volley/Siege/Fortune/Binding). Sprite pipeline aligned via `tools/process_style_batch.py`. See `docs/VERIFICATION_F7.md`.
 
 ### F8+ — Towers last
-~7 tower full kits remain (heaviest art ~42 sheets).
+~7 tower full kits planned (heaviest art).
+
+- [x] **F8a** Gale Spire / Sunforge / Lodestone (+6 evos) — `docs/VERIFICATION_F8a.md`
+- [ ] **F8b** next tower pack (~2–3 kits)
+- [ ] **F8c** remaining kits
 
 ## Crafts roadmap (+10)
 
@@ -96,3 +100,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 ## F3 status (2026-08-28)
 **Shipped.** Installable SHA `058f8a7da7e08e565e340467ecc866248850b367b1d19b18258f85b8d8a938db`.  
 Utils +4, C2 crafts +3, imbuements +3. Next: **F4 towers**.
+
+
+## F8a (2026-08-28)
+Gale / Sunforge / Lodestone shipped. APK SHA `bfec42f78a96875e7415d0eccb724bb1c9a7130722015a16784e55bb3859df4e`.
