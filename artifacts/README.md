@@ -5,6 +5,11 @@
 > saves once per frame. Manifest stamped `1.4.1` / `versionCode 15`, v2 + v3 signed,
 > `classes.dex` page-aligned, `scripts/verify-apk.py` **0 failures**.
 >
+> **🗑️ Discard any v1.4.1 download with SHA-256 starting `6c3807ac`.** That build passed
+> every structural check but **would not open at all** — `dx` had silently dropped two
+> `MainActivity` lambda classes, so `onCreate` died on its first line. The current file is
+> `789c964a…`; verify with `sha256sum` before installing.
+>
 > ⚠️ The v1.4 private key was not committed (it lived in gitignored `build-manual/`), so
 > v1.4.1 is signed with a **new** key with the same DN — **uninstall v1.4 once** before
 > installing v1.4.1. See [`../docs/APK_V1.4_BUILD.md`](../docs/APK_V1.4_BUILD.md#-signing-key-this-build-does-not-update-over-v14-in-place).
@@ -17,21 +22,28 @@
 >
 > | File | SHA-256 | Status |
 > |---|---|---|
-> | `Blockhold-Defense-v1.4.1-installable.apk` | `6c3807aca6fb593962a627ab78e4b9b99c832f305c898f26e569dd9e53619063` | **✅ install this** — canvas restore-underflow fix, `1.4.1` (15) |
+> | `Blockhold-Defense-v1.4.1-installable.apk` | `789c964ad702a28531386e2e75f610a87c260275a47c53bfb4caf42fba6c7c96` | **✅ install this** — canvas restore-underflow fix + launch fix, `1.4.1` (15) |
+> | ~~`Blockhold-Defense-v1.4.1-installable.apk`~~ | ~~`6c3807aca6fb593962a627ab78e4b9b99c832f305c898f26e569dd9e53619063`~~ | ❌ **does not open** — superseded, discard if downloaded |
 > | `Blockhold-Defense-v1.4-installable.apk` | `7533c6b5967f492b0c33ece43bea36773eac4a4460ad98e55d3deb53f2147522` | crashes on first path block (canvas restore underflow) |
 > | `Blockhold-Defense-v1.2-installable.apk` | `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4` | crashes on launch / unaligned |
 > | `Blockhold-Defense-v1.2-unsigned.apk` | `07b51c08666ce88d1819adb7c0b377e1c031058cd5d9e4309cf8253fe8f5dbe0` | apktool rebuild, do not ship |
 > | `Blockhold-Defense-v1.0-release.apk` | `838eb6770d9d14b328be78f3f22b729de826c4601b90e31afa41c74c5517b5fc` | old, different signing key |
 > | `Blockhold-Defense-v0.1-debug.apk` | `b22b15123d176550c0e52e6093ce7e9c5a84b258eea21c4843a543d7b123fa47` | debug milestone |
 >
-> v1.4 signing certificate: `CN=Blockhold Defense, OU=Game Release, O=TechTroyAi,
-> L=Davao City, ST=Davao Region, C=PH`, certificate SHA-256
-> `7e:4d:cd:c2:59:3d:75:4a:62:fb:8e:33:bd:e0:72:1b:3a:48:56:63:cb:bb:e3:cd:8f:31:6f:d8:14:80:de:f9`.
-> This key is new (no v1.0–v1.2 private key exists in the repo), so installing v1.4 needs a
-> one-time uninstall of the old build; every later build signed with this keystore then
-> updates in place. See [`../docs/APK_V1.4_BUILD.md`](../docs/APK_V1.4_BUILD.md) for the
+> Signing certificates (`CN=Blockhold Defense, OU=Game Release, O=TechTroyAi,
+> L=Davao City, ST=Davao Region, C=PH`):
+>
+> | Build | Certificate SHA-256 |
+> |---|---|
+> | v1.4 | `7e:4d:cd:c2:59:3d:75:4a:62:fb:8e:33:bd:e0:72:1b:3a:48:56:63:cb:bb:e3:cd:8f:31:6f:d8:14:80:de:f9` |
+> | v1.4.1 (discarded, will not open) | `46:57:88:0e:29:1d:2b:83:cd:97:6a:d9:55:9a:ff:99:4d:d3:a3:a6:a7:f1:21:a1:3d:56:87:2d:f7:ab:4b:d9` |
+> | **v1.4.1 (current)** | `7d:59:6f:ee:b2:7d:6e:0b:46:02:bf:06:36:ea:55:1a:d7:34:26:8e:e1:16:0c:8e:50:95:0e:e9:9a:77:8f:6d` |
+>
+> Each row is a different key pair, so each transition needs a one-time uninstall. No v1.0–v1.2
+> private key exists in the repo. See [`../docs/APK_V1.4_BUILD.md`](../docs/APK_V1.4_BUILD.md) for the
 > reproducible offline build process and [`../docs/APK_V1.2_LAUNCH_DIAGNOSIS.md`](../docs/APK_V1.2_LAUNCH_DIAGNOSIS.md)
-> for the root-cause write-up.
+> for the root-cause write-up. Back the signing key up — see
+> [`../docs/SIGNING.md`](../docs/SIGNING.md#keeping-the-key-alive).
 
 
 ## Current (F3 Toolkit — 1.4)
