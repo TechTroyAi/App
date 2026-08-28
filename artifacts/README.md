@@ -1,3 +1,16 @@
+> **⚠️ The SHA-256 values in this file are stale (checked 2026-08-28).** None of the recorded
+> hashes match the APKs actually present here. Verified current hashes:
+>
+> | File | SHA-256 |
+> |---|---|
+> | `Blockhold-Defense-v1.2-installable.apk` | `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4` |
+> | `Blockhold-Defense-v1.2-unsigned.apk` | `07b51c08666ce88d1819adb7c0b377e1c031058cd5d9e4309cf8253fe8f5dbe0` |
+> | `Blockhold-Defense-v1.0-release.apk` | `838eb6770d9d14b328be78f3f22b729de826c4601b90e31afa41c74c5517b5fc` |
+> | `Blockhold-Defense-v0.1-debug.apk` | `b22b15123d176550c0e52e6093ce7e9c5a84b258eea21c4843a543d7b123fa47` |
+>
+> `Blockhold-Defense-v1.2-installable.apk` was assembled with apktool and **never zipaligned**
+> — prefer an APK built by Gradle (`./gradlew assembleDebug`) or by the `ci/android.yml` workflow once it is activated. See
+> [`../docs/APK_V1.2_LAUNCH_DIAGNOSIS.md`](../docs/APK_V1.2_LAUNCH_DIAGNOSIS.md).
 
 ## Current (F3 Toolkit — 1.4)
 - **Installable:** `Blockhold-Defense-v1.2-installable.apk`

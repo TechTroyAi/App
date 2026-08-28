@@ -1,3 +1,11 @@
+> **⚠️ STALE — DO NOT TRUST THIS RECORD (checked 2026-08-28).**
+> The hashes, sizes and entry counts below do not match the APKs currently in `artifacts/`,
+> and the "Four-byte ZIP alignment: passed" / "`zipalign -c -p -v 4` passed" lines are false:
+> 168 of 221 uncompressed entries in `Blockhold-Defense-v1.2-installable.apk` are misaligned,
+> including `classes.dex`. This document describes an earlier build that no longer exists.
+> See [`APK_V1.2_LAUNCH_DIAGNOSIS.md`](APK_V1.2_LAUNCH_DIAGNOSIS.md) and regenerate with
+> `python3 scripts/verify-apk.py --all`.
+
 # v1.2 Forgeworks verification record
 
 Artifact: `artifacts/Blockhold-Defense-v1.2-unsigned.apk`
