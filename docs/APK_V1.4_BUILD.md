@@ -339,8 +339,9 @@ future v1.4.1 rebuild. The v1.4.2 source update below increments the code to `16
 
 Date: 2026-08-28
 
-The v1.4.2 source target is `versionName 1.4.2` / `versionCode 16`. The installable APK is
-pending a build in an environment with JDK 17 and Android SDK Platform 35.
+The v1.4.2 source target is `versionName 1.4.2` / `versionCode 16`. Hosted CI has now
+built the debug APK with JDK 17 and Android SDK Platform 35 and passed the structural
+verifier; the signed installable release artifact is not yet retained in `artifacts/`.
 
 Implemented in the source tree:
 

@@ -6,7 +6,7 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-The v1.4.2 source update is in progress. The latest verified installable artifact currently retained in the repository is `artifacts/Blockhold-Defense-v1.4.1-installable.apk`; the v1.4.2 APK will be generated after the new wave and utility systems are built and verified. Reuse the v1.4.1 signing key for an in-place update; a replacement key requires a one-time uninstall.
+The v1.4.2 source update is implemented and passes the hosted Android debug build plus structural APK verification. The latest verified installable artifact currently retained in the repository is `artifacts/Blockhold-Defense-v1.4.1-installable.apk`; a signed v1.4.2 release artifact still needs to be retained after the release-key build. Reuse the v1.4.1 signing key for an in-place update; a replacement key requires a one-time uninstall.
 
 | Item | Value |
 | --- | --- |
