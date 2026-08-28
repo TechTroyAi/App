@@ -60,6 +60,8 @@ internal enum class BuildTool(val title: String, val cost: Int) {
     LODESTONE("LODESTONE", 150),
     HOWL("HOWL", 145),
     VITRIOL("VITRIOL", 155),
+    GRAVEBOLT("GRAVEBOLT", 165),
+    AEGIS_LOOM("AEGIS_LOOM", 175),
     SPIKES("SPIKES", 45),
     ROOT("ROOT", 65),
     RUNE("RUNE", 85),
@@ -91,7 +93,10 @@ internal enum class TowerKind(
     LODESTONE("Lodestone", 150, 2.60f, 26f, 0.85f, 6.8f, Color.rgb(150, 100, 220)),
     // 1.4 F8b towers
     HOWL("Howl Spire", 145, 3.10f, 18f, 0.80f, 9.5f, Color.rgb(120, 190, 230)),
-    VITRIOL("Vitriol Spout", 155, 2.50f, 30f, 1.00f, 6.5f, Color.rgb(140, 200, 50))
+    VITRIOL("Vitriol Spout", 155, 2.50f, 30f, 1.00f, 6.5f, Color.rgb(140, 200, 50)),
+    // 1.4 F8c towers
+    GRAVEBOLT("Gravebolt", 165, 2.85f, 34f, 0.95f, 7.8f, Color.rgb(160, 90, 220)),
+    AEGIS_LOOM("Aegis Loom", 175, 2.70f, 20f, 1.10f, 8.0f, Color.rgb(230, 180, 70))
 }
 
 internal enum class TowerEvolution(
@@ -127,7 +132,12 @@ internal enum class TowerEvolution(
     PACK_CALL("Pack Call", "Howl also slows a second nearby foe", TowerKind.HOWL),
     ECHO_VAULT("Echo Vault", "Howl reveal lasts longer", TowerKind.HOWL),
     ACID_VEIN("Acid Vein", "Vitriol shred stacks higher", TowerKind.VITRIOL),
-    RUST_SCOUR("Rust Scour", "Shredded foes take a brief burn tick", TowerKind.VITRIOL);
+    RUST_SCOUR("Rust Scour", "Shredded foes take a brief burn tick", TowerKind.VITRIOL),
+    // F8c
+    SOUL_BRAND("Soul Brand", "Death detonates the mark for splash damage", TowerKind.GRAVEBOLT),
+    DEATH_KNELL("Death Knell", "Marks last longer and hit harder on death", TowerKind.GRAVEBOLT),
+    BULWARK_WEAVE("Bulwark Weave", "Shield pulse also cleanses more Hex", TowerKind.AEGIS_LOOM),
+    WARD_PULSE("Ward Pulse", "Nearby towers gain a brief fire-rate surge", TowerKind.AEGIS_LOOM);
 
     companion object {
         fun choices(kind: TowerKind): List<TowerEvolution> = values().filter { it.kind == kind }
@@ -227,7 +237,9 @@ internal enum class Imbuement(val title: String, val description: String, val ac
     VOLLEY("Volley", "Every few shots fire a bonus fragment at a second target", Color.rgb(255, 160, 70)),
     SIEGE("Siege", "Bonus damage against elites and bosses", Color.rgb(220, 100, 50)),
     FORTUNE("Fortune", "Kills have a chance to drop extra Blocks", Color.rgb(255, 210, 90)),
-    BINDING("Binding", "Hits apply a brief root snare", Color.rgb(90, 180, 110))
+    BINDING("Binding", "Hits apply a brief root snare", Color.rgb(90, 180, 110)),
+    // F8c final imbue — completes +10 quota
+    RIME("Rime", "Hits chill harder; already-slowed foes take bonus damage", Color.rgb(160, 220, 255))
 }
 
 internal enum class WorkshopTab {
@@ -565,6 +577,9 @@ internal class Enemy(
         var slowTimer = 0f
     /** F4 Thorn Spire: marked for bonus incoming damage. */
     var markTimer = 0f
+    /** F8c Gravebolt: death-detonate mark. */
+    var graveMarkTimer = 0f
+    var graveMarkDamage = 0f
     /** F8b Vitriol: temporary armor reduction (0–1). */
     var armorShred = 0f
     var armorShredTimer = 0f

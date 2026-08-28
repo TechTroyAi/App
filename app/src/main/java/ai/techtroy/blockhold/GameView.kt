@@ -483,7 +483,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON, BuildTool.EMBER,
                     BuildTool.BEACON, BuildTool.THORN, BuildTool.LANCE, BuildTool.MIRE,
                     BuildTool.GALE, BuildTool.SUNFORGE, BuildTool.LODESTONE,
-                    BuildTool.HOWL, BuildTool.VITRIOL
+                    BuildTool.HOWL, BuildTool.VITRIOL,
+                    BuildTool.GRAVEBOLT, BuildTool.AEGIS_LOOM
                 )
                 all.drop(towerPageIndex * 4).take(4).toTypedArray()
             }
@@ -535,6 +536,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             enemy.flashTimer = max(0f, enemy.flashTimer - delta)
             enemy.slowTimer = max(0f, enemy.slowTimer - delta)
             enemy.markTimer = max(0f, enemy.markTimer - delta)
+            enemy.graveMarkTimer = max(0f, enemy.graveMarkTimer - delta)
+            if (enemy.graveMarkTimer <= 0f) enemy.graveMarkDamage = 0f
             enemy.armorShredTimer = max(0f, enemy.armorShredTimer - delta)
             if (enemy.armorShredTimer <= 0f) enemy.armorShred = 0f
             enemy.rootTimer = max(0f, enemy.rootTimer - delta)
@@ -1040,6 +1043,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (perkCount(ForgePerk.CORNER_AMBUSH) > 0 && enemyOnCorner(target)) damage *= 1f + perkCount(ForgePerk.CORNER_AMBUSH) * 0.22f
         damage *= battleBannerDamageBonus(tower.col, tower.row)
         if (tower.imbuement == Imbuement.SIEGE && (target.kind.elite || target.kind.boss)) damage *= 1.22f
+        if (tower.imbuement == Imbuement.RIME && target.slowTimer > 0.05f) damage *= 1.18f
         tower.activationCount += 1
         if (tower.surgeCharges > 0) tower.surgeCharges -= 1
         val evolveHot = tower.evolveProof > 0.02f || tower.focusBoostTimer > 0f
@@ -1107,6 +1111,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val tower = projectile.source
         spawnImpact(projectile.x, projectile.y, projectile.kind)
         applyBindingFrom(tower, projectile.target)
+        if (tower?.imbuement == Imbuement.RIME) {
+            projectile.target.slowTimer = max(projectile.target.slowTimer, 1.35f)
+        }
         if (projectile.evolveHot) {
             burst(projectile.x, projectile.y, Color.rgb(255, 215, 104), 10, 0.85f)
             burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
@@ -1300,6 +1307,43 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 floatingLabels.add(FloatingLabel("ACID", projectile.target.x, projectile.target.y - 0.3f, projectile.kind.accent, 0.45f))
                 burst(projectile.x, projectile.y, projectile.kind.accent, 7, 0.65f)
             }
+            TowerKind.GRAVEBOLT -> {
+                var dmg = projectile.damage
+                damageEnemy(projectile.target, dmg, projectile.kind.accent, 0.40f)
+                val markT = if (tower.evolution == TowerEvolution.DEATH_KNELL) 4.2f else 2.8f
+                val markD = dmg * (if (tower.evolution == TowerEvolution.DEATH_KNELL) 0.95f else 0.70f)
+                // Always brand; Soul Brand guarantees detonate path (same field)
+                projectile.target.graveMarkTimer = max(projectile.target.graveMarkTimer, markT)
+                projectile.target.graveMarkDamage = max(projectile.target.graveMarkDamage, markD)
+                if (tower.evolution == TowerEvolution.SOUL_BRAND) {
+                    projectile.target.graveMarkDamage = max(projectile.target.graveMarkDamage, markD * 1.15f)
+                }
+                floatingLabels.add(FloatingLabel("BRAND", projectile.target.x, projectile.target.y - 0.3f, projectile.kind.accent, 0.45f))
+                burst(projectile.x, projectile.y, projectile.kind.accent, 7, 0.65f)
+            }
+            TowerKind.AEGIS_LOOM -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.30f)
+                // Shield pulse: cleanse hex on nearby towers
+                val cleanse = if (tower.evolution == TowerEvolution.BULWARK_WEAVE) 1.35f else 0.75f
+                for (ally in towers) {
+                    if (ally.disabledTimer <= 0f) continue
+                    val dist = distanceSquared(ally.col + 0.5f, ally.row + 0.5f, tower.col + 0.5f, tower.row + 0.5f)
+                    if (dist <= 6.25f) {
+                        ally.disabledTimer = max(0f, ally.disabledTimer - cleanse)
+                        burst(ally.col + 0.5f, ally.row + 0.5f, projectile.kind.accent, 4, 0.4f)
+                    }
+                }
+                if (tower.evolution == TowerEvolution.WARD_PULSE) {
+                    for (ally in towers) {
+                        val dist = distanceSquared(ally.col + 0.5f, ally.row + 0.5f, tower.col + 0.5f, tower.row + 0.5f)
+                        if (dist <= 6.25f) {
+                            ally.focusBoostTimer = max(ally.focusBoostTimer, 1.6f)
+                        }
+                    }
+                }
+                floatingLabels.add(FloatingLabel("AEGIS", tower.col + 0.5f, tower.row + 0.2f, projectile.kind.accent, 0.5f))
+                burst(projectile.x, projectile.y, projectile.kind.accent, 6, 0.55f)
+            }
         }
     }
 
@@ -1319,6 +1363,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.LODESTONE -> 0.70f + random.nextFloat() * 0.10f
             TowerKind.HOWL -> 0.92f + random.nextFloat() * 0.10f
             TowerKind.VITRIOL -> 0.78f + random.nextFloat() * 0.10f
+            TowerKind.GRAVEBOLT -> 0.72f + random.nextFloat() * 0.10f
+            TowerKind.AEGIS_LOOM -> 0.90f + random.nextFloat() * 0.08f
         }
         val volume = when (kind) {
             TowerKind.CANNON -> 0.38f
@@ -1330,6 +1376,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.LODESTONE -> 0.30f
             TowerKind.HOWL -> 0.31f
             TowerKind.VITRIOL -> 0.29f
+            TowerKind.GRAVEBOLT -> 0.33f
+            TowerKind.AEGIS_LOOM -> 0.28f
             else -> 0.24f
         }
         audio.play("impact", volume, pitch)
@@ -1415,6 +1463,21 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun beginEnemyDeath(enemy: Enemy) {
         if (enemy.dying || !enemy.alive) return
         enemy.health = 0f
+        // F8c Gravebolt death detonate
+        if (enemy.graveMarkTimer > 0.02f && enemy.graveMarkDamage > 0.5f) {
+            val splash = enemy.graveMarkDamage
+            val accent = TowerKind.GRAVEBOLT.accent
+            burst(enemy.x, enemy.y, accent, 12, 0.9f)
+            for (other in enemies) {
+                if (!other.targetable || other === enemy) continue
+                if (abs(other.progress - enemy.progress) < 1.35f) {
+                    damageEnemy(other, splash * 0.85f, accent, 0.35f)
+                }
+            }
+            floatingLabels.add(FloatingLabel("KNELL", enemy.x, enemy.y - 0.4f, accent, 0.55f))
+            enemy.graveMarkTimer = 0f
+            enemy.graveMarkDamage = 0f
+        }
         enemy.deathTimer = if (enemy.kind.boss) 0.55f else if (enemy.kind.elite) 0.38f else 0.28f
         enemy.flashTimer = enemy.deathTimer
         enemy.burnTimer = 0f
@@ -2778,6 +2841,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.LODESTONE -> placeTower(cell, TowerKind.LODESTONE)
             BuildTool.HOWL -> placeTower(cell, TowerKind.HOWL)
             BuildTool.VITRIOL -> placeTower(cell, TowerKind.VITRIOL)
+            BuildTool.GRAVEBOLT -> placeTower(cell, TowerKind.GRAVEBOLT)
+            BuildTool.AEGIS_LOOM -> placeTower(cell, TowerKind.AEGIS_LOOM)
             BuildTool.SPIKES -> placeTrap(cell, TrapKind.SPIKE)
             BuildTool.ROOT -> placeTrap(cell, TrapKind.ROOT)
             BuildTool.RUNE -> placeTrap(cell, TrapKind.EMBER)
@@ -4180,6 +4245,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.LODESTONE -> sprites.lodestoneBase
             TowerKind.HOWL -> sprites.howlBase
             TowerKind.VITRIOL -> sprites.vitriolBase
+            TowerKind.GRAVEBOLT -> sprites.graveboltBase
+            TowerKind.AEGIS_LOOM -> sprites.aegisLoomBase
         }
         drawBitmapCentered(canvas, base, x, y + tileSize * 0.05f, tileSize * 0.88f)
         val firingFrame = when {
@@ -4205,6 +4272,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.LODESTONE -> drawSpriteFrameCentered(canvas, sprites.lodestoneTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
             TowerKind.HOWL -> drawSpriteFrameCentered(canvas, sprites.howlTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
             TowerKind.VITRIOL -> drawSpriteFrameCentered(canvas, sprites.vitriolTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.GRAVEBOLT -> drawSpriteFrameCentered(canvas, sprites.graveboltTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.AEGIS_LOOM -> drawSpriteFrameCentered(canvas, sprites.aegisLoomTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
         }
         if (tower.evolution != null) {
             strokePaint.strokeWidth = tileSize * 0.045f
@@ -4665,6 +4734,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.LODESTONE -> TowerKind.LODESTONE.accent
             BuildTool.HOWL -> TowerKind.HOWL.accent
             BuildTool.VITRIOL -> TowerKind.VITRIOL.accent
+            BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT.accent
+            BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM.accent
             BuildTool.SPIKES -> TrapKind.SPIKE.accent
             BuildTool.ROOT -> TrapKind.ROOT.accent
             BuildTool.RUNE -> TrapKind.EMBER.accent
@@ -4700,6 +4771,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.LODESTONE -> Pair(sprites.lodestoneBase, sprites.lodestoneTurret)
             BuildTool.HOWL -> Pair(sprites.howlBase, sprites.howlTurret)
             BuildTool.VITRIOL -> Pair(sprites.vitriolBase, sprites.vitriolTurret)
+            BuildTool.GRAVEBOLT -> Pair(sprites.graveboltBase, sprites.graveboltTurret)
+            BuildTool.AEGIS_LOOM -> Pair(sprites.aegisLoomBase, sprites.aegisLoomTurret)
             else -> null
         }
         if (towerLayers != null) {

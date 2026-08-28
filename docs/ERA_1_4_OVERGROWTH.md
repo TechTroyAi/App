@@ -11,10 +11,10 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 | Lane | Count (approx) |
 |------|----------------|
 | Board | **16×9** + pan/zoom (F0) |
-| Towers | **13** + **26** evolutions (F4+F8a+F8b) |
+| Towers | **15** + **30** evolutions (F4+F8 full) |
 | Traps | 5 |
 | Utilities | ~11 (F3 + prior) |
-| Imbuements (enchants) | 9 (F3 Ward/Leech/Surge) |
+| Imbuements (enchants) | **16** (base 6 + F3–F8c +10) |
 | Crafted supplies | 14 (C1 + C2) |
 | Enemy normals / elites / bosses | F1 blood + F2 named + **F5 pests** (15 normals pool) |
 
@@ -63,7 +63,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 
 - [x] **F8a** Gale Spire / Sunforge / Lodestone (+6 evos) — `docs/VERIFICATION_F8a.md`
 - [x] **F8b** Howl Spire / Vitriol Spout (+4 evos) — `docs/VERIFICATION_F8b.md`
-- [ ] **F8c** remaining kits
+- [x] **F8c** Gravebolt / Aegis Loom (+4 evos) + Rime imbue — `docs/VERIFICATION_F8c.md`
 
 ## Crafts roadmap (+10)
 
@@ -94,7 +94,8 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 - **1.4 F4 New guns** (see `artwork/style-production/batch-26-new-guns-f4/`, `docs/VERIFICATION_F4.md`)
 - **1.4 F5 Field pests** (see `artwork/style-production/batch-27-field-pests-f5/`, `docs/VERIFICATION_F5.md`)
 - **1.4 F6 threats + C3** (see `artwork/style-production/batch-28-f6-threats-c3/`, `docs/VERIFICATION_F6.md`)
-- **1.4 F7 utils + imbues** (see `artwork/style-production/batch-29-utils-imbues-f7/`, `docs/VERIFICATION_F7.md`)
+- **1.4 F7 utils + imbues** (see `docs/VERIFICATION_F7.md`)
+- **1.4 F8a–c towers + Rime** (see `docs/VERIFICATION_F8a.md` … `F8c.md`) (see `artwork/style-production/batch-29-utils-imbues-f7/`, `docs/VERIFICATION_F7.md`)
 
 
 ## F3 status (2026-08-28)
@@ -108,3 +109,7 @@ Gale / Sunforge / Lodestone shipped. APK SHA `bfec42f78a96875e7415d0eccb724bb1c9
 
 ## F8b (2026-08-28)
 Howl Spire / Vitriol Spout shipped. APK SHA `ec5b8db7d455c2a2a7a26b6cccf2dd5f2c0c0cc8396b3c0de9da737e080c0bcb`.
+
+
+## F8c (2026-08-28)
+Gravebolt / Aegis Loom + Rime. **1.4 tower & imbue quotas closed.** APK SHA `2df20ecceddebaa80dff0c5170737b2ddf789d7e686ef3bfb2d8414a88f32db6`.

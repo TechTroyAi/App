@@ -133,3 +133,5 @@ Panic forge kit: Splinter Brace, Resin Seal, Cooling Flask. See `batch-21-crafte
 - **batch-30-towers-f8a** — Gale / Sunforge / Lodestone kits + 6 evo emblems (F8a).
 
 - **batch-31-towers-f8b** — Howl Spire / Vitriol Spout + 4 evo emblems (F8b).
+
+- **batch-32-towers-f8c** — Gravebolt / Aegis Loom + Rime + 4 evo (F8c; closes tower/imbue quota).

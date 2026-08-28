@@ -66,6 +66,8 @@ internal class SpriteCatalog(private val context: Context) {
     val lodestoneBase = load("tower_lodestone_base")
     val howlBase = load("tower_howl_base")
     val vitriolBase = load("tower_vitriol_base")
+    val graveboltBase = load("tower_gravebolt_base")
+    val aegisLoomBase = load("tower_aegis_base")
     val greenTurret = loadStrip("tower_bolt_turret")
     val paleTurret = loadStrip("tower_frost_turret")
     val cannonTurret = loadStrip("tower_cannon_turret")
@@ -79,6 +81,8 @@ internal class SpriteCatalog(private val context: Context) {
     val lodestoneTurret = loadStrip("tower_lodestone_turret")
     val howlTurret = loadStrip("tower_howl_turret")
     val vitriolTurret = loadStrip("tower_vitriol_turret")
+    val graveboltTurret = loadStrip("tower_gravebolt_turret")
+    val aegisLoomTurret = loadStrip("tower_aegis_turret")
 
     private val traps = mapOf(
         TrapKind.SPIKE to loadStrip("trap_spike_bed"),
@@ -126,7 +130,11 @@ internal class SpriteCatalog(private val context: Context) {
         TowerEvolution.PACK_CALL to load("evolution_pack_call"),
         TowerEvolution.ECHO_VAULT to load("evolution_echo_vault"),
         TowerEvolution.ACID_VEIN to load("evolution_acid_vein"),
-        TowerEvolution.RUST_SCOUR to load("evolution_rust_scour")
+        TowerEvolution.RUST_SCOUR to load("evolution_rust_scour"),
+        TowerEvolution.SOUL_BRAND to load("evolution_soul_brand"),
+        TowerEvolution.DEATH_KNELL to load("evolution_death_knell"),
+        TowerEvolution.BULWARK_WEAVE to load("evolution_bulwark_weave"),
+        TowerEvolution.WARD_PULSE to load("evolution_ward_pulse")
     )
 
     private val craftedItems = mapOf(
@@ -165,7 +173,8 @@ internal class SpriteCatalog(private val context: Context) {
         Imbuement.VOLLEY to load("sigil_volley"),
         Imbuement.SIEGE to load("sigil_siege"),
         Imbuement.FORTUNE to load("sigil_fortune"),
-        Imbuement.BINDING to load("sigil_binding")
+        Imbuement.BINDING to load("sigil_binding"),
+        Imbuement.RIME to load("sigil_rime")
     )
 
     val salvageParts = load("icon_salvage_parts")
@@ -205,7 +214,9 @@ internal class SpriteCatalog(private val context: Context) {
         TowerKind.SUNFORGE to loadStrip("projectile_sunforge"),
         TowerKind.LODESTONE to loadStrip("projectile_lodestone"),
         TowerKind.HOWL to loadStrip("projectile_howl"),
-        TowerKind.VITRIOL to loadStrip("projectile_vitriol")
+        TowerKind.VITRIOL to loadStrip("projectile_vitriol"),
+        TowerKind.GRAVEBOLT to loadStrip("projectile_gravebolt"),
+        TowerKind.AEGIS_LOOM to loadStrip("projectile_aegis")
     )
 
     private val impacts = mapOf(
@@ -221,7 +232,9 @@ internal class SpriteCatalog(private val context: Context) {
         TowerKind.SUNFORGE to loadStrip("impact_sunforge"),
         TowerKind.LODESTONE to loadStrip("impact_lodestone"),
         TowerKind.HOWL to loadStrip("impact_howl"),
-        TowerKind.VITRIOL to loadStrip("impact_vitriol")
+        TowerKind.VITRIOL to loadStrip("impact_vitriol"),
+        TowerKind.GRAVEBOLT to loadStrip("impact_gravebolt"),
+        TowerKind.AEGIS_LOOM to loadStrip("impact_aegis")
     )
 
     fun enemy(kind: EnemyKind): SpriteStrip = enemies.getValue(kind)
