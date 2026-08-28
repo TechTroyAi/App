@@ -28,12 +28,15 @@ import kotlin.math.sqrt
 internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
     companion object {
-        private const val COLS = 12
-        private const val ROWS = 7
-        private const val START_ROW = 3
-        private const val MAX_PATH_LENGTH = 46
-        private const val STARTING_BLOCKS = 360
+        /** 1.4 F0 Wide Hold — larger forge grid. */
+        private const val COLS = 16
+        private const val ROWS = 9
+        private const val START_ROW = 4
+        private const val MAX_PATH_LENGTH = 64
+        private const val STARTING_BLOCKS = 420
         private const val STARTING_CORE = 12
+        private const val MIN_CAMERA_ZOOM = 0.72f
+        private const val MAX_CAMERA_ZOOM = 2.15f
     }
 
     private val stateLock = Any()
@@ -142,6 +145,26 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var boardLeft = 0f
     private var boardTop = 0f
     private var tileSize = 1f
+    /** Fit-to-viewport tile size before camera zoom (F0). */
+    private var baseTileSize = 1f
+    private var viewportLeft = 0f
+    private var viewportTop = 0f
+    private var viewportRight = 1f
+    private var viewportBottom = 1f
+    private var cameraZoom = 1f
+    private var cameraPanX = 0f
+    private var cameraPanY = 0f
+    private var cameraGesture = false
+    private var panLastX = 0f
+    private var panLastY = 0f
+    private var pinchActive = false
+    private var pinchStartDistance = 1f
+    private var pinchStartZoom = 1f
+    private var pinchFocusX = 0f
+    private var pinchFocusY = 0f
+    private var pinchStartPanX = 0f
+    private var pinchStartPanY = 0f
+    private var suppressGridTap = false
 
     private val primaryActionRect = RectF()
     private val resetPathRect = RectF()
@@ -292,11 +315,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
         topBarHeight = min(viewHeight * 0.145f, dp(68f))
         bottomBarHeight = min(viewHeight * 0.235f, dp(112f))
-        val verticalSpace = viewHeight - topBarHeight - bottomBarHeight - dp(14f)
-        tileSize = min((viewWidth - dp(28f)) / COLS, verticalSpace / ROWS)
-        tileSize = max(20f, tileSize)
-        boardLeft = (viewWidth - tileSize * COLS) * 0.5f
-        boardTop = topBarHeight + (verticalSpace - tileSize * ROWS) * 0.5f + dp(5f)
+        viewportLeft = dp(10f)
+        viewportRight = viewWidth - dp(10f)
+        viewportTop = topBarHeight + dp(4f)
+        viewportBottom = viewHeight - bottomBarHeight - dp(6f)
+        val verticalSpace = max(40f, viewportBottom - viewportTop)
+        val horizontalSpace = max(40f, viewportRight - viewportLeft)
+        baseTileSize = min(horizontalSpace / COLS, verticalSpace / ROWS)
+        baseTileSize = max(14f, baseTileSize)
+        applyCameraTransform()
 
         val smallButton = min(dp(44f), topBarHeight - dp(14f))
         val top = dp(7f)
@@ -573,7 +600,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     fireTower(tower, target)
                     var interval = tower.currentInterval()
                     if (hasHarmonyNear(tower)) interval *= 0.80f
-                    if (perkCount(ForgePerk.LAST_BASTION) > 0 && distanceSquared(tower.col + 0.5f, tower.row + 0.5f, COLS - 0.5f, START_ROW + 0.5f) <= 10f) interval *= max(0.55f, 1f - perkCount(ForgePerk.LAST_BASTION) * 0.10f)
+                    if (perkCount(ForgePerk.LAST_BASTION) > 0 && distanceSquared(tower.col + 0.5f, tower.row + 0.5f, COLS - 0.5f, START_ROW + 0.5f) <= 14f) interval *= max(0.55f, 1f - perkCount(ForgePerk.LAST_BASTION) * 0.10f)
                     tower.cooldown = interval
                     tower.recoil = 1f
                 }
@@ -1582,11 +1609,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         phaseBarrierReady = false
         splinterBraceReady = false
         coolingImmunity.clear()
+        resetCamera()
         reforgeCost = 0
         pathComplete = false
         diggingGesture = false
         waveTheme = "FORGE THE FIRST ROUTE"
-        bannerText = if (mode == GameMode.ENDLESS) "DRAG FROM THE GATE TO THE CORE" else "${challengeModifier.title.toUpperCase()}  SEED $runSeed"
+        bannerText = if (mode == GameMode.ENDLESS) "WIDE HOLD  DRAG GATE TO CORE  PINCH TO ZOOM" else "${challengeModifier.title.toUpperCase()}  SEED $runSeed"
         bannerDuration = 3.4f
         bannerTimer = 3.4f
         goldPulse = 0f
@@ -1713,6 +1741,25 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         synchronized(stateLock) {
             val x = event.x
             val y = event.y
+
+            // F0 camera: pinch-zoom + drag-pan on the board viewport (chrome stays fixed)
+            val playPhases = phase == GamePhase.BUILD || phase == GamePhase.DIG || phase == GamePhase.WAVE ||
+                phase == GamePhase.REFORGE
+            if (playPhases) {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN && inBoardViewport(x, y) && event.pointerCount == 1) {
+                    panLastX = x
+                    panLastY = y
+                    // Allow pan when zoomed; still start dig/build on tap if no drag
+                    cameraGesture = cameraZoom > 1.02f
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) suppressGridTap = false
+                }
+                if (handleCameraTouch(event)) {
+                    if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        // keep suppress one frame; cleared below on non-camera path
+                    }
+                    return true
+                }
+            }
 
             if (phase == GamePhase.TITLE) {
                 if (event.action == MotionEvent.ACTION_UP) {
@@ -1891,9 +1938,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
 
             val cell = screenToCell(x, y)
-            if (cell != null) {
+            if (cell != null && !suppressGridTap) {
                 if ((phase == GamePhase.DIG || phase == GamePhase.REFORGE) && event.action == MotionEvent.ACTION_DOWN) {
                     diggingGesture = true
+                    cameraGesture = false
                     if (phase == GamePhase.REFORGE) extendReforgePath(cell) else extendPath(cell)
                     return true
                 }
@@ -1903,8 +1951,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 if (event.action == MotionEvent.ACTION_UP) {
                     handleGridTap(cell)
+                    suppressGridTap = false
                     return true
                 }
+            }
+            if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+                suppressGridTap = false
             }
             return true
         }
@@ -2690,6 +2742,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun screenToCell(x: Float, y: Float): GridCell? {
+        if (!inBoardViewport(x, y)) return null
         if (x < boardLeft || y < boardTop || x >= boardLeft + COLS * tileSize || y >= boardTop + ROWS * tileSize) return null
         val col = ((x - boardLeft) / tileSize).toInt()
         val row = ((y - boardTop) / tileSize).toInt()
@@ -2966,8 +3019,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawBoard(canvas: Canvas) {
         paint.style = Paint.Style.FILL
         paint.color = Color.rgb(5, 9, 7)
+        // F0: clip world draw to board viewport so chrome stays screen-fixed
+        canvas.save()
+        canvas.clipRect(viewportLeft, viewportTop, viewportRight, viewportBottom)
         canvas.drawRoundRect(boardLeft - dp(6f), boardTop - dp(6f), boardLeft + COLS * tileSize + dp(6f), boardTop + ROWS * tileSize + dp(6f), dp(12f), dp(12f), paint)
-        for (row in 0 until ROWS) for (col in 0 until COLS) drawTerrainTile(canvas, col, row)
+        val col0 = max(0, ((viewportLeft - boardLeft) / tileSize).toInt() - 1)
+        val row0 = max(0, ((viewportTop - boardTop) / tileSize).toInt() - 1)
+        val col1 = min(COLS - 1, ((viewportRight - boardLeft) / tileSize).toInt() + 1)
+        val row1 = min(ROWS - 1, ((viewportBottom - boardTop) / tileSize).toInt() + 1)
+        for (row in row0..row1) for (col in col0..col1) drawTerrainTile(canvas, col, row)
 
         if (pathCells.size > 1) {
             strokePaint.style = Paint.Style.STROKE
@@ -3584,6 +3644,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val y = gridY(particle.y)
         val size = max(2f, particle.size * tileSize * alphaRatio)
         if (particle.square) canvas.drawRect(x - size, y - size, x + size, y + size, paint) else canvas.drawCircle(x, y, size, paint)
+        canvas.restore() // F0 viewport clip
     }
 
     private fun drawTopBar(canvas: Canvas) {
@@ -4064,6 +4125,130 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun gridY(value: Float): Float {
         return boardTop + value * tileSize
+    }
+
+    private fun applyCameraTransform() {
+        tileSize = max(12f, baseTileSize * cameraZoom)
+        val boardW = tileSize * COLS
+        val boardH = tileSize * ROWS
+        clampCamera()
+        boardLeft = viewportLeft + (viewportRight - viewportLeft - boardW) * 0.5f + cameraPanX
+        boardTop = viewportTop + (viewportBottom - viewportTop - boardH) * 0.5f + cameraPanY
+    }
+
+    private fun clampCamera() {
+        val boardW = tileSize * COLS
+        val boardH = tileSize * ROWS
+        val viewW = viewportRight - viewportLeft
+        val viewH = viewportBottom - viewportTop
+        if (boardW <= viewW + 0.5f) {
+            cameraPanX = 0f
+        } else {
+            val maxPan = (boardW - viewW) * 0.5f + dp(8f)
+            cameraPanX = cameraPanX.coerceIn(-maxPan, maxPan)
+        }
+        if (boardH <= viewH + 0.5f) {
+            cameraPanY = 0f
+        } else {
+            val maxPan = (boardH - viewH) * 0.5f + dp(8f)
+            cameraPanY = cameraPanY.coerceIn(-maxPan, maxPan)
+        }
+    }
+
+    private fun resetCamera() {
+        cameraZoom = 1f
+        cameraPanX = 0f
+        cameraPanY = 0f
+        cameraGesture = false
+        pinchActive = false
+        suppressGridTap = false
+        if (baseTileSize > 0f) applyCameraTransform()
+    }
+
+    private fun pointerDistance(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 1f
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return max(1f, sqrt(dx * dx + dy * dy))
+    }
+
+    private fun inBoardViewport(x: Float, y: Float): Boolean {
+        return x >= viewportLeft && x <= viewportRight && y >= viewportTop && y <= viewportBottom
+    }
+
+    private fun handleCameraTouch(event: MotionEvent): Boolean {
+        val action = event.actionMasked
+        when (action) {
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount >= 2 && inBoardViewport(
+                        (event.getX(0) + event.getX(1)) * 0.5f,
+                        (event.getY(0) + event.getY(1)) * 0.5f
+                    )
+                ) {
+                    diggingGesture = false
+                    pinchActive = true
+                    cameraGesture = true
+                    suppressGridTap = true
+                    pinchStartDistance = pointerDistance(event)
+                    pinchStartZoom = cameraZoom
+                    pinchFocusX = (event.getX(0) + event.getX(1)) * 0.5f
+                    pinchFocusY = (event.getY(0) + event.getY(1)) * 0.5f
+                    pinchStartPanX = cameraPanX
+                    pinchStartPanY = cameraPanY
+                    return true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (pinchActive && event.pointerCount >= 2) {
+                    val dist = pointerDistance(event)
+                    val factor = dist / max(1f, pinchStartDistance)
+                    val focusX = (event.getX(0) + event.getX(1)) * 0.5f
+                    val focusY = (event.getY(0) + event.getY(1)) * 0.5f
+                    cameraZoom = (pinchStartZoom * factor).coerceIn(MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM)
+                    val zoomRatio = cameraZoom / max(0.01f, pinchStartZoom)
+                    cameraPanX = pinchStartPanX * zoomRatio + (focusX - pinchFocusX)
+                    cameraPanY = pinchStartPanY * zoomRatio + (focusY - pinchFocusY)
+                    applyCameraTransform()
+                    suppressGridTap = true
+                    return true
+                }
+                if (cameraGesture && event.pointerCount == 1 && !diggingGesture) {
+                    val dx = event.x - panLastX
+                    val dy = event.y - panLastY
+                    panLastX = event.x
+                    panLastY = event.y
+                    if (cameraZoom > 1.02f || abs(dx) + abs(dy) > dp(2f)) {
+                        cameraPanX += dx
+                        cameraPanY += dy
+                        applyCameraTransform()
+                        if (abs(dx) + abs(dy) > dp(4f)) suppressGridTap = true
+                    }
+                    return true
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (pinchActive) {
+                    pinchActive = false
+                    if (event.pointerCount >= 2) {
+                        val idx = if (event.actionIndex == 0) 1 else 0
+                        if (idx < event.pointerCount) {
+                            panLastX = event.getX(idx)
+                            panLastY = event.getY(idx)
+                        }
+                        cameraGesture = true
+                    }
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val consumed = (cameraGesture || pinchActive) && suppressGridTap
+                pinchActive = false
+                cameraGesture = false
+                if (action == MotionEvent.ACTION_CANCEL) suppressGridTap = false
+                if (consumed) return true
+            }
+        }
+        return false
     }
 
     private fun dp(value: Float): Float {

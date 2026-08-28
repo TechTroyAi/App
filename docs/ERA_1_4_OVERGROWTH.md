@@ -10,12 +10,12 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 
 | Lane | Count (approx) |
 |------|----------------|
-| Board | 12×7 fixed camera |
+| Board | **16×9** + pan/zoom (F0) |
 | Towers | 5 + 10 evolutions |
 | Traps | 5 |
 | Utilities | ~7 |
 | Imbuements (enchants) | 6 |
-| Crafted supplies | 8 |
+| Crafted supplies | 11 (8 + C1) |
 | Enemy normals / elites / bosses | small set |
 
 ## Target adds (player ask)
@@ -34,7 +34,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 ## Pillars
 
 ### F0 — Wide Hold
-Bigger grid (candidate **16×9** or **18×10**), pinch zoom, drag pan, path/economy retune, UI chrome screen-fixed.
+**Shipped:** grid **16×9**, gate/core row **4**, pinch zoom + drag pan, chrome screen-fixed, starting blocks **420**, max path **64**.
 
 ### F1 — New blood
 +5 normals, wave table hooks, +1 elite with a readable rule.
@@ -73,3 +73,4 @@ Remaining enemies, towers, utils, enchants, crafts.
 - 1.3 A–D + C (combat → death → UI → board ambient)
 - E1–E3 evolution moments
 - **1.4 C1 crafts** (see `artwork/style-production/batch-21-crafted-supplies-c1/`)
+- **1.4 F0 Wide Hold** (see `artwork/style-production/batch-22-wide-hold-f0/`)

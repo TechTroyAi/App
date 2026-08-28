@@ -1,0 +1,5 @@
+installable: artifacts/Blockhold-Defense-v1.2-installable.apk
+sha256: 1bb8e6efbc9f6f12ba5ee9b6a44509ee1e64c21810ef1edddd2481494329754d
+unsigned_sha256: 3401f1b884b706f3ff996de80bdce388bd336389464c8e0786cbbc16f5033890
+grid: 16x9 START_ROW=4
+camera: pinch+pan, chrome fixed
