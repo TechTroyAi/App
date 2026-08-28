@@ -46,7 +46,11 @@ internal class SpriteCatalog(private val context: Context) {
         EnemyKind.RUST_TICK to loadStrip("enemy_rust_tick"),
         EnemyKind.DRIFT_SEED to loadStrip("enemy_drift_seed"),
         EnemyKind.HOLLOW_SHELL to loadStrip("enemy_hollow_shell"),
-        EnemyKind.WISP_DRIFTER to loadStrip("enemy_wisp_drifter")
+        EnemyKind.WISP_DRIFTER to loadStrip("enemy_wisp_drifter"),
+        EnemyKind.VEIN_LURKER to loadStrip("enemy_vein_lurker"),
+        EnemyKind.MIRROR_MOTH to loadStrip("enemy_mirror_moth"),
+        EnemyKind.TIDAL_ROOT to loadStrip("enemy_tidal_root"),
+        EnemyKind.ASHEN_CHOIR to loadStrip("enemy_ashen_choir")
     )
 
     val towerBase = load("tower_bolt_base")
@@ -119,7 +123,11 @@ internal class SpriteCatalog(private val context: Context) {
         CraftedItem.COOLING_FLASK to load("item_cooling_flask"),
         CraftedItem.OVERCHARGE_CELL to load("item_overcharge_cell"),
         CraftedItem.FOCUS_LENS to load("item_focus_lens"),
-        CraftedItem.SNAP_SPRING to load("item_snap_spring")
+        CraftedItem.SNAP_SPRING to load("item_snap_spring"),
+        CraftedItem.SURVEY_SPIKE to load("item_survey_spike"),
+        CraftedItem.ROUTE_OIL to load("item_route_oil"),
+        CraftedItem.SALT_BUNDLE to load("item_salt_bundle"),
+        CraftedItem.SCRAP_MAGNET to load("item_scrap_magnet")
     )
 
     private val imbuements = mapOf(
@@ -131,7 +139,9 @@ internal class SpriteCatalog(private val context: Context) {
         Imbuement.CONSERVATION to load("sigil_conservation"),
         Imbuement.WARD to load("sigil_ward"),
         Imbuement.LEECH to load("sigil_leech"),
-        Imbuement.SURGE to load("sigil_surge")
+        Imbuement.SURGE to load("sigil_surge"),
+        Imbuement.BULWARK to load("sigil_bulwark"),
+        Imbuement.HARVEST to load("sigil_harvest")
     )
 
     val salvageParts = load("icon_salvage_parts")

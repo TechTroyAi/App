@@ -52,16 +52,19 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 ### F5 — Field pests
 **Shipped:** +5 normals — Briar Mite (jam), Rust Tick (rust hex), Drift Seed (slow resist), Hollow Shell (buffer), Wisp Drifter (stealth). See `docs/VERIFICATION_F5.md`.
 
-### F6+ — Fill quotas
-Remaining enemies (~2 elites, ~2 bosses), towers (~7), utils (~6), enchants (~7), crafts (C3×4).
+### F6 — Named threats + C3
+**Shipped:** elites Vein Lurker / Mirror Moth; bosses Tidal Root / Ashen Choir; C3 crafts×4; Bulwark + Harvest. See `docs/VERIFICATION_F6.md`.
+
+### F7+ — Fill quotas
+Towers (~7 full kits, heaviest art), utils (~6), enchants (~5).
 
 ## Crafts roadmap (+10)
 
 | Pack | Items | Status |
 |------|--------|--------|
 | **C1** | Splinter Brace, Resin Seal, Cooling Flask | **Shipping** |
-| C2 | Overcharge Cell, Focus Lens, Snap Spring | Planned |
-| C3 | Survey Spike, Route Oil, Salt Bundle, Scrap Magnet | Planned |
+| C2 | Overcharge Cell, Focus Lens, Snap Spring | **Shipped** (F3) |
+| C3 | Survey Spike, Route Oil, Salt Bundle, Scrap Magnet | **Shipped** (F6) |
 | C4 | (flex slot / Blank Stamp variant) | Optional |
 
 ## Design rules
@@ -83,6 +86,7 @@ Remaining enemies (~2 elites, ~2 bosses), towers (~7), utils (~6), enchants (~7)
 - **1.4 F3 Toolkit** (see `docs/VERIFICATION_F3.md`)
 - **1.4 F4 New guns** (see `artwork/style-production/batch-26-new-guns-f4/`, `docs/VERIFICATION_F4.md`)
 - **1.4 F5 Field pests** (see `artwork/style-production/batch-27-field-pests-f5/`, `docs/VERIFICATION_F5.md`)
+- **1.4 F6 threats + C3** (see `artwork/style-production/batch-28-f6-threats-c3/`, `docs/VERIFICATION_F6.md`)
 
 
 ## F3 status (2026-08-28)

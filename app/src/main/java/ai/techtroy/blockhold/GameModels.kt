@@ -169,7 +169,13 @@ internal enum class CraftedItem(
     // 1.4 Crafts C2 — precision forge kit
     OVERCHARGE_CELL("Overcharge Cell", "Selected tower gains a temporary damage surge", 100, 4, 1, 2, 2),
     FOCUS_LENS("Focus Lens", "Selected tower gains temporary range and pierce", 90, 3, 1, 2, 2),
-    SNAP_SPRING("Snap Spring", "Selected trap resets triggers and pulses once immediately", 80, 3, 0, 2, 3)
+    SNAP_SPRING("Snap Spring", "Selected trap resets triggers and pulses once immediately", 80, 3, 0, 2, 3),
+
+    // 1.4 Crafts C3 — field forge kit
+    SURVEY_SPIKE("Survey Spike", "Pin the next wave theme and gain a small Blocks bounty", 70, 2, 0, 2, 3),
+    ROUTE_OIL("Route Oil", "Path enemies near the gate move slower for one wave", 85, 3, 1, 2, 2),
+    SALT_BUNDLE("Salt Bundle", "Cleanse nearest corruption free and purge nearby Hex", 95, 2, 1, 2, 2),
+    SCRAP_MAGNET("Scrap Magnet", "Salvage bonus Parts from the next three kills", 60, 2, 0, 2, 3)
 }
 
 internal enum class Imbuement(val title: String, val description: String, val accent: Int) {
@@ -182,7 +188,10 @@ internal enum class Imbuement(val title: String, val description: String, val ac
     // 1.4 F3 imbuements
     WARD("Ward", "Structure resists Hex and recovers disabled time faster", Color.rgb(140, 230, 210)),
     LEECH("Leech", "Damaging hits restore a sliver of Core when enemies die nearby", Color.rgb(255, 110, 130)),
-    SURGE("Surge", "First few activations each wave hit harder", Color.rgb(255, 210, 80))
+    SURGE("Surge", "First few activations each wave hit harder", Color.rgb(255, 210, 80)),
+    // 1.4 F6 imbuement pack
+    BULWARK("Bulwark", "Structure gains bonus armor against elite and boss pressure", Color.rgb(90, 140, 200)),
+    HARVEST("Harvest", "Kills near this structure grant a small Blocks trickle", Color.rgb(210, 180, 70))
 }
 
 internal enum class WorkshopTab {
@@ -305,7 +314,13 @@ internal enum class EnemyKind(
     RUST_TICK("Rust Tick", 78f, 0.95f, 17, 1, Color.rgb(200, 110, 55), 0.68f),
     DRIFT_SEED("Drift Seed", 42f, 1.10f, 15, 1, Color.rgb(180, 220, 120), 0.60f),
     HOLLOW_SHELL("Hollow Shell", 140f, 0.62f, 23, 2, Color.rgb(190, 185, 170), 0.84f, armor = 0.22f),
-    WISP_DRIFTER("Wisp Drifter", 70f, 0.86f, 18, 1, Color.rgb(130, 150, 230), 0.66f)
+    WISP_DRIFTER("Wisp Drifter", 70f, 0.86f, 18, 1, Color.rgb(130, 150, 230), 0.66f),
+
+    // 1.4 F6 named threats — elites + bosses
+    VEIN_LURKER("Vein Lurker", 700f, 0.58f, 105, 3, Color.rgb(180, 40, 90), 1.08f, regeneration = 0.014f, elite = true),
+    MIRROR_MOTH("Mirror Moth", 520f, 0.88f, 100, 2, Color.rgb(160, 200, 220), 0.98f, elite = true),
+    TIDAL_ROOT("Tidal Root", 2600f, 0.30f, 340, 8, Color.rgb(40, 140, 130), 1.55f, armor = 0.22f, regeneration = 0.005f, boss = true),
+    ASHEN_CHOIR("Ashen Choir", 2300f, 0.33f, 330, 7, Color.rgb(200, 160, 120), 1.52f, armor = 0.12f, boss = true)
 }
 
 internal data class GridCell(val col: Int, val row: Int)
@@ -544,6 +559,8 @@ var rootTimer = 0f
     var shellBuffer = 0f
     /** F5 Wisp Drifter: soft stealth remaining (same pipeline as gloom). */
     var wispTimer = 0f
+    /** F6 Mirror Moth: reflect charges remaining this life. */
+    var mirrorCharges = 0
 
     val dying: Boolean get() = deathTimer > 0f
     val targetable: Boolean get() = alive && !dying && health > 0f

@@ -117,6 +117,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var phaseBarrierReady = false
     /** Crafts C1: next multi-damage core hit loses 1 damage. */
     private var splinterBraceReady = false
+    private var routeOilWaves = 0
+    private var scrapMagnetKills = 0
+
     /** Crafts C1: brief Hex immunity per tower cell key. */
     private var coolingImmunity = HashMap<Int, Float>()
     private var reforgeCost = 0
@@ -573,7 +576,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 enemy.kind == EnemyKind.DRIFT_SEED -> 0.90f // F5: almost ignores slow (floats)
                 else -> 0.56f
             }
-            if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * delta
+            var gateSlow = 1f
+            if (routeOilWaves > 0 && enemy.progress < 4.5f) gateSlow = 0.55f
+            if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * gateSlow * delta
             updateEnemyPosition(enemy)
             applyCorruptionToEnemy(enemy, delta)
             triggerTrapIfNeeded(enemy)
@@ -744,6 +749,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 beginEnemyWindup(enemy, 5, 1.35f, "SPORE BLOOM")
                 enemy.abilityTimer = max(3.6f, 6.5f - enemy.bossTier * 0.22f)
             }
+            EnemyKind.VEIN_LURKER -> {
+                beginEnemyWindup(enemy, 6, 1.05f, "DRAIN…")
+                enemy.abilityTimer = 5.8f
+            }
+            EnemyKind.MIRROR_MOTH -> {
+                enemy.mirrorCharges = max(enemy.mirrorCharges, 2)
+                enemy.abilityTimer = 6.5f
+                floatingLabels.add(FloatingLabel("MIRROR", enemy.x, enemy.y - 0.3f, enemy.kind.color, 0.6f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 10, 0.7f)
+            }
+            EnemyKind.TIDAL_ROOT -> {
+                beginEnemyWindup(enemy, 7, 1.50f, "TIDAL SURGE")
+                enemy.abilityTimer = max(4.0f, 7.4f - enemy.bossTier * 0.2f)
+            }
+            EnemyKind.ASHEN_CHOIR -> {
+                beginEnemyWindup(enemy, 8, 1.40f, "ASHEN HYMN")
+                enemy.abilityTimer = max(3.8f, 7.0f - enemy.bossTier * 0.22f)
+            }
             else -> enemy.abilityTimer = 8f
         }
     }
@@ -830,6 +853,42 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 burst(enemy.x, enemy.y, enemy.kind.color, 26, 1.4f)
                 audio.play("build", 0.4f, 0.65f)
             }
+            6 -> { // Vein Lurker drain
+                for (ally in enemies) {
+                    if (!ally.targetable || ally === enemy) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 5.0f) {
+                        val siphon = ally.maxHealth * 0.04f
+                        ally.health = max(1f, ally.health - siphon)
+                        enemy.health = min(enemy.maxHealth, enemy.health + siphon * 1.5f)
+                    }
+                }
+                floatingLabels.add(FloatingLabel("DRAINED", enemy.x, enemy.y - 0.25f, enemy.kind.color, 0.75f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 14, 0.95f)
+            }
+            7 -> { // Tidal Root flood
+                for (ally in enemies) {
+                    if (!ally.targetable) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 7.5f) {
+                        ally.slowTimer = 0f // wash slows? no - enemies get speed pulse
+                        ally.progress = min(pathCells.size - 1.05f, ally.progress + 0.35f)
+                    }
+                }
+                towers.filter { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 5.5f }.forEach {
+                    applyTowerHex(it, (if (hasHarmonyNear(it)) 0.8f else 1.8f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                }
+                floatingLabels.add(FloatingLabel("FLOOD", enemy.x, enemy.y - 0.35f, enemy.kind.color, pop = 1.4f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 28, 1.5f)
+                audio.play("frost", 0.5f, 0.55f)
+            }
+            8 -> { // Ashen Choir hymn
+                towers.sortedBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }.take(min(4, 2 + enemy.bossTier)).forEach {
+                    applyTowerHex(it, (if (hasHarmonyNear(it)) 1.0f else 2.4f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                    if (it.imbuement != Imbuement.WARD) it.disabledTimer = max(it.disabledTimer, 0.9f)
+                }
+                floatingLabels.add(FloatingLabel("HYMN", enemy.x, enemy.y - 0.35f, enemy.kind.color, pop = 1.4f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 24, 1.35f)
+                audio.play("beacon", 0.45f, 0.7f)
+            }
         }
         enemy.windupKind = 0
         enemy.windupTimer = 0f
@@ -843,6 +902,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (spec.kind == EnemyKind.HOLLOW_SHELL) {
             enemy.shellBuffer = enemy.maxHealth * 0.45f
         }
+        if (spec.kind == EnemyKind.MIRROR_MOTH) {
+            enemy.mirrorCharges = 3
+        }
         updateEnemyPosition(enemy)
         enemies.add(enemy)
         // F2 banner sting on named elite/boss spawn
@@ -850,7 +912,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner(spec.kind.title.toUpperCase() + "  TIER ${max(1, spec.bossTier)}", 2.6f)
             audio.play("wave", 0.55f, 0.72f)
             burst(enemy.x, enemy.y, spec.kind.color, 16, 1.1f)
-        } else if (spec.kind.elite && (spec.kind == EnemyKind.GRAVE_MENDER || spec.kind == EnemyKind.PYRE_WIGHT || spec.kind == EnemyKind.THORNBACK)) {
+        } else if (spec.kind.elite && (spec.kind == EnemyKind.GRAVE_MENDER || spec.kind == EnemyKind.PYRE_WIGHT || spec.kind == EnemyKind.THORNBACK || spec.kind == EnemyKind.VEIN_LURKER || spec.kind == EnemyKind.MIRROR_MOTH)) {
             setBanner("ELITE  ${spec.kind.title.toUpperCase()}", 1.6f)
             burst(enemy.x, enemy.y, spec.kind.color, 10, 0.8f)
         }
@@ -1206,6 +1268,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         enemy.health -= actual
         enemy.flashTimer = if (enemy.kind.boss) 0.18f else 0.14f
         if (enemy.kind == EnemyKind.THORNBACK && enemy.health > 0f) enemy.thornArmorTimer = max(enemy.thornArmorTimer, 1.1f)
+        // F6 Mirror Moth: spend reflect charge to shrug a hit
+        if (enemy.kind == EnemyKind.MIRROR_MOTH && enemy.mirrorCharges > 0 && enemy.health > 0f) {
+            enemy.mirrorCharges -= 1
+            enemy.health = min(enemy.maxHealth, enemy.health + actual * 0.85f)
+            floatingLabels.add(FloatingLabel("REFLECT", enemy.x, enemy.y - 0.2f, enemy.kind.color, 0.55f))
+            burst(enemy.x, enemy.y, Color.rgb(200, 230, 255), 8, 0.55f)
+        }
         // F5 Rust Tick: on hit, briefly rust (hex) nearest tower in range
         if (enemy.kind == EnemyKind.RUST_TICK && enemy.health > 0f && enemy.abilityTimer <= 0f) {
             val target = towers.filter { it.disabledTimer <= 0f }.minByOrNull {
@@ -1239,6 +1308,25 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if ((enemy.kind.elite || enemy.kind.boss) && perkCount(ForgePerk.ELITE_BOUNTIES) > 0) bounty = (bounty * (1f + perkCount(ForgePerk.ELITE_BOUNTIES) * 0.50f)).toInt()
             gold = safeAdd(gold, bounty)
             score = safeAdd(score, bounty * 10)
+            if (scrapMagnetKills > 0) {
+                scrapMagnetKills -= 1
+                salvageParts = safeAdd(salvageParts, 1)
+                floatingLabels.add(FloatingLabel("+1 PART", enemy.x, enemy.y - 0.15f, Color.rgb(255, 200, 100), 0.5f))
+            }
+            // F6 Harvest imbuement: blocks trickle near imbued structures
+            var harvest = 0
+            for (tower in towers) {
+                if (tower.imbuement != Imbuement.HARVEST) continue
+                if (distanceSquared(tower.col + 0.5f, tower.row + 0.5f, enemy.x, enemy.y) <= 4.5f) harvest += 1
+            }
+            for (trap in traps) {
+                if (trap.imbuement != Imbuement.HARVEST) continue
+                if (distanceSquared(trap.col + 0.5f, trap.row + 0.5f, enemy.x, enemy.y) <= 4.5f) harvest += 1
+            }
+            if (harvest > 0) {
+                gold = safeAdd(gold, harvest)
+                if (random.nextFloat() < 0.35f) floatingLabels.add(FloatingLabel("+$harvest", enemy.x, enemy.y + 0.1f, Color.rgb(210, 180, 70), 0.45f))
+            }
             if (enemy.kind.elite || enemy.kind.boss) {
                 val parts = if (enemy.kind.boss) 3 else 1
                 salvageParts = safeAdd(salvageParts, parts)
@@ -1343,6 +1431,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("BOSS BROKEN  +${safeAdd(reward, utilityIncome)} BLOCKS  +${6 + tier * 2} FORGE", 3.0f)
         } else {
             setBanner("WAVE $waveNumber CLEARED  +${safeAdd(reward, utilityIncome)} BLOCKS", 2.4f)
+        if (routeOilWaves > 0) routeOilWaves -= 1
         }
         selectedTower = null
         selectedTrap = null
@@ -1612,7 +1701,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (wave % 5 == 0) {
             val elites = arrayOf(
                 EnemyKind.IRONHIDE, EnemyKind.BLINK_STALKER, EnemyKind.ROOTCALLER, EnemyKind.HEX_WEAVER,
-                EnemyKind.SIEGE_COLOSSUS, EnemyKind.THORNBACK, EnemyKind.GRAVE_MENDER, EnemyKind.PYRE_WIGHT
+                EnemyKind.SIEGE_COLOSSUS, EnemyKind.THORNBACK, EnemyKind.GRAVE_MENDER, EnemyKind.PYRE_WIGHT, EnemyKind.VEIN_LURKER, EnemyKind.MIRROR_MOTH
             )
             val eliteKind = elites[((wave / 5) - 1 + seedOffset) % elites.size]
             val insertAt = min(waveQueue.size, waveQueue.size * 2 / 3)
@@ -1624,8 +1713,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             // F2: rotate named bosses; Overgrowth remains the signature every 30
             val bossKind = when {
                 wave % 30 == 0 -> EnemyKind.OVERGROWTH
-                tier % 3 == 1 -> EnemyKind.IRON_MONARCH
-                tier % 3 == 2 -> EnemyKind.SPORE_SOVEREIGN
+                tier % 5 == 1 -> EnemyKind.IRON_MONARCH
+                tier % 5 == 2 -> EnemyKind.SPORE_SOVEREIGN
+                tier % 5 == 3 -> EnemyKind.TIDAL_ROOT
+                tier % 5 == 4 -> EnemyKind.ASHEN_CHOIR
                 else -> EnemyKind.OVERGROWTH
             }
             waveQueue.add(SpawnSpec(bossKind, healthScale * (0.78f + min(1.2f, tier * 0.05f)), min(1.28f, speedScale), rewardScale * 1.3f, tier))
@@ -1749,6 +1840,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         var d = duration
         if (tower.imbuement == Imbuement.WARD) d *= 0.55f
+        if (tower.imbuement == Imbuement.BULWARK) d *= 0.65f
         if (hasWardBeaconNear(tower.col, tower.row)) d *= 0.70f
         tower.disabledTimer = max(tower.disabledTimer, d)
     }
@@ -2856,6 +2948,40 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 burst(trap.col + 0.5f, trap.row + 0.5f, trap.kind.accent, 16, 1.0f)
                 audio.play("dig", 0.4f, 1.3f)
             }
+            CraftedItem.SURVEY_SPIKE -> {
+                surveyLensWaves = max(surveyLensWaves, 1)
+                gold = safeAdd(gold, 25)
+                consumeSupply(item)
+                setBanner("SURVEY SPIKE  NEXT THEME PINNED  +25", 1.7f)
+                audio.play("build", 0.4f, 1.15f)
+            }
+            CraftedItem.ROUTE_OIL -> {
+                routeOilWaves = max(routeOilWaves, 1)
+                consumeSupply(item)
+                setBanner("ROUTE OIL  GATE PATH SLOWED NEXT WAVE", 1.8f)
+                audio.play("frost", 0.4f, 0.9f)
+            }
+            CraftedItem.SALT_BUNDLE -> {
+                val target = corruptions.minByOrNull {
+                    distanceSquared(it.cell.col + 0.5f, it.cell.row + 0.5f, 8f, 4.5f)
+                }
+                if (target != null) {
+                    corruptions.remove(target)
+                    floatingLabels.add(FloatingLabel("CLEANSED", target.cell.col + 0.5f, target.cell.row + 0.2f, Color.rgb(240, 240, 255), 0.7f))
+                }
+                for (tower in towers) {
+                    if (tower.disabledTimer > 0f) tower.disabledTimer = max(0f, tower.disabledTimer - 1.5f)
+                }
+                consumeSupply(item)
+                setBanner(if (target != null) "SALT BUNDLE  CORRUPTION CLEANSED" else "SALT BUNDLE  HEX EASED", 1.7f)
+                audio.play("build", 0.45f, 1.05f)
+            }
+            CraftedItem.SCRAP_MAGNET -> {
+                scrapMagnetKills = max(scrapMagnetKills, 3)
+                consumeSupply(item)
+                setBanner("SCRAP MAGNET  +1 PART ON NEXT 3 KILLS", 1.7f)
+                audio.play("dig", 0.4f, 1.1f)
+            }
             CraftedItem.RECOVERY_WRAP, CraftedItem.PURIFIER_VIAL, CraftedItem.REFORGE_COUPLER, CraftedItem.UTILITY_GEARSET -> setBanner("THIS SUPPLY ACTIVATES AUTOMATICALLY", 1.5f)
             CraftedItem.BLANK_SIGIL -> setBanner("SELECT A LEVEL 3 STRUCTURE AND CHOOSE IMBUE", 1.8f)
         }
@@ -2883,7 +3009,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val trap = imbuementTrap
         if (trap != null) {
             return when (imbuement) {
-                Imbuement.CLARITY, Imbuement.WARD -> false
+                Imbuement.CLARITY, Imbuement.WARD, Imbuement.BULWARK -> false
                 Imbuement.REACH -> trap.kind == TrapKind.ARC
                 else -> true
             }
