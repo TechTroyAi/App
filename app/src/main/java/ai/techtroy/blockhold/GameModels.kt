@@ -364,7 +364,8 @@ internal enum class EnemyKind(
     SPLITLING("Splitling", 112f, 0.92f, 20, 1, Color.rgb(218, 119, 157), 0.76f),
 
     // 1.4 F1 New blood — normals with clear jobs
-    SAPPER("Sapper", 95f, 0.88f, 18, 1, Color.rgb(168, 110, 55), 0.78f),
+    // Trap saboteur: fast, fragile, and built to break through the route's trap line.
+    SAPPER("Sapper", 95f, 1.52f, 18, 1, Color.rgb(168, 110, 55), 0.78f),
     MYCELIAL("Mycelial", 130f, 0.70f, 22, 1, Color.rgb(70, 190, 150), 0.80f, regeneration = 0.010f),
     NEEDLEFLY("Needlefly", 48f, 1.48f, 16, 1, Color.rgb(140, 200, 70), 0.62f),
     GLOOMKIN("Gloomkin", 88f, 0.78f, 19, 1, Color.rgb(120, 80, 180), 0.74f),
@@ -635,7 +636,7 @@ var rootTimer = 0f
     var rewarded = false
     val trapTriggerCounts = HashMap<Int, Int>()
     val triggeredCorruptions = HashSet<Int>()
-    /** F1 Sapper: traps triggered this life (disables after 2). */
+    /** F1 Sapper: traps sabotaged this life (stops after two). */
     var sapperTraps = 0
     /** F1 Gloomkin: soft stealth remaining. */
     var gloomTimer = 0f
@@ -653,6 +654,8 @@ var rootTimer = 0f
     var wispTimer = 0f
     /** F6 Mirror Moth: reflect charges remaining this life. */
     var mirrorCharges = 0
+    /** F9: time an elite or boss has failed to advance; it can break a trap beneath itself. */
+    var stuckTimer = 0f
 
     val dying: Boolean get() = deathTimer > 0f
     val targetable: Boolean get() = alive && !dying && health > 0f

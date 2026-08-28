@@ -110,10 +110,11 @@ A level-three Workshop can consume a Blank Sigil, Growth Essence, and Blocks to 
 - **Brute:** slow unit with high health and core damage
 - **Shellback:** armored against ordinary damage
 - **Splitling:** divides into two fast minions when destroyed
+- **Sapper:** very fast, fragile saboteur; destroys its first two triggered traps, then ignores the rest
 
 ### Elite threats
 
-Elites recur approximately every five waves:
+Elites recur approximately every five waves. If an elite or boss is held in one place for **1.75 seconds**, it smashes the trap directly beneath it; the orange ring shows that anti-trap timer filling.
 
 - **Ironhide Champion:** extreme armor
 - **Blink Stalker:** periodically jumps forward on the route

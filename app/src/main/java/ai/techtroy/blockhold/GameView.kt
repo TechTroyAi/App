@@ -47,6 +47,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         private const val MAX_SEED_CHARACTERS = 12
         private const val DEFAULT_CUSTOM_SEED = "733101"
         private const val MAX_BLOCK_GENERATORS = 5
+        private const val ELITE_TRAP_BREAK_DELAY = 1.75f
     }
 
     private val stateLock = Any()
@@ -712,10 +713,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             var gateSlow = 1f
             if (routeOilWaves > 0 && enemy.progress < 4.5f) gateSlow = 0.55f
             val wardenSlow = pathWardenSlow(enemy.x, enemy.y)
+            val progressBeforeMove = enemy.progress
             if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * gateSlow * wardenSlow * delta
             updateEnemyPosition(enemy)
+            if (enemy.kind.elite || enemy.kind.boss) {
+                val advanced = enemy.progress > progressBeforeMove + 0.0001f
+                enemy.stuckTimer = if (advanced) 0f else enemy.stuckTimer + delta
+            }
             applyCorruptionToEnemy(enemy, delta)
             triggerTrapIfNeeded(enemy)
+            if (!enemy.alive || enemy.dying) continue
+            breakTrapUnderStalledEnemy(enemy)
+
             if (!enemy.alive) continue
 
             if (enemy.progress >= pathCells.size - 1f) {
@@ -1077,6 +1086,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun triggerTrapIfNeeded(enemy: Enemy) {
         val pathIndex = min(max(0, (enemy.progress + 0.25f).toInt()), pathCells.size - 1)
         val cell = pathCells[pathIndex]
+        var destroyAfterTrigger: SpikeTrap? = null
         for (trap in traps) {
             if (trap.col != cell.col || trap.row != cell.row) continue
             if (trap.jamTimer > 0f) continue
@@ -1084,7 +1094,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val maxTriggers = 1 + perkCount(ForgePerk.DOUBLE_TRIGGER) + if (beaconRelay) 1 else 0
             val triggers = enemy.trapTriggerCounts[trap.id] ?: 0
             if (triggers >= maxTriggers) continue
-            // F1 Sapper: after 2 trap hits this life, skip further traps
+            // F1 Sapper: after 2 sabotaged traps this life, skip further traps
             if (enemy.kind == EnemyKind.SAPPER && enemy.sapperTraps >= 2) continue
             enemy.trapTriggerCounts[trap.id] = triggers + 1
             if (enemy.kind == EnemyKind.SAPPER) enemy.sapperTraps += 1
@@ -1135,7 +1145,36 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             burst(enemy.x, enemy.y, trap.kind.accent, if (trap.kind == TrapKind.CRUSHER) 15 else 9, 0.9f)
             audio.play("dig", 0.32f, 1.18f + trap.kind.ordinal * 0.04f)
+            // Sappers use the trap as a breach point, then remove it. Defer the removal until
+            // after the loop so the ArrayList is never mutated while it is being iterated.
+            if (enemy.kind == EnemyKind.SAPPER && enemy.targetable) destroyAfterTrigger = trap
         }
+        destroyAfterTrigger?.let { trap ->
+            destroyTrap(
+                trap,
+                "SAPPER SABOTAGED  ${trap.kind.title.uppercase()}",
+                EnemyKind.SAPPER.color
+            )
+        }
+    }
+
+    private fun breakTrapUnderStalledEnemy(enemy: Enemy) {
+        if ((!enemy.kind.elite && !enemy.kind.boss) || enemy.stuckTimer < ELITE_TRAP_BREAK_DELAY) return
+        val pathIndex = min(max(0, (enemy.progress + 0.25f).toInt()), pathCells.size - 1)
+        val cell = pathCells[pathIndex]
+        val trap = traps.firstOrNull { it.col == cell.col && it.row == cell.row } ?: return
+        val title = if (enemy.kind.boss) "BOSS" else "ELITE"
+        destroyTrap(trap, "$title  ${enemy.kind.title.uppercase()} BROKE ${trap.kind.title.uppercase()}", enemy.kind.color)
+        enemy.stuckTimer = 0f
+    }
+
+    private fun destroyTrap(trap: SpikeTrap, message: String, effectColor: Int) {
+        if (!traps.remove(trap)) return
+        if (selectedTrap === trap) selectedTrap = null
+        floatingLabels.add(FloatingLabel("TRAP BROKEN", trap.col + 0.5f, trap.row + 0.18f, effectColor, life = 0.9f, pop = 1.3f))
+        burst(trap.col + 0.5f, trap.row + 0.5f, effectColor, 16, 1.0f)
+        setBanner(message, 1.8f)
+        audio.play("dig", 0.42f, 0.62f)
     }
 
     private fun effectiveTrapDamage(trap: SpikeTrap): Float {
@@ -2132,6 +2171,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 else -> regulars[(index * 3 + wave + seedOffset) % regulars.size]
             }
             val speedMul = when (kind) {
+                EnemyKind.SAPPER -> 1.06f
                 EnemyKind.RUNNER, EnemyKind.NEEDLEFLY, EnemyKind.BRIAR_MITE, EnemyKind.DRIFT_SEED -> 1.03f
                 else -> 1f
             }
@@ -4852,6 +4892,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.strokeWidth = max(1.5f, tileSize * 0.025f)
             strokePaint.color = if (enemy.stunTimer > 0f) Color.rgb(195, 120, 255) else Color.rgb(93, 220, 255)
             canvas.drawCircle(x, y, size * 0.53f, strokePaint)
+        }
+        if (!dying && (enemy.kind.elite || enemy.kind.boss) && enemy.stuckTimer > 0.15f) {
+            val stuckRatio = (enemy.stuckTimer / ELITE_TRAP_BREAK_DELAY).coerceIn(0f, 1f)
+            strokePaint.strokeWidth = max(2f, tileSize * 0.04f)
+            strokePaint.color = Color.rgb(255, 166, 76)
+            val ring = RectF(x - size * 0.63f, y - size * 0.63f, x + size * 0.63f, y + size * 0.63f)
+            canvas.drawArc(ring, -90f, 360f * stuckRatio, false, strokePaint)
         }
         if (!dying && enemy.burnTimer > 0f) drawSpriteFrameCentered(canvas, sprites.trap(TrapKind.EMBER), 0, x + size * 0.25f, y - size * 0.26f, size * 0.35f)
         if (!dying && (healthRatio < 0.995f || enemy.kind.elite || enemy.kind.boss)) {
