@@ -6,14 +6,14 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-The v1.4.2 source update is implemented and passes the hosted Android debug build plus structural APK verification. The latest verified installable artifact currently retained in the repository is `artifacts/Blockhold-Defense-v1.4.1-installable.apk`; a signed v1.4.2 release artifact still needs to be retained after the release-key build. Reuse the v1.4.1 signing key for an in-place update; a replacement key requires a one-time uninstall.
+The v1.4.2 update is implemented, built, and retained: `artifacts/Blockhold-Defense-v1.4.2-installable.apk` (versionName `1.4.2`, versionCode `16`) passes the hosted Android debug build, `scripts/verify-apk.py`, and `scripts/verify-dex-shape.py` with zero failures. It is signed with a **new** release key (the v1.4.1 private key was lost), so installing it over v1.4.1 requires a one-time uninstall; the v1.4.2 key is backed up for reuse by all future releases — see `artifacts/README.md`.
 
 | Item | Value |
 | --- | --- |
 | Public name | Blockhold Defense |
 | Modes | Endless Pathforge, daily challenge, custom seed |
 | Application ID | `ai.techtroy.blockhold` |
-| Version | Source target `1.4.2` (`16`); latest APK `1.4.1` (`15`) |
+| Version | `1.4.2` (`16`) — source and latest APK in sync |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |
