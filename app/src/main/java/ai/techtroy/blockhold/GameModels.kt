@@ -58,6 +58,8 @@ internal enum class BuildTool(val title: String, val cost: Int) {
     GALE("GALE", 140),
     SUNFORGE("SUNFORGE", 160),
     LODESTONE("LODESTONE", 150),
+    HOWL("HOWL", 145),
+    VITRIOL("VITRIOL", 155),
     SPIKES("SPIKES", 45),
     ROOT("ROOT", 65),
     RUNE("RUNE", 85),
@@ -86,7 +88,10 @@ internal enum class TowerKind(
     // 1.4 F8a towers
     GALE("Gale Spire", 140, 2.90f, 22f, 0.70f, 9.0f, Color.rgb(100, 200, 230)),
     SUNFORGE("Sunforge", 160, 2.70f, 36f, 0.92f, 7.5f, Color.rgb(255, 150, 40)),
-    LODESTONE("Lodestone", 150, 2.60f, 26f, 0.85f, 6.8f, Color.rgb(150, 100, 220))
+    LODESTONE("Lodestone", 150, 2.60f, 26f, 0.85f, 6.8f, Color.rgb(150, 100, 220)),
+    // 1.4 F8b towers
+    HOWL("Howl Spire", 145, 3.10f, 18f, 0.80f, 9.5f, Color.rgb(120, 190, 230)),
+    VITRIOL("Vitriol Spout", 155, 2.50f, 30f, 1.00f, 6.5f, Color.rgb(140, 200, 50))
 }
 
 internal enum class TowerEvolution(
@@ -117,7 +122,12 @@ internal enum class TowerEvolution(
     SOLAR_FLARE("Solar Flare", "Sunforge burns spread on impact", TowerKind.SUNFORGE),
     HEARTH_CORE("Hearth Core", "Sunforge shots hit harder up close", TowerKind.SUNFORGE),
     PULL_WELL("Pull Well", "Lodestone yanks foes backward harder", TowerKind.LODESTONE),
-    REPULSOR("Repulsor", "Lodestone pulses a brief stun on hit", TowerKind.LODESTONE);
+    REPULSOR("Repulsor", "Lodestone pulses a brief stun on hit", TowerKind.LODESTONE),
+    // F8b
+    PACK_CALL("Pack Call", "Howl also slows a second nearby foe", TowerKind.HOWL),
+    ECHO_VAULT("Echo Vault", "Howl reveal lasts longer", TowerKind.HOWL),
+    ACID_VEIN("Acid Vein", "Vitriol shred stacks higher", TowerKind.VITRIOL),
+    RUST_SCOUR("Rust Scour", "Shredded foes take a brief burn tick", TowerKind.VITRIOL);
 
     companion object {
         fun choices(kind: TowerKind): List<TowerEvolution> = values().filter { it.kind == kind }
@@ -555,6 +565,9 @@ internal class Enemy(
         var slowTimer = 0f
     /** F4 Thorn Spire: marked for bonus incoming damage. */
     var markTimer = 0f
+    /** F8b Vitriol: temporary armor reduction (0–1). */
+    var armorShred = 0f
+    var armorShredTimer = 0f
 var rootTimer = 0f
     var stunTimer = 0f
     var armoredTimer = 0f

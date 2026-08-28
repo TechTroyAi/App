@@ -11,7 +11,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 | Lane | Count (approx) |
 |------|----------------|
 | Board | **16×9** + pan/zoom (F0) |
-| Towers | **11** + **22** evolutions (F4+F8a) |
+| Towers | **13** + **26** evolutions (F4+F8a+F8b) |
 | Traps | 5 |
 | Utilities | ~11 (F3 + prior) |
 | Imbuements (enchants) | 9 (F3 Ward/Leech/Surge) |
@@ -62,7 +62,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 ~7 tower full kits planned (heaviest art).
 
 - [x] **F8a** Gale Spire / Sunforge / Lodestone (+6 evos) — `docs/VERIFICATION_F8a.md`
-- [ ] **F8b** next tower pack (~2–3 kits)
+- [x] **F8b** Howl Spire / Vitriol Spout (+4 evos) — `docs/VERIFICATION_F8b.md`
 - [ ] **F8c** remaining kits
 
 ## Crafts roadmap (+10)
@@ -104,3 +104,7 @@ Utils +4, C2 crafts +3, imbuements +3. Next: **F4 towers**.
 
 ## F8a (2026-08-28)
 Gale / Sunforge / Lodestone shipped. APK SHA `bfec42f78a96875e7415d0eccb724bb1c9a7130722015a16784e55bb3859df4e`.
+
+
+## F8b (2026-08-28)
+Howl Spire / Vitriol Spout shipped. APK SHA `ec5b8db7d455c2a2a7a26b6cccf2dd5f2c0c0cc8396b3c0de9da737e080c0bcb`.

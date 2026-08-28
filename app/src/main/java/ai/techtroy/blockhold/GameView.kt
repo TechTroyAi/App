@@ -482,7 +482,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 val all = arrayOf(
                     BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON, BuildTool.EMBER,
                     BuildTool.BEACON, BuildTool.THORN, BuildTool.LANCE, BuildTool.MIRE,
-                    BuildTool.GALE, BuildTool.SUNFORGE, BuildTool.LODESTONE
+                    BuildTool.GALE, BuildTool.SUNFORGE, BuildTool.LODESTONE,
+                    BuildTool.HOWL, BuildTool.VITRIOL
                 )
                 all.drop(towerPageIndex * 4).take(4).toTypedArray()
             }
@@ -534,6 +535,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             enemy.flashTimer = max(0f, enemy.flashTimer - delta)
             enemy.slowTimer = max(0f, enemy.slowTimer - delta)
             enemy.markTimer = max(0f, enemy.markTimer - delta)
+            enemy.armorShredTimer = max(0f, enemy.armorShredTimer - delta)
+            if (enemy.armorShredTimer <= 0f) enemy.armorShred = 0f
             enemy.rootTimer = max(0f, enemy.rootTimer - delta)
             enemy.stunTimer = max(0f, enemy.stunTimer - delta)
             enemy.armoredTimer = max(0f, enemy.armoredTimer - delta)
@@ -1259,6 +1262,44 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     }
                 burst(projectile.x, projectile.y, projectile.kind.accent, 6, 0.6f)
             }
+            TowerKind.HOWL -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.35f)
+                // Reveal stealth + soft slow
+                val reveal = if (tower.evolution == TowerEvolution.ECHO_VAULT) 3.2f else 1.8f
+                projectile.target.gloomTimer = 0f
+                projectile.target.wispTimer = 0f
+                projectile.target.slowTimer = max(projectile.target.slowTimer, if (tower.evolution == TowerEvolution.PACK_CALL) 1.6f else 1.1f)
+                if (tower.evolution == TowerEvolution.PACK_CALL) {
+                    enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.2f }
+                        .minByOrNull { abs(it.progress - projectile.target.progress) }
+                        ?.let { secondary ->
+                            damageEnemy(secondary, projectile.damage * 0.55f, projectile.kind.accent, 0.25f)
+                            secondary.gloomTimer = 0f
+                            secondary.wispTimer = 0f
+                            secondary.slowTimer = max(secondary.slowTimer, 1.0f)
+                            spawnImpact(secondary.x, secondary.y, projectile.kind)
+                        }
+                }
+                // Keep reveal window via slow-ish flash label
+                floatingLabels.add(FloatingLabel("HOWL", projectile.target.x, projectile.target.y - 0.35f, projectile.kind.accent, 0.5f))
+                // Echo vault: brief stun pulse as "longer reveal lock"
+                if (tower.evolution == TowerEvolution.ECHO_VAULT) {
+                    projectile.target.stunTimer = max(projectile.target.stunTimer, 0.35f)
+                }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
+            }
+            TowerKind.VITRIOL -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.45f)
+                val shred = if (tower.evolution == TowerEvolution.ACID_VEIN) 0.42f else 0.28f
+                val shredTime = if (tower.evolution == TowerEvolution.ACID_VEIN) 3.4f else 2.4f
+                projectile.target.armorShred = max(projectile.target.armorShred, shred)
+                projectile.target.armorShredTimer = max(projectile.target.armorShredTimer, shredTime)
+                if (tower.evolution == TowerEvolution.RUST_SCOUR) {
+                    ignite(projectile.target, projectile.damage * 0.16f, 1.8f)
+                }
+                floatingLabels.add(FloatingLabel("ACID", projectile.target.x, projectile.target.y - 0.3f, projectile.kind.accent, 0.45f))
+                burst(projectile.x, projectile.y, projectile.kind.accent, 7, 0.65f)
+            }
         }
     }
 
@@ -1276,6 +1317,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.GALE -> 0.95f + random.nextFloat() * 0.10f
             TowerKind.SUNFORGE -> 0.88f + random.nextFloat() * 0.10f
             TowerKind.LODESTONE -> 0.70f + random.nextFloat() * 0.10f
+            TowerKind.HOWL -> 0.92f + random.nextFloat() * 0.10f
+            TowerKind.VITRIOL -> 0.78f + random.nextFloat() * 0.10f
         }
         val volume = when (kind) {
             TowerKind.CANNON -> 0.38f
@@ -1285,6 +1328,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.GALE -> 0.30f
             TowerKind.SUNFORGE -> 0.32f
             TowerKind.LODESTONE -> 0.30f
+            TowerKind.HOWL -> 0.31f
+            TowerKind.VITRIOL -> 0.29f
             else -> 0.24f
         }
         audio.play("impact", volume, pitch)
@@ -1318,6 +1363,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (!enemy.alive || enemy.dying) return
         var armor = enemy.kind.armor
         if (enemy.armoredTimer > 0f) armor += 0.24f
+        if (enemy.armorShredTimer > 0f) armor = max(0f, armor - enemy.armorShred)
         if (challengeModifier == ChallengeModifier.ARMORED_HORDE) armor += 0.15f
         // F1 Thornback: extra armor while pulse is active
         if (enemy.kind == EnemyKind.THORNBACK && enemy.thornArmorTimer > 0f) armor += 0.22f
@@ -2524,7 +2570,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         setBanner("TRAPS ONLY CHALLENGE", 1.4f)
                         return true
                     }
-                    if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 3 else buildPage = BuildPage.TOWERS
+                    if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 4 else buildPage = BuildPage.TOWERS
                     if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
                     clearBuildSelections()
                     rebuildToolRects()
@@ -2730,6 +2776,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.GALE -> placeTower(cell, TowerKind.GALE)
             BuildTool.SUNFORGE -> placeTower(cell, TowerKind.SUNFORGE)
             BuildTool.LODESTONE -> placeTower(cell, TowerKind.LODESTONE)
+            BuildTool.HOWL -> placeTower(cell, TowerKind.HOWL)
+            BuildTool.VITRIOL -> placeTower(cell, TowerKind.VITRIOL)
             BuildTool.SPIKES -> placeTrap(cell, TrapKind.SPIKE)
             BuildTool.ROOT -> placeTrap(cell, TrapKind.ROOT)
             BuildTool.RUNE -> placeTrap(cell, TrapKind.EMBER)
@@ -4130,6 +4178,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.GALE -> sprites.galeBase
             TowerKind.SUNFORGE -> sprites.sunforgeBase
             TowerKind.LODESTONE -> sprites.lodestoneBase
+            TowerKind.HOWL -> sprites.howlBase
+            TowerKind.VITRIOL -> sprites.vitriolBase
         }
         drawBitmapCentered(canvas, base, x, y + tileSize * 0.05f, tileSize * 0.88f)
         val firingFrame = when {
@@ -4153,6 +4203,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.GALE -> drawSpriteFrameCentered(canvas, sprites.galeTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
             TowerKind.SUNFORGE -> drawSpriteFrameCentered(canvas, sprites.sunforgeTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
             TowerKind.LODESTONE -> drawSpriteFrameCentered(canvas, sprites.lodestoneTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.HOWL -> drawSpriteFrameCentered(canvas, sprites.howlTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.VITRIOL -> drawSpriteFrameCentered(canvas, sprites.vitriolTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
         }
         if (tower.evolution != null) {
             strokePaint.strokeWidth = tileSize * 0.045f
@@ -4544,7 +4596,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawToolBar(canvas: Canvas) {
-        drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR ${towerPageIndex + 1}/3", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
+        drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR ${towerPageIndex + 1}/4", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
         drawPageTab(canvas, trapPageRect, if (challengeModifier == ChallengeModifier.TOWERS_ONLY) "LOCK" else "TRAP", buildPage == BuildPage.TRAPS, Color.rgb(93, 220, 255))
         drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/5", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
         drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, Color.rgb(195, 120, 255))
@@ -4611,6 +4663,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.GALE -> TowerKind.GALE.accent
             BuildTool.SUNFORGE -> TowerKind.SUNFORGE.accent
             BuildTool.LODESTONE -> TowerKind.LODESTONE.accent
+            BuildTool.HOWL -> TowerKind.HOWL.accent
+            BuildTool.VITRIOL -> TowerKind.VITRIOL.accent
             BuildTool.SPIKES -> TrapKind.SPIKE.accent
             BuildTool.ROOT -> TrapKind.ROOT.accent
             BuildTool.RUNE -> TrapKind.EMBER.accent
@@ -4644,6 +4698,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.GALE -> Pair(sprites.galeBase, sprites.galeTurret)
             BuildTool.SUNFORGE -> Pair(sprites.sunforgeBase, sprites.sunforgeTurret)
             BuildTool.LODESTONE -> Pair(sprites.lodestoneBase, sprites.lodestoneTurret)
+            BuildTool.HOWL -> Pair(sprites.howlBase, sprites.howlTurret)
+            BuildTool.VITRIOL -> Pair(sprites.vitriolBase, sprites.vitriolTurret)
             else -> null
         }
         if (towerLayers != null) {

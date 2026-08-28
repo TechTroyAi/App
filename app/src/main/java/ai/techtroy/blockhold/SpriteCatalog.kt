@@ -64,6 +64,8 @@ internal class SpriteCatalog(private val context: Context) {
     val galeBase = load("tower_gale_base")
     val sunforgeBase = load("tower_sunforge_base")
     val lodestoneBase = load("tower_lodestone_base")
+    val howlBase = load("tower_howl_base")
+    val vitriolBase = load("tower_vitriol_base")
     val greenTurret = loadStrip("tower_bolt_turret")
     val paleTurret = loadStrip("tower_frost_turret")
     val cannonTurret = loadStrip("tower_cannon_turret")
@@ -75,6 +77,8 @@ internal class SpriteCatalog(private val context: Context) {
     val galeTurret = loadStrip("tower_gale_turret")
     val sunforgeTurret = loadStrip("tower_sunforge_turret")
     val lodestoneTurret = loadStrip("tower_lodestone_turret")
+    val howlTurret = loadStrip("tower_howl_turret")
+    val vitriolTurret = loadStrip("tower_vitriol_turret")
 
     private val traps = mapOf(
         TrapKind.SPIKE to loadStrip("trap_spike_bed"),
@@ -118,7 +122,11 @@ internal class SpriteCatalog(private val context: Context) {
         TowerEvolution.SOLAR_FLARE to load("evolution_solar_flare"),
         TowerEvolution.HEARTH_CORE to load("evolution_hearth_core"),
         TowerEvolution.PULL_WELL to load("evolution_pull_well"),
-        TowerEvolution.REPULSOR to load("evolution_repulsor")
+        TowerEvolution.REPULSOR to load("evolution_repulsor"),
+        TowerEvolution.PACK_CALL to load("evolution_pack_call"),
+        TowerEvolution.ECHO_VAULT to load("evolution_echo_vault"),
+        TowerEvolution.ACID_VEIN to load("evolution_acid_vein"),
+        TowerEvolution.RUST_SCOUR to load("evolution_rust_scour")
     )
 
     private val craftedItems = mapOf(
@@ -195,7 +203,9 @@ internal class SpriteCatalog(private val context: Context) {
         TowerKind.MIRE to loadStrip("projectile_mire"),
         TowerKind.GALE to loadStrip("projectile_gale"),
         TowerKind.SUNFORGE to loadStrip("projectile_sunforge"),
-        TowerKind.LODESTONE to loadStrip("projectile_lodestone")
+        TowerKind.LODESTONE to loadStrip("projectile_lodestone"),
+        TowerKind.HOWL to loadStrip("projectile_howl"),
+        TowerKind.VITRIOL to loadStrip("projectile_vitriol")
     )
 
     private val impacts = mapOf(
@@ -209,7 +219,9 @@ internal class SpriteCatalog(private val context: Context) {
         TowerKind.MIRE to loadStrip("impact_mire"),
         TowerKind.GALE to loadStrip("impact_gale"),
         TowerKind.SUNFORGE to loadStrip("impact_sunforge"),
-        TowerKind.LODESTONE to loadStrip("impact_lodestone")
+        TowerKind.LODESTONE to loadStrip("impact_lodestone"),
+        TowerKind.HOWL to loadStrip("impact_howl"),
+        TowerKind.VITRIOL to loadStrip("impact_vitriol")
     )
 
     fun enemy(kind: EnemyKind): SpriteStrip = enemies.getValue(kind)
