@@ -1,3 +1,10 @@
+
+## Current (F3 Toolkit — 1.4)
+- **Installable:** `Blockhold-Defense-v1.2-installable.apk`
+- **SHA-256:** `058f8a7da7e08e565e340467ecc866248850b367b1d19b18258f85b8d8a938db`
+- **Contents:** F0 board + F1 blood + F2 named threats + **F3 toolkit** (Ward Beacon, Battle Banner, Essence Still, Trap Lattice; Overcharge Cell, Focus Lens, Snap Spring; Ward/Leech/Surge imbuements)
+- Signing: APK Signature Scheme **v2 + v3**
+
 # Build artifacts
 
 ## Download this one (installable v1.2)

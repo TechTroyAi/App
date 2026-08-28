@@ -99,7 +99,10 @@ internal class SpriteCatalog(private val context: Context) {
         CraftedItem.BLANK_SIGIL to load("item_blank_sigil"),
         CraftedItem.SPLINTER_BRACE to load("item_splinter_brace"),
         CraftedItem.RESIN_SEAL to load("item_resin_seal"),
-        CraftedItem.COOLING_FLASK to load("item_cooling_flask")
+        CraftedItem.COOLING_FLASK to load("item_cooling_flask"),
+        CraftedItem.OVERCHARGE_CELL to load("item_overcharge_cell"),
+        CraftedItem.FOCUS_LENS to load("item_focus_lens"),
+        CraftedItem.SNAP_SPRING to load("item_snap_spring")
     )
 
     private val imbuements = mapOf(
@@ -108,7 +111,10 @@ internal class SpriteCatalog(private val context: Context) {
         Imbuement.REACH to load("sigil_reach"),
         Imbuement.CLARITY to load("sigil_clarity"),
         Imbuement.ECHOES to load("sigil_echoes"),
-        Imbuement.CONSERVATION to load("sigil_conservation")
+        Imbuement.CONSERVATION to load("sigil_conservation"),
+        Imbuement.WARD to load("sigil_ward"),
+        Imbuement.LEECH to load("sigil_leech"),
+        Imbuement.SURGE to load("sigil_surge")
     )
 
     val salvageParts = load("icon_salvage_parts")
@@ -122,7 +128,11 @@ internal class SpriteCatalog(private val context: Context) {
         UtilityKind.PURIFIER_TOTEM to loadStrip("utility_purifier_totem"),
         UtilityKind.SURVEYOR_STATION to loadStrip("utility_surveyor_station"),
         UtilityKind.REFORGE_ANCHOR to loadStrip("utility_reforge_anchor"),
-        UtilityKind.SALVAGE_YARD to loadStrip("utility_salvage_yard")
+        UtilityKind.SALVAGE_YARD to loadStrip("utility_salvage_yard"),
+        UtilityKind.WARD_BEACON to loadStrip("utility_ward_beacon"),
+        UtilityKind.BATTLE_BANNER to loadStrip("utility_battle_banner"),
+        UtilityKind.ESSENCE_STILL to loadStrip("utility_essence_still"),
+        UtilityKind.TRAP_LATTICE to loadStrip("utility_trap_lattice")
     )
 
     private val projectiles = mapOf(

@@ -120,7 +120,12 @@ internal enum class UtilityKind(
     PURIFIER_TOTEM("Purifier Totem", "Reduces nearby corruption cleansing costs", 210, Color.rgb(112, 231, 143)),
     SURVEYOR_STATION("Surveyor Station", "Reveals approaching waves and elite threats", 130, Color.rgb(151, 204, 255)),
     REFORGE_ANCHOR("Reforge Anchor", "Reduces the cost of nearby route changes", 190, Color.rgb(195, 120, 255)),
-    SALVAGE_YARD("Salvage Yard", "Improves recycling returns and recovered Parts", 160, Color.rgb(202, 177, 137))
+    SALVAGE_YARD("Salvage Yard", "Improves recycling returns and recovered Parts", 160, Color.rgb(202, 177, 137)),
+    // 1.4 F3 Toolkit utilities
+    WARD_BEACON("Ward Beacon", "Nearby towers shrug off Hex faster and gain brief immunity pulses", 200, Color.rgb(112, 220, 200)),
+    BATTLE_BANNER("Battle Banner", "Towers near the banner deal extra damage during waves", 175, Color.rgb(255, 140, 70)),
+    ESSENCE_STILL("Essence Still", "Converts wave pressure into Growth Essence over time", 230, Color.rgb(180, 120, 255)),
+    TRAP_LATTICE("Trap Lattice", "Path traps near the lattice deal more damage", 185, Color.rgb(200, 210, 170))
 }
 
 internal enum class CraftedItem(
@@ -144,7 +149,12 @@ internal enum class CraftedItem(
     // 1.4 Crafts C1 — panic forge kit
     SPLINTER_BRACE("Splinter Brace", "Next Core hit that would deal 2+ damage loses 1 damage", 90, 4, 1, 2, 2),
     RESIN_SEAL("Resin Seal", "Arm a one-leak Core barrier for the next combat wave", 110, 3, 1, 2, 2),
-    COOLING_FLASK("Cooling Flask", "Clear Hex on a selected tower and grant brief Hex immunity", 70, 3, 0, 2, 3)
+    COOLING_FLASK("Cooling Flask", "Clear Hex on a selected tower and grant brief Hex immunity", 70, 3, 0, 2, 3),
+
+    // 1.4 Crafts C2 — precision forge kit
+    OVERCHARGE_CELL("Overcharge Cell", "Selected tower gains a temporary damage surge", 100, 4, 1, 2, 2),
+    FOCUS_LENS("Focus Lens", "Selected tower gains temporary range and pierce", 90, 3, 1, 2, 2),
+    SNAP_SPRING("Snap Spring", "Selected trap resets triggers and pulses once immediately", 80, 3, 0, 2, 3)
 }
 
 internal enum class Imbuement(val title: String, val description: String, val accent: Int) {
@@ -153,7 +163,11 @@ internal enum class Imbuement(val title: String, val description: String, val ac
     REACH("Reach", "Expands tower, chain, and utility operating radius", Color.rgb(93, 220, 255)),
     CLARITY("Clarity", "Greatly resists Hex disabling", Color.rgb(234, 244, 255)),
     ECHOES("Echoes", "Every fifth activation repeats part of its effect", Color.rgb(195, 120, 255)),
-    CONSERVATION("Conservation", "Reduces upgrade, storage, and activation costs", Color.rgb(128, 230, 146))
+    CONSERVATION("Conservation", "Reduces upgrade, storage, and activation costs", Color.rgb(128, 230, 146)),
+    // 1.4 F3 imbuements
+    WARD("Ward", "Structure resists Hex and recovers disabled time faster", Color.rgb(140, 230, 210)),
+    LEECH("Leech", "Damaging hits restore a sliver of Core when enemies die nearby", Color.rgb(255, 110, 130)),
+    SURGE("Surge", "First few activations each wave hit harder", Color.rgb(255, 210, 80))
 }
 
 internal enum class WorkshopTab {
@@ -311,6 +325,12 @@ internal class Tower(
     var evolveAura = 0f
     /** Hotter next shot trail while >0 (E2), seconds remaining. */
     var evolveProof = 0f
+    /** F3 Overcharge Cell: damage surge remaining. */
+    var damageBoostTimer = 0f
+    /** F3 Focus Lens: range/pierce boost remaining. */
+    var focusBoostTimer = 0f
+    /** F3 Surge imbuement: activations this wave still boosted. */
+    var surgeCharges = 0
 
     fun upgradeCost(): Int {
         val base = if (level < 3) kind.cost / 2 + level * 28 else min(2_000_000_000, (kind.cost * 0.82 * 1.24.pow(overcharge.toDouble())).toInt().coerceAtLeast(kind.cost))
@@ -332,7 +352,11 @@ internal class Tower(
             else -> 1f
         }
         val imbuementMultiplier = if (imbuement == Imbuement.MIGHT) 1.15f else 1f
-        return kind.damage * (1f + (level - 1) * 0.38f) * (1f + overcharge * 0.12f) * evolutionMultiplier * imbuementMultiplier
+        var damage = kind.damage * (1f + (level - 1) * 0.38f) * (1f + overcharge * 0.12f) * evolutionMultiplier * imbuementMultiplier
+        // F3 temporary boosts + Surge imbuement
+        if (damageBoostTimer > 0f) damage *= 1.35f
+        if (surgeCharges > 0) damage *= 1.28f
+        return damage
     }
 
     fun currentRange(): Float {
@@ -342,7 +366,9 @@ internal class Tower(
             TowerEvolution.HARMONY_NEXUS -> 0.35f
             else -> 0f
         }
-        return kind.range + (level - 1) * 0.18f + min(0.65f, overcharge * 0.025f) + evolutionBonus + if (imbuement == Imbuement.REACH) 0.38f else 0f
+        var range = kind.range + (level - 1) * 0.18f + min(0.65f, overcharge * 0.025f) + evolutionBonus + if (imbuement == Imbuement.REACH) 0.38f else 0f
+        if (focusBoostTimer > 0f) range += 0.55f
+        return range
     }
 
     fun currentInterval(): Float {
@@ -377,6 +403,8 @@ internal class SpikeTrap(
     var imbuement: Imbuement? = null
     var activationCount = 0
     var pulse = 0f
+    /** F3 Surge imbuement: activations this wave still boosted. */
+    var surgeCharges = 0
 
     fun upgradeCost(): Int {
         val base = if (level < 3) kind.cost / 2 + level * 22 else min(2_000_000_000, (kind.cost * 0.80 * 1.22.pow(overcharge.toDouble())).toInt().coerceAtLeast(kind.cost))
@@ -388,7 +416,11 @@ internal class SpikeTrap(
         return min(2_000_000_000L, (invested * multiplier).toLong()).toInt()
     }
 
-    fun currentDamage(): Float = kind.damage * (1f + (level - 1) * 0.42f) * (1f + overcharge * 0.13f) * if (imbuement == Imbuement.MIGHT) 1.15f else 1f
+    fun currentDamage(): Float {
+        var damage = kind.damage * (1f + (level - 1) * 0.42f) * (1f + overcharge * 0.13f) * if (imbuement == Imbuement.MIGHT) 1.15f else 1f
+        if (surgeCharges > 0) damage *= 1.28f
+        return damage
+    }
 
     fun rankLabel(): String = if (level < 3) "LEVEL $level" else if (overcharge == 0) "LEVEL 3" else "OVERCHARGE $overcharge"
 }

@@ -76,3 +76,8 @@ Remaining enemies, towers, utils, enchants, crafts.
 - **1.4 C1 crafts** (see `artwork/style-production/batch-21-crafted-supplies-c1/`)
 - **1.4 F0 Wide Hold** (see `artwork/style-production/batch-22-wide-hold-f0/`)
 - **1.4 F1 New blood** (see `artwork/style-production/batch-23-new-blood-f1/`)
+
+
+## F3 status (2026-08-28)
+**Shipped.** Installable SHA `058f8a7da7e08e565e340467ecc866248850b367b1d19b18258f85b8d8a938db`.  
+Utils +4, C2 crafts +3, imbuements +3. Next: **F4 towers**.

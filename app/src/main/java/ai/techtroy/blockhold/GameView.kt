@@ -604,7 +604,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             tower.evolveFlash = max(0f, tower.evolveFlash - delta * 2.4f)
             tower.evolveAura = max(0f, tower.evolveAura - delta)
             tower.evolveProof = max(0f, tower.evolveProof - delta)
-            tower.disabledTimer = max(0f, tower.disabledTimer - delta)
+            tower.damageBoostTimer = max(0f, tower.damageBoostTimer - delta)
+            tower.focusBoostTimer = max(0f, tower.focusBoostTimer - delta)
+            val hexDecay = if (tower.imbuement == Imbuement.WARD) delta * 1.75f else delta
+            tower.disabledTimer = max(0f, tower.disabledTimer - hexDecay)
             val immKey = tower.col * 100 + tower.row
             val imm = coolingImmunity[immKey] ?: 0f
             if (imm > 0f) {
@@ -859,6 +862,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             enemy.trapTriggerCounts[trap.id] = triggers + 1
             if (enemy.kind == EnemyKind.SAPPER) enemy.sapperTraps += 1
             trap.activationCount += 1
+            if (trap.surgeCharges > 0) trap.surgeCharges -= 1
             trap.pulse = 1f
             var damage = effectiveTrapDamage(trap)
             val tempoStatus = if (trap.imbuement == Imbuement.TEMPO) 1.22f else 1f
@@ -907,6 +911,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (trap.kind == TrapKind.CRUSHER) damage *= 1f + perkCount(ForgePerk.REINFORCED_CRUSHERS) * 0.50f
         if (perkCount(ForgePerk.PATHFINDER_TRAPS) > 0) damage *= 1f + min(0.75f, max(0, pathCells.size - 12) * 0.012f * perkCount(ForgePerk.PATHFINDER_TRAPS))
         if (hasCinderReactorNear(trap.col, trap.row)) damage *= 1.30f
+        damage *= trapLatticeBonus(trap.col, trap.row)
         return damage
     }
 
@@ -939,8 +944,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun fireTower(tower: Tower, target: Enemy) {
         var damage = tower.currentDamage()
         if (perkCount(ForgePerk.CORNER_AMBUSH) > 0 && enemyOnCorner(target)) damage *= 1f + perkCount(ForgePerk.CORNER_AMBUSH) * 0.22f
+        damage *= battleBannerDamageBonus(tower.col, tower.row)
         tower.activationCount += 1
-        val evolveHot = tower.evolveProof > 0.02f
+        if (tower.surgeCharges > 0) tower.surgeCharges -= 1
+        val evolveHot = tower.evolveProof > 0.02f || tower.focusBoostTimer > 0f
         projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage, tower.kind.projectileSpeed, tower, evolveHot = evolveHot))
         if (tower.imbuement == Imbuement.ECHOES && tower.activationCount % 5 == 0) {
             projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.65f, tower.kind.projectileSpeed * 1.12f, tower, evolveHot = evolveHot))
@@ -1131,6 +1138,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             if (enemy.kind.boss) growthEssence = safeAdd(growthEssence, 2)
             floatingLabels.add(FloatingLabel("+$bounty", enemy.x, enemy.y, Color.rgb(190, 244, 78), life = 1.2f, pop = 1.28f))
+            if (lives < maxCore) {
+                val leechNear = towers.any { it.imbuement == Imbuement.LEECH && distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 9f } ||
+                    traps.any { it.imbuement == Imbuement.LEECH && distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 9f }
+                if (leechNear && random.nextFloat() < (if (enemy.kind.elite || enemy.kind.boss) 0.55f else 0.18f)) {
+                    lives = min(maxCore, lives + 1)
+                    floatingLabels.add(FloatingLabel("+1 CORE", enemy.x, enemy.y - 0.4f, Color.rgb(255, 110, 130), life = 1.1f, pop = 1.35f))
+                }
+            }
             burst(enemy.x, enemy.y, enemy.kind.color, if (enemy.kind.boss) 34 else if (enemy.kind.elite) 20 else 12, 1.2f)
             audio.play("enemy_down", if (enemy.kind.boss) 0.65f else 0.22f, if (enemy.kind.boss) 0.65f else 1.05f)
             if (enemy.kind == EnemyKind.SPLITLING && enemy.splitDepth < 1) {
@@ -1248,6 +1263,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         if (current < CraftedItem.CORE_PATCH.maxStack) supplies[CraftedItem.CORE_PATCH] = min(CraftedItem.CORE_PATCH.maxStack, current + produced)
                     }
                 }
+                UtilityKind.ESSENCE_STILL -> {
+                    utility.activationCount += 1
+                    var essence = when (utilityPowerLevel(utility)) { 1 -> 1; 2 -> 1; 3 -> 2; else -> 2 }
+                    if (utility.imbuement == Imbuement.MIGHT) essence += 1
+                    if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) essence += 1
+                    growthEssence = safeAdd(growthEssence, essence)
+                    floatingLabels.add(FloatingLabel("+$essence E", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.15f, pop = 1.32f))
+                }
+                UtilityKind.WARD_BEACON -> {
+                    utility.activationCount += 1
+                    val radius = 2.2f + utilityPowerLevel(utility) * 0.25f
+                    for (tower in towers) {
+                        if (distanceSquared(tower.col.toFloat(), tower.row.toFloat(), utility.col.toFloat(), utility.row.toFloat()) <= radius * radius) {
+                            val key = towerKey(tower.col, tower.row)
+                            coolingImmunity[key] = max(coolingImmunity[key] ?: 0f, 2.5f)
+                        }
+                    }
+                }
                 else -> Unit
             }
         }
@@ -1359,6 +1392,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedCorruption = null
         phase = GamePhase.WAVE
+        for (tower in towers) if (tower.imbuement == Imbuement.SURGE) tower.surgeCharges = 3
+        for (trap in traps) if (trap.imbuement == Imbuement.SURGE) trap.surgeCharges = 3
         val message = when {
             waveNumber % 10 == 0 -> {
                 val tier = waveNumber / 10
@@ -1582,7 +1617,33 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             floatingLabels.add(FloatingLabel("COOLED", tower.col + 0.5f, tower.row + 0.2f, Color.rgb(93, 220, 255), pop = 1.3f))
             return
         }
-        tower.disabledTimer = max(tower.disabledTimer, duration)
+        var d = duration
+        if (tower.imbuement == Imbuement.WARD) d *= 0.55f
+        if (hasWardBeaconNear(tower.col, tower.row)) d *= 0.70f
+        tower.disabledTimer = max(tower.disabledTimer, d)
+    }
+
+    private fun hasWardBeaconNear(col: Int, row: Int): Boolean {
+        return utilities.any {
+            it.kind == UtilityKind.WARD_BEACON && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }
+    }
+
+    private fun battleBannerDamageBonus(col: Int, row: Int): Float {
+        val banner = utilities.filter {
+            it.kind == UtilityKind.BATTLE_BANNER && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return 1f + 0.08f * utilityPowerLevel(banner) + if (banner.imbuement == Imbuement.MIGHT) 0.05f else 0f
+    }
+
+    private fun trapLatticeBonus(col: Int, row: Int): Float {
+        val lattice = utilities.filter {
+            it.kind == UtilityKind.TRAP_LATTICE && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return 1f + 0.10f * utilityPowerLevel(lattice) + if (lattice.imbuement == Imbuement.MIGHT) 0.06f else 0f
     }
 
     private fun consumeSupply(item: CraftedItem): Boolean {
@@ -2128,7 +2189,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     return true
                 }
                 if (utilityPageRect.contains(x, y)) {
-                    if (buildPage == BuildPage.UTILITIES) utilityPageIndex = (utilityPageIndex + 1) % 2 else buildPage = BuildPage.UTILITIES
+                    if (buildPage == BuildPage.UTILITIES) utilityPageIndex = (utilityPageIndex + 1) % 3 else buildPage = BuildPage.UTILITIES
                     clearBuildSelections()
                     rebuildToolRects()
                     audio.play("ui_click", 0.28f, 1.08f)
@@ -2629,6 +2690,39 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(93, 220, 255), 18, 1.0f)
                 audio.play("frost", 0.4f, 1.2f)
             }
+            CraftedItem.OVERCHARGE_CELL -> {
+                val tower = selectedTower
+                if (tower == null) { setBanner("SELECT A TOWER TO OVERCHARGE", 1.5f); return }
+                tower.damageBoostTimer = max(tower.damageBoostTimer, 18f)
+                consumeSupply(item)
+                setBanner("OVERCHARGE ARMED  18s", 1.7f)
+                floatingLabels.add(FloatingLabel("OVERCHARGE", tower.col + 0.5f, tower.row + 0.15f, Color.rgb(255, 186, 70), pop = 1.4f))
+                burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 186, 70), 20, 1.1f)
+                audio.play("ember", 0.4f, 1.15f)
+            }
+            CraftedItem.FOCUS_LENS -> {
+                val tower = selectedTower
+                if (tower == null) { setBanner("SELECT A TOWER TO FOCUS", 1.5f); return }
+                tower.focusBoostTimer = max(tower.focusBoostTimer, 16f)
+                consumeSupply(item)
+                setBanner("FOCUS LENS  16s RANGE", 1.7f)
+                floatingLabels.add(FloatingLabel("FOCUS", tower.col + 0.5f, tower.row + 0.15f, Color.rgb(100, 200, 255), pop = 1.4f))
+                burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(100, 200, 255), 18, 1.0f)
+                audio.play("frost", 0.4f, 1.2f)
+            }
+            CraftedItem.SNAP_SPRING -> {
+                val trap = selectedTrap
+                if (trap == null) { setBanner("SELECT A TRAP TO SNAP", 1.5f); return }
+                for (enemy in enemies) enemy.trapTriggerCounts.remove(trap.id)
+                trap.pulse = 1f
+                trap.activationCount += 1
+                enemies.filter { it.targetable && abs(it.x - (trap.col + 0.5f)) < 0.55f && abs(it.y - (trap.row + 0.5f)) < 0.55f }
+                    .forEach { damageEnemy(it, effectiveTrapDamage(trap) * 0.85f, trap.kind.accent) }
+                consumeSupply(item)
+                setBanner("SNAP SPRING  TRAP RESET", 1.6f)
+                burst(trap.col + 0.5f, trap.row + 0.5f, trap.kind.accent, 16, 1.0f)
+                audio.play("dig", 0.4f, 1.3f)
+            }
             CraftedItem.RECOVERY_WRAP, CraftedItem.PURIFIER_VIAL, CraftedItem.REFORGE_COUPLER, CraftedItem.UTILITY_GEARSET -> setBanner("THIS SUPPLY ACTIVATES AUTOMATICALLY", 1.5f)
             CraftedItem.BLANK_SIGIL -> setBanner("SELECT A LEVEL 3 STRUCTURE AND CHOOSE IMBUE", 1.8f)
         }
@@ -2654,15 +2748,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun imbuementCompatible(imbuement: Imbuement): Boolean {
         if (imbuementTower != null) return true
         val trap = imbuementTrap
-        if (trap != null) return imbuement != Imbuement.CLARITY && (imbuement != Imbuement.REACH || trap.kind == TrapKind.ARC)
+        if (trap != null) {
+            return when (imbuement) {
+                Imbuement.CLARITY, Imbuement.WARD -> false
+                Imbuement.REACH -> trap.kind == TrapKind.ARC
+                else -> true
+            }
+        }
         val utility = imbuementUtility ?: return false
         return when (imbuement) {
             Imbuement.MIGHT -> true
-            Imbuement.TEMPO -> utility.kind == UtilityKind.BLOCK_GENERATOR || utility.kind == UtilityKind.FORGE_WORKSHOP
-            Imbuement.REACH -> utility.kind == UtilityKind.PURIFIER_TOTEM || utility.kind == UtilityKind.REFORGE_ANCHOR
+            Imbuement.TEMPO -> utility.kind == UtilityKind.BLOCK_GENERATOR || utility.kind == UtilityKind.FORGE_WORKSHOP || utility.kind == UtilityKind.ESSENCE_STILL
+            Imbuement.REACH -> utility.kind == UtilityKind.PURIFIER_TOTEM || utility.kind == UtilityKind.REFORGE_ANCHOR || utility.kind == UtilityKind.WARD_BEACON || utility.kind == UtilityKind.BATTLE_BANNER || utility.kind == UtilityKind.TRAP_LATTICE
             Imbuement.CLARITY -> true
-            Imbuement.ECHOES -> utility.kind == UtilityKind.BLOCK_GENERATOR || utility.kind == UtilityKind.FORGE_WORKSHOP || utility.kind == UtilityKind.PURIFIER_TOTEM
+            Imbuement.ECHOES -> utility.kind == UtilityKind.BLOCK_GENERATOR || utility.kind == UtilityKind.FORGE_WORKSHOP || utility.kind == UtilityKind.PURIFIER_TOTEM || utility.kind == UtilityKind.ESSENCE_STILL
             Imbuement.CONSERVATION -> utility.kind == UtilityKind.CACHE_DEPOT || utility.kind == UtilityKind.FORGE_WORKSHOP || utility.kind == UtilityKind.PURIFIER_TOTEM || utility.kind == UtilityKind.REFORGE_ANCHOR
+            Imbuement.WARD -> utility.kind == UtilityKind.WARD_BEACON || utility.kind == UtilityKind.PURIFIER_TOTEM
+            Imbuement.LEECH -> false
+            Imbuement.SURGE -> utility.kind == UtilityKind.BATTLE_BANNER || utility.kind == UtilityKind.TRAP_LATTICE
         }
     }
 
@@ -2679,6 +2782,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         imbuementTower?.imbuement = imbuement
         imbuementTrap?.imbuement = imbuement
         imbuementUtility?.imbuement = imbuement
+        if (imbuement == Imbuement.SURGE) {
+            imbuementTower?.surgeCharges = 3
+            imbuementTrap?.surgeCharges = 3
+        }
         val x = imbuementTower?.col ?: imbuementTrap?.col ?: imbuementUtility?.col ?: 0
         val y = imbuementTower?.row ?: imbuementTrap?.row ?: imbuementUtility?.row ?: 0
         burst(x + 0.5f, y + 0.5f, imbuement.accent, 26, 1.4f)
@@ -3640,6 +3747,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.argb(180, 93, 220, 255)
             canvas.drawCircle(x, y, tileSize * 0.44f, strokePaint)
         }
+        if (tower.damageBoostTimer > 0.05f) {
+            strokePaint.strokeWidth = tileSize * 0.035f
+            strokePaint.color = Color.argb(200, 255, 186, 70)
+            canvas.drawCircle(x, y, tileSize * 0.46f, strokePaint)
+        }
+        if (tower.focusBoostTimer > 0.05f) {
+            strokePaint.strokeWidth = tileSize * 0.03f
+            strokePaint.color = Color.argb(190, 100, 200, 255)
+            canvas.drawCircle(x, y, tileSize * 0.48f, strokePaint)
+        }
         if (tower.disabledTimer > 0f) {
             paint.color = Color.argb(145, 130, 48, 165)
             canvas.drawCircle(x, y, tileSize * 0.34f, paint)
@@ -3992,7 +4109,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawToolBar(canvas: Canvas) {
         drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
         drawPageTab(canvas, trapPageRect, if (challengeModifier == ChallengeModifier.TOWERS_ONLY) "LOCK" else "TRAP", buildPage == BuildPage.TRAPS, Color.rgb(93, 220, 255))
-        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/2", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
+        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/3", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
         drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, Color.rgb(195, 120, 255))
         for ((tool, rect) in toolRects) {
             val selected = selectedTool == tool && ((buildPage == BuildPage.TOWERS && tool.ordinal < BuildTool.SPIKES.ordinal) || (buildPage == BuildPage.TRAPS && tool.ordinal >= BuildTool.SPIKES.ordinal))
