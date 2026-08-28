@@ -1,79 +1,60 @@
-> **⚠️ The SHA-256 values in this file are stale (checked 2026-08-28).** None of the recorded
-> hashes match the APKs actually present here. Verified current hashes:
->
-> | File | SHA-256 |
-> |---|---|
-> | `Blockhold-Defense-v1.2-installable.apk` | `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4` |
-> | `Blockhold-Defense-v1.2-unsigned.apk` | `07b51c08666ce88d1819adb7c0b377e1c031058cd5d9e4309cf8253fe8f5dbe0` |
-> | `Blockhold-Defense-v1.0-release.apk` | `838eb6770d9d14b328be78f3f22b729de826c4601b90e31afa41c74c5517b5fc` |
-> | `Blockhold-Defense-v0.1-debug.apk` | `b22b15123d176550c0e52e6093ce7e9c5a84b258eea21c4843a543d7b123fa47` |
->
-> `Blockhold-Defense-v1.2-installable.apk` was assembled with apktool and **never zipaligned**
-> — prefer an APK built by Gradle (`./gradlew assembleDebug`) or by the `ci/android.yml` workflow once it is activated. See
-> [`../docs/APK_V1.2_LAUNCH_DIAGNOSIS.md`](../docs/APK_V1.2_LAUNCH_DIAGNOSIS.md).
-
-## Current (F3 Toolkit — 1.4)
-- **Installable:** `Blockhold-Defense-v1.2-installable.apk`
-- **SHA-256:** `058f8a7da7e08e565e340467ecc866248850b367b1d19b18258f85b8d8a938db`
-- **Contents:** F0 board + F1 blood + F2 named threats + **F3 toolkit** (Ward Beacon, Battle Banner, Essence Still, Trap Lattice; Overcharge Cell, Focus Lens, Snap Spring; Ward/Leech/Surge imbuements)
-- Signing: APK Signature Scheme **v2 + v3**
-
 # Build artifacts
 
-## Download this one (installable v1.2)
+## Download this one (Arena-signed v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload with 1.3 + C1 + F0 Wide Hold + F1 New blood + **F2 Named threats**.
+**`Blockhold-Defense-v1.2-arena-signed.apk`** — zipaligned, APK Signature Scheme **v2 + v3**, signed with a **new Arena key** that does not match v1.0 or the old sideload key.
 
-- Package: `ai.techtroy.blockhold`
-- Version: `1.2.0` (`12`) — 1.3 + C1 + F0 + F1 + F2 Named threats
-- Minimum Android: 7.0 / API 24
-- Target Android API: 35
-- Orientation: landscape
-- Permissions requested: none
-- Offline: yes
-- Size: ~2.5 MB
-- APK SHA-256: `c7c05ff6037f49d4b99b892fca5e4cc393c96a7452739b91814dbe5dfb1da216`
-- Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
-- Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
-- Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
-- Certificate SHA-256: `dbcf288d01f8114d8e38a63c6c6fa059521bb49c4ad30a664a9625d0371da55a`
+| Item | Value |
+| --- | --- |
+| Package | `ai.techtroy.blockhold` |
+| Version | `1.2.0` (`12`) |
+| Size | 3,539,355 bytes |
+| APK SHA-256 | `886e169dd791d1232c1d19322c6ec8f0c6c7b2ac1e847f0582a3a8e18e0287d3` |
+| Signing | v2 + v3 (no v1) |
+| Signing identity | `CN=Blockhold Defense Arena Key, OU=Arena Sideload 2026, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH` |
+| Certificate SHA-256 | `aa7ea2f6c74ca8adaaaaf05e64837ab9a7aa798e1c2dd9fe29a117c75bb0e178` |
+| Four-byte ZIP alignment | passed (218/218 uncompressed entries, including `classes.dex` and `resources.arsc`) |
+| Public certificate | `docs/blockhold-arena-certificate.txt` |
 
-### Install on Android
+Re-sign or rebuild with the same key via:
 
-1. Copy `Blockhold-Defense-v1.2-installable.apk` to the phone (download, USB, Drive, etc.).
-2. Open the file and allow **Install unknown apps** for your file manager/browser if prompted.
-3. Tap Install.
+```bash
+python3 scripts/sign-apk.py artifacts/Blockhold-Defense-v1.2-unsigned.apk artifacts/Blockhold-Defense-v1.2-arena-signed.apk
+python3 scripts/verify-apk.py artifacts/Blockhold-Defense-v1.2-arena-signed.apk
+```
 
-**Note:** This uses a **sideload/debug key**, not the permanent v1.0 production release key (which is not present in this workspace). If you already have production `ai.techtroy.blockhold` installed from the v1.0 release APK, uninstall that first — Android will reject an update signed with a different key.
+### Install on Android (required once)
 
-## F2 Named threats (this build)
+This APK uses a **new certificate**. Android identifies an app as `(package name + signing certificate)`, so it **cannot** update an existing Blockhold Defense install signed by v1.0 or the old sideload key (`INSTALL_FAILED_UPDATE_INCOMPATIBLE` / "App not installed").
 
-- Elites: **Grave Mender**, **Pyre Wight**
-- Bosses: **Iron Monarch**, **Spore Sovereign** (plus Overgrowth)
-- Wind-up tells + banner stings on ability charge / spawn
-- Alias also at `Blockhold-Defense-v1.2-f2-installable.apk`
+1. Uninstall **Blockhold Defense** if it is already on the phone (long-press the icon → Uninstall, or Settings → Apps).
+2. Copy `Blockhold-Defense-v1.2-arena-signed.apk` to the phone.
+3. Open the file and allow **Install unknown apps** for your file manager if prompted.
+4. Tap Install.
 
-## v1.2 Forgeworks signing input
+Every later APK signed with `.signing/blockhold-release.p12` (gitignored private key) will update in place and keep progress.
 
-`Blockhold-Defense-v1.2-unsigned.apk` is the rebuilt v1.2 Forgeworks + 1.3 content payload before signing (from the latest apktool rebuild).
+Uninstalling also clears leftover v1.1 SharedPreferences. That is the launch crash the previous investigation found: `getInt` throwing `ClassCastException` on keys written with a different type.
 
-- APK SHA-256: `ca4356610999b284103674c166ed65d3bcf2981684cc7a17bb0650c11c399b47`
-- Signing state: **unsigned** (cannot install until signed)
+## Why the unsigned v1.2 was not installable
 
-For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.
+`Blockhold-Defense-v1.2-unsigned.apk` failed three packaging checks:
 
-## Last signed production build
+1. **No APK Signing Block** — Android 11+ rejects `targetSdk >= 30` APKs that only have (or lack) v1 JAR signatures.
+2. **Never zipaligned** — 162 of 218 uncompressed entries, including `classes.dex` at offset 41, were not 4-byte aligned.
+3. **Assembled with apktool**, not Gradle, so alignment and signing were skipped.
 
-`Blockhold-Defense-v1.0-release.apk` remains the last production-key-signed artifact in this checkout.
+Those three are fixed in `Blockhold-Defense-v1.2-arena-signed.apk`. The payload (DEX, resources, version `1.2.0`) is the unsigned v1.2 content after align+sign.
 
-- Package: `ai.techtroy.blockhold`
-- Version: `1.0.0` (`10`)
-- APK SHA-256: `838eb6770d9d14b328be78f3f22b729de826c4601b90e31afa41c74c5517b5fc`
-- Signing certificate SHA-256: `14d779957005aee528fe603c5b5df2d7ec5ad8ed66141a7f24a78736aa98795a`
-- Signing identity: `CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
+The Kotlin 1.7 `maxBy`/`minBy` empty-collection crashes described in `docs/APK_V1.2_LAUNCH_DIAGNOSIS.md` live in that DEX. They are already fixed in source (`GameView.kt` uses `maxByOrNull` / `minByOrNull`; `MainActivity.kt` has a recovery screen). This sandbox cannot reach Maven Central or `dl.google.com` to run Gradle, so that fixed source is not in this APK. Rebuild with Android Studio / `./gradlew assembleRelease` on a machine with JDK 17 to ship those code fixes under the same Arena key.
 
-The dedicated private signing material is excluded from Git. Restore `Blockhold-Defense-signing-backup.zip` only through the secure workspace attachment flow and keep it outside version control.
+## Other files in this folder
 
-## First playable archive
+| File | SHA-256 | Notes |
+| --- | --- | --- |
+| `Blockhold-Defense-v1.2-unsigned.apk` | `07b51c08666ce88d1819adb7c0b377e1c031058cd5d9e4309cf8253fe8f5dbe0` | Signing input. Do not install. |
+| `Blockhold-Defense-v1.2-installable.apk` | `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4` | Old sideload key `095f279b…`, never zipaligned. Prefer the Arena-signed APK. |
+| `Blockhold-Defense-v1.0-release.apk` | `838eb6770d9d14b328be78f3f22b729de826c4601b90e31afa41c74c5517b5fc` | Production key `14d77995…` (private key absent). |
+| `Blockhold-Defense-v0.1-debug.apk` | `b22b15123d176550c0e52e6093ce7e9c5a84b258eea21c4843a543d7b123fa47` | Prototype package `ai.techtroy.app`. |
 
-`Blockhold-Defense-v0.1-debug.apk` is retained as the original five-wave vertical slice under the old prototype package `ai.techtroy.app`. It installs independently from Blockhold Defense.
+Private signing material is **not** in Git. It lives at `.signing/` (ignored). Back up `blockhold-release.p12` and `release.properties` if you want later updates to this install.

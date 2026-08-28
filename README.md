@@ -6,7 +6,9 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-The latest verified Forgeworks build is `artifacts/Blockhold-Defense-v1.2-unsigned.apk`. It is intentionally **unsigned** while the permanent v1.0 release key is unavailable; Android cannot install it until it is signed. Do not sign an update with a replacement key, because existing `ai.techtroy.blockhold` installations would reject it. The last directly installable production artifact retained in the repository is the signed v1.0 APK.
+The latest **installable** build is `artifacts/Blockhold-Defense-v1.2-arena-signed.apk`. It is the unsigned v1.2 payload, zipaligned, and signed with a **new Arena key** (`CN=Blockhold Defense Arena Key`) so it does not share a certificate with v1.0 or the old sideload builds.
+
+Android will refuse it as an update over those older installs. **Uninstall Blockhold Defense once**, then install this APK. Later builds signed with `.signing/blockhold-release.p12` update in place.
 
 | Item | Value |
 | --- | --- |
@@ -19,8 +21,10 @@ The latest verified Forgeworks build is `artifacts/Blockhold-Defense-v1.2-unsign
 | Orientation | Landscape |
 | Permissions | None requested |
 | Network requirement | None; fully offline |
+| APK SHA-256 | `886e169dd791d1232c1d19322c6ec8f0c6c7b2ac1e847f0582a3a8e18e0287d3` |
+| Certificate SHA-256 | `aa7ea2f6c74ca8adaaaaf05e64837ab9a7aa798e1c2dd9fe29a117c75bb0e178` |
 
-See `artifacts/README.md` for artifact hashes and signing status, `docs/VERIFICATION.md` for static verification, and `docs/SIGNING.md` for permanent-key handling.
+See `artifacts/README.md` for hashes and the uninstall step, `docs/SIGNING.md` for the Arena key, and `docs/APK_V1.2_LAUNCH_DIAGNOSIS.md` for why v1.2 would not open.
 
 ## How to play
 
@@ -180,7 +184,13 @@ The Gradle output is written to `app/build/outputs/apk/debug/app-debug.apk`. The
 ./scripts/build-apk.sh
 ```
 
-The release key is intentionally not in Git. See `docs/SIGNING.md` for production-key handling and verification.
+The Arena private key is intentionally not in Git (`.signing/` is ignored). Re-sign the unsigned payload without a JDK:
+
+```bash
+python3 scripts/sign-apk.py
+```
+
+See `docs/SIGNING.md` for key handling and verification.
 
 ## Project map
 
@@ -193,7 +203,8 @@ app/src/main/java/ai/techtroy/blockhold/AudioEngine.kt   Native SoundPool playba
 app/src/main/res/drawable-nodpi/                         CC0 gameplay sprite layer
 app/src/main/assets/licenses/                            Pack license texts
 docs/ASSET_LICENSES.md                                   Source/license audit
-docs/SIGNING.md                                          Permanent signing procedure
+docs/SIGNING.md                                          Arena / production signing procedure
+scripts/sign-apk.py                                      Zipalign + v2/v3 sign (Python + OpenSSL)
 artwork/                                                 Original icon source and store export
 tools/generate_sfx.py                                    Reproducible original audio
 tools/generate_forgeworks_art.sh                         Reproducible Forgeworks art

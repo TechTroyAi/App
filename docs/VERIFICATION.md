@@ -1,10 +1,11 @@
 > **⚠️ STALE — DO NOT TRUST THIS RECORD (checked 2026-08-28).**
 > The hashes, sizes and entry counts below do not match the APKs currently in `artifacts/`,
-> and the "Four-byte ZIP alignment: passed" / "`zipalign -c -p -v 4` passed" lines are false:
-> 168 of 221 uncompressed entries in `Blockhold-Defense-v1.2-installable.apk` are misaligned,
-> including `classes.dex`. This document describes an earlier build that no longer exists.
-> See [`APK_V1.2_LAUNCH_DIAGNOSIS.md`](APK_V1.2_LAUNCH_DIAGNOSIS.md) and regenerate with
-> `python3 scripts/verify-apk.py --all`.
+> and the "Four-byte ZIP alignment: passed" / "`zipalign -c -p -v 4` passed" lines are false
+> for the old apktool sideload. The current installable is
+> [`artifacts/Blockhold-Defense-v1.2-arena-signed.apk`](../artifacts/Blockhold-Defense-v1.2-arena-signed.apk)
+> (SHA-256 `886e169d…0287d3`, 4-byte aligned, v2+v3, Arena key `aa7ea2f6…b0e178`).
+> See [`SIGNING.md`](SIGNING.md), [`APK_V1.2_LAUNCH_DIAGNOSIS.md`](APK_V1.2_LAUNCH_DIAGNOSIS.md)
+> and `python3 scripts/verify-apk.py artifacts/Blockhold-Defense-v1.2-arena-signed.apk`.
 
 # v1.2 Forgeworks verification record
 

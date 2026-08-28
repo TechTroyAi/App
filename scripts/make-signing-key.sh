@@ -13,12 +13,13 @@
 # that, every future APK signed with THIS key updates cleanly, with progress preserved.
 #
 # Keys currently in play for ai.techtroy.blockhold:
+#   aa7ea2f6...  "CN=Blockhold Defense Arena Key, OU=Arena Sideload 2026"
+#                v1.2 Arena-signed (private key in .signing/, created by scripts/sign-apk.py)
 #   14d77995...  "CN=Blockhold Defense, OU=Game Release"        v1.0 (private key not in repo)
 #   095f279b...  "CN=Blockhold Defense Debug, OU=Sideload"      v1.1 + v1.2 (private key not in repo)
 #   (per-machine) ~/.android/debug.keystore                     Gradle assembleDebug / CI
 #
-# Neither private key is in this workspace, so no build made here can update an existing
-# install. This script creates the key that ends that problem for good.
+# The Arena key already exists in .signing/. This script refuses to overwrite it.
 #
 # BACK IT UP. Lose it and every player has to uninstall and lose progress again.
 #
@@ -38,15 +39,17 @@ ALIAS="blockhold"
 DNAME="CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH"
 VALIDITY_DAYS=10950   # 30 years; must outlive the app
 
-if ! command -v keytool >/dev/null 2>&1; then
-  echo "error: keytool not found. Install a JDK 17 (Temurin, or Android Studio's bundled JBR)." >&2
-  exit 1
-fi
-
 if [[ -f "$KEYSTORE" ]]; then
   echo "error: $KEYSTORE already exists." >&2
   echo "       Refusing to overwrite - that would break updates for anyone already installed." >&2
   echo "       Delete it deliberately if you really mean to start over." >&2
+  exit 1
+fi
+
+if ! command -v keytool >/dev/null 2>&1; then
+  echo "keytool not found. The Arena key was generated with OpenSSL via scripts/sign-apk.py." >&2
+  echo "Install a JDK 17 if you want keytool, or re-sign with:" >&2
+  echo "  python3 scripts/sign-apk.py" >&2
   exit 1
 fi
 

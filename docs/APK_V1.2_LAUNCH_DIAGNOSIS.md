@@ -241,17 +241,22 @@ That is fine, and actually helpful: uninstalling also clears the stale v1.1 pref
 are the prime suspect for the launch crash in section 0.
 
 1. **Uninstall Blockhold Defense on the phone.** One time, unavoidable, clears old save data.
-2. **Create the permanent key:** `./scripts/make-signing-key.sh` (needs a JDK 17). It writes
-   `.signing/blockhold-release.p12` + `release.properties` exactly where `app/build.gradle.kts`
-   already expects them, and prints the certificate fingerprint. Back the keystore up — losing
-   it forces another uninstall on every device later.
-3. **Build:** `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`,
-   zipaligned and v2+v3 signed by AGP. Or activate CI (section 5) and add the three repository
-   secrets the script prints, and CI will produce the signed release APK on every push.
-4. **Verify before shipping:** `python3 scripts/verify-apk.py <apk>` and
+2. **Install `artifacts/Blockhold-Defense-v1.2-arena-signed.apk`.** It is the unsigned v1.2
+   payload, zipaligned, and v2+v3 signed with a new Arena key
+   (`CN=Blockhold Defense Arena Key`, cert SHA-256 `aa7ea2f6…b0e178`). That key is not the
+   v1.0 production cert and not the old sideload cert, which is why the uninstall in step 1
+   is required. Re-sign with `python3 scripts/sign-apk.py` (Python + OpenSSL; no JDK needed).
+3. **Create / keep the key:** `scripts/sign-apk.py` already wrote `.signing/blockhold-release.p12`
+   + `release.properties` where `app/build.gradle.kts` expects them. Back the keystore up —
+   losing it forces another uninstall on every device later. `./scripts/make-signing-key.sh`
+   refuses to overwrite an existing keystore.
+4. **Rebuild the crash fixes** (the signed APK still contains the original v1.2 DEX). On a
+   machine with JDK 17 and the Android SDK: `./scripts/build-apk.sh release`. This sandbox
+   cannot reach Maven Central or `dl.google.com`, so Gradle cannot run here.
+5. **Verify before shipping:** `python3 scripts/verify-apk.py <apk>` and
    `python3 scripts/lint-kotlin-pitfalls.py`.
-5. Install that APK. Every future build signed with the same key updates in place, progress kept.
-6. If it still misbehaves, the recovery screen now shows the exact exception; send that text.
+6. If it still misbehaves after a source rebuild, the recovery screen in `MainActivity.kt`
+   shows the exact exception; send that text.
 7. Re-run `python3 scripts/verify-apk.py --all` and rewrite `docs/VERIFICATION.md` from its
    actual output rather than by hand.
 
