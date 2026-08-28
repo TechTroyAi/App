@@ -353,6 +353,10 @@ Implemented in the source tree:
   the countdown pauses while the player is in the workshop, reforge screen, or pause menu.
 - A **STACK WAVE** action during combat. Stacked waves share the live battlefield but retain
   separate wave identity, rewards, boss cycles, source-owned child enemies, and milestone perks.
+- Custom challenge seeds now accept direct keyboard input, persist the last value, and cap input at
+  12 numeric digits instead of requiring six tap-to-increment boxes.
+- The in-game feedback/instruction banner can be toggled with the **TXT** control and appears as a
+  compact rounded rectangle in the upper-left corner of the playfield.
 - Removal of the global four-utility capacity. Free terrain, cost, and the existing one-copy-per-kind
   rule remain in place.
 

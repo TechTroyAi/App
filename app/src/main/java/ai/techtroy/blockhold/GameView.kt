@@ -10,9 +10,15 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
+import android.text.InputType
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
 import java.util.Calendar
 import java.util.Random
 import kotlin.math.abs
@@ -38,6 +44,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         private const val MIN_CAMERA_ZOOM = 0.72f
         private const val MAX_CAMERA_ZOOM = 2.15f
         private const val AUTO_NEXT_WAVE_DELAY = 10f
+        private const val MAX_SEED_CHARACTERS = 12
+        private const val DEFAULT_CUSTOM_SEED = "733101"
     }
 
     private val stateLock = Any()
@@ -158,7 +166,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var gameMode = GameMode.ENDLESS
     private var challengeModifier = ChallengeModifier.NONE
     private var runSeed = 7331L
-    private val challengeDigits = intArrayOf(7, 3, 3, 1, 0, 1)
+    private var customSeedText = try {
+        preferences.getString("custom_seed_text", DEFAULT_CUSTOM_SEED).orEmpty()
+            .filter { it in '0'..'9' }.take(MAX_SEED_CHARACTERS)
+            .ifEmpty { DEFAULT_CUSTOM_SEED }
+    } catch (_: Exception) {
+        DEFAULT_CUSTOM_SEED
+    }
+    private var seedInputActive = false
+    private var seedInputReplaceOnNextInput = false
+    private var seedComposingText = ""
+    private var feedbackEnabled = prefBoolean("feedback_enabled", true)
     private var pathComplete = false
     private var ambientTime = 0f
     private var bannerText = ""
@@ -206,6 +224,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val resetPathRect = RectF()
     private val pauseRect = RectF()
     private val soundRect = RectF()
+    private val feedbackToggleRect = RectF()
     private val titlePlayRect = RectF()
     private val titleContinueRect = RectF()
     private val titleChallengeRect = RectF()
@@ -224,7 +243,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val challengeDailyRect = RectF()
     private val challengeSeedStartRect = RectF()
     private val challengeBackRect = RectF()
-    private val seedDigitRects = ArrayList<RectF>()
+    private val seedInputRect = RectF()
     private val perkRects = ArrayList<RectF>()
     private val evolutionRects = ArrayList<RectF>()
     private val toolRects = ArrayList<Pair<BuildTool, RectF>>()
@@ -236,12 +255,71 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val workshopPreviousRect = RectF()
     private val workshopNextRect = RectF()
 
+    /**
+     * The game is a custom SurfaceView, so the challenge seed uses a lightweight input connection
+     * instead of adding an EditText over the renderer. This lets the normal Android keyboard paste
+     * and type digits while keeping the visual field in the same Canvas UI.
+     */
+    private val seedInputConnection = object : BaseInputConnection(this, true) {
+        override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
+            commitSeedInput(text.toString())
+            return true
+        }
+
+        override fun setComposingText(text: CharSequence, newCursorPosition: Int): Boolean {
+            updateSeedComposition(text.toString())
+            return true
+        }
+
+        override fun finishComposingText(): Boolean {
+            seedComposingText = ""
+            return true
+        }
+
+        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            deleteSeedInput(beforeLength.coerceAtLeast(1))
+            return true
+        }
+
+        override fun sendKeyEvent(event: KeyEvent): Boolean {
+            if (event.action != KeyEvent.ACTION_DOWN) return true
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DEL -> deleteSeedInput(1)
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> startCustomChallenge()
+                else -> {
+                    val character = event.unicodeChar
+                    if (character in '0'.code..'9'.code) commitSeedInput(character.toChar().toString())
+                }
+            }
+            return true
+        }
+
+        override fun performEditorAction(actionCode: Int): Boolean {
+            if (actionCode == EditorInfo.IME_ACTION_DONE || actionCode == EditorInfo.IME_ACTION_UNSPECIFIED) startCustomChallenge()
+            return true
+        }
+
+        override fun getTextBeforeCursor(n: Int, flags: Int): CharSequence = customSeedText.takeLast(n.coerceAtLeast(0))
+
+        override fun getTextAfterCursor(n: Int, flags: Int): CharSequence = ""
+    }
+
     init {
         holder.addCallback(this)
         isFocusable = true
+        isFocusableInTouchMode = true
         keepScreenOn = true
         strokePaint.style = Paint.Style.STROKE
         pathCells.add(GridCell(0, START_ROW))
+    }
+
+    override fun onCheckIsTextEditor(): Boolean = seedInputActive
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        if (!seedInputActive) return null
+        outAttrs.inputType = InputType.TYPE_CLASS_NUMBER
+        outAttrs.imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        return seedInputConnection
     }
 
     override fun surfaceCreated(surfaceHolder: SurfaceHolder) {
@@ -334,7 +412,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         synchronized(stateLock) {
             when (phase) {
                 GamePhase.TITLE -> return false
-                GamePhase.CHALLENGE_MENU -> phase = GamePhase.TITLE
+                GamePhase.CHALLENGE_MENU -> {
+                    endSeedInput()
+                    phase = GamePhase.TITLE
+                }
                 GamePhase.REFORGE -> cancelReforge()
                 GamePhase.WORKSHOP -> closeWorkshop()
                 GamePhase.PAUSED, GamePhase.VICTORY, GamePhase.GAME_OVER -> returnToTitle()
@@ -366,6 +447,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val bottom = topBarHeight - dp(7f)
         pauseRect.set(viewWidth - dp(8f) - smallButton, top, viewWidth - dp(8f), bottom)
         soundRect.set(pauseRect.left - dp(7f) - smallButton, top, pauseRect.left - dp(7f), bottom)
+        feedbackToggleRect.set(soundRect.left - dp(7f) - smallButton, top, soundRect.left - dp(7f), bottom)
         val actionWidth = min(dp(130f), viewWidth * 0.17f)
         primaryActionRect.set(soundRect.left - dp(8f) - actionWidth, top, soundRect.left - dp(8f), bottom)
         val resetWidth = min(dp(96f), viewWidth * 0.13f)
@@ -435,12 +517,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         challengeDailyRect.set(viewWidth * 0.5f - challengeWidth - dp(7f), challengeTop, viewWidth * 0.5f - dp(7f), challengeBottom)
         challengeSeedStartRect.set(viewWidth * 0.5f + dp(7f), challengeTop, viewWidth * 0.5f + challengeWidth + dp(7f), challengeBottom)
         challengeBackRect.set(viewWidth * 0.5f - dp(90f), viewHeight * 0.82f, viewWidth * 0.5f + dp(90f), viewHeight * 0.82f + min(dp(45f), viewHeight * 0.10f))
-        seedDigitRects.clear()
-        val digitSize = min(dp(45f), viewWidth * 0.055f)
-        val digitGap = dp(7f)
-        val digitTotal = digitSize * 6f + digitGap * 5f
-        val digitLeft = (viewWidth - digitTotal) * 0.5f
-        repeat(6) { index -> seedDigitRects.add(RectF(digitLeft + index * (digitSize + digitGap), viewHeight * 0.63f, digitLeft + index * (digitSize + digitGap) + digitSize, viewHeight * 0.63f + digitSize)) }
+        val seedFieldWidth = min(dp(420f), viewWidth * 0.58f)
+        val seedFieldHeight = min(dp(52f), viewHeight * 0.105f)
+        seedInputRect.set(
+            viewWidth * 0.5f - seedFieldWidth * 0.5f,
+            viewHeight * 0.63f,
+            viewWidth * 0.5f + seedFieldWidth * 0.5f,
+            viewHeight * 0.63f + seedFieldHeight
+        )
 
         workshopBackRect.set(dp(16f), dp(14f), dp(92f), dp(54f))
         workshopTabRects.clear()
@@ -2535,16 +2619,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun startDailyChallenge() {
+        endSeedInput()
         val calendar = Calendar.getInstance()
         val seed = calendar.get(Calendar.YEAR).toLong() * 10000L + (calendar.get(Calendar.MONTH) + 1).toLong() * 100L + calendar.get(Calendar.DAY_OF_MONTH).toLong()
         newRun(GameMode.DAILY, seed, modifierForSeed(seed))
     }
 
     private fun startCustomChallenge() {
-        var seed = 0L
-        for (digit in challengeDigits) seed = seed * 10L + digit
-        if (seed == 0L) seed = 1L
-        newRun(GameMode.CUSTOM, seed, modifierForSeed(seed))
+        if (phase != GamePhase.CHALLENGE_MENU) return
+        synchronized(stateLock) {
+            if (phase != GamePhase.CHALLENGE_MENU) return@synchronized
+            endSeedInput()
+            val seed = customSeedValue()
+            newRun(GameMode.CUSTOM, seed, modifierForSeed(seed))
+        }
     }
 
     private fun modifierForSeed(seed: Long): ChallengeModifier {
@@ -2641,6 +2729,93 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         bannerTimer = bannerDuration
     }
 
+    private fun persistCustomSeed() {
+        preferences.edit().putString("custom_seed_text", customSeedText).apply()
+    }
+
+    private fun sanitizeSeedInput(value: String): String = value.filter { it in '0'..'9' }
+
+    private fun commitSeedInput(value: String) {
+        synchronized(stateLock) {
+            val clean = sanitizeSeedInput(value)
+            if (clean.isEmpty()) return
+            var prefix = customSeedText
+            if (seedComposingText.isNotEmpty() && prefix.endsWith(seedComposingText)) prefix = prefix.dropLast(seedComposingText.length)
+            if (seedInputReplaceOnNextInput) {
+                prefix = ""
+                seedInputReplaceOnNextInput = false
+            }
+            seedComposingText = ""
+            customSeedText = (prefix + clean.take((MAX_SEED_CHARACTERS - prefix.length).coerceAtLeast(0))).take(MAX_SEED_CHARACTERS)
+            persistCustomSeed()
+            invalidate()
+        }
+    }
+
+    private fun updateSeedComposition(value: String) {
+        synchronized(stateLock) {
+            val clean = sanitizeSeedInput(value)
+            if (clean.isEmpty() && seedComposingText.isEmpty()) return
+            var prefix = customSeedText
+            if (seedComposingText.isNotEmpty() && prefix.endsWith(seedComposingText)) prefix = prefix.dropLast(seedComposingText.length)
+            if (seedInputReplaceOnNextInput && clean.isNotEmpty()) {
+                prefix = ""
+                seedInputReplaceOnNextInput = false
+            }
+            seedComposingText = clean.take((MAX_SEED_CHARACTERS - prefix.length).coerceAtLeast(0))
+            customSeedText = (prefix + seedComposingText).take(MAX_SEED_CHARACTERS)
+            persistCustomSeed()
+            invalidate()
+        }
+    }
+
+    private fun deleteSeedInput(count: Int) {
+        synchronized(stateLock) {
+            if (seedInputReplaceOnNextInput) {
+                customSeedText = ""
+                seedInputReplaceOnNextInput = false
+                seedComposingText = ""
+            } else if (seedComposingText.isNotEmpty()) {
+                customSeedText = customSeedText.dropLast(seedComposingText.length)
+                seedComposingText = ""
+            } else {
+                customSeedText = customSeedText.dropLast(count.coerceAtMost(customSeedText.length))
+            }
+            persistCustomSeed()
+            invalidate()
+        }
+    }
+
+    private fun beginSeedInput() {
+        if (phase != GamePhase.CHALLENGE_MENU) return
+        seedInputActive = true
+        seedInputReplaceOnNextInput = true
+        seedComposingText = ""
+        requestFocus()
+        post {
+            if (!seedInputActive || phase != GamePhase.CHALLENGE_MENU) return@post
+            val inputManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            inputManager?.restartInput(this)
+            inputManager?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+        }
+        invalidate()
+    }
+
+    private fun endSeedInput() {
+        seedInputActive = false
+        seedInputReplaceOnNextInput = false
+        seedComposingText = ""
+        val inputManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        inputManager?.hideSoftInputFromWindow(windowToken, 0)
+        clearFocus()
+        invalidate()
+    }
+
+    private fun customSeedValue(): Long {
+        val value = customSeedText.toLongOrNull() ?: 0L
+        return if (value == 0L) 1L else value
+    }
+
     private fun nextWaveCountdownSeconds(): Int = max(1, (nextWaveTimer + 0.99f).toInt())
 
     private fun burst(x: Float, y: Float, color: Int, count: Int, force: Float) {
@@ -2693,8 +2868,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     when {
                         challengeDailyRect.contains(x, y) -> startDailyChallenge()
                         challengeSeedStartRect.contains(x, y) -> startCustomChallenge()
-                        challengeBackRect.contains(x, y) -> phase = GamePhase.TITLE
-                        else -> seedDigitRects.forEachIndexed { index, rect -> if (rect.contains(x, y)) challengeDigits[index] = (challengeDigits[index] + 1) % 10 }
+                        challengeBackRect.contains(x, y) -> {
+                            endSeedInput()
+                            phase = GamePhase.TITLE
+                        }
+                        seedInputRect.contains(x, y) -> beginSeedInput()
                     }
                 }
                 return true
@@ -2745,6 +2923,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 if (soundRect.contains(x, y)) {
                     audio.toggle()
+                    return true
+                }
+                if (feedbackToggleRect.contains(x, y)) {
+                    feedbackEnabled = !feedbackEnabled
+                    preferences.edit().putBoolean("feedback_enabled", feedbackEnabled).apply()
+                    if (feedbackEnabled) setBanner("FEEDBACK TEXT ON", 1.4f) else bannerTimer = 0f
                     return true
                 }
                 if (resetPathRect.contains(x, y)) {
@@ -3879,16 +4063,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val calendar = Calendar.getInstance()
         val dailySeed = calendar.get(Calendar.YEAR).toLong() * 10000L + (calendar.get(Calendar.MONTH) + 1).toLong() * 100L + calendar.get(Calendar.DAY_OF_MONTH).toLong()
         drawChallengeCard(canvas, challengeDailyRect, "DAILY PATH", "SEED $dailySeed", modifierForSeed(dailySeed), Color.rgb(190, 244, 78))
-        var customSeed = 0L
-        for (digit in challengeDigits) customSeed = customSeed * 10L + digit
-        if (customSeed == 0L) customSeed = 1L
-        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "TAP DIGITS • THEN TAP HERE", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
-        drawCenteredText(canvas, "SHAREABLE SEED", viewWidth * 0.5f, viewHeight * 0.59f, dp(10f), Color.rgb(147, 165, 153), true)
-        seedDigitRects.forEachIndexed { index, rect ->
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(9f), Color.rgb(28, 43, 34))
-            drawCenteredText(canvas, challengeDigits[index].toString(), rect.centerX(), rect.centerY(), dp(18f), Color.WHITE, true)
-        }
-        drawCenteredText(canvas, "DAILY  W$bestDailyWave  ${formatNumber(bestDailyScore)}   •   CUSTOM  W$bestCustomWave  ${formatNumber(bestCustomScore)}", viewWidth * 0.5f, viewHeight * 0.76f, dp(10f), Color.rgb(190, 244, 78), true)
+        val customSeed = customSeedValue()
+        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "TAP CUSTOM SEED TO START", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
+        drawCenteredText(canvas, "SHAREABLE SEED  •  UP TO $MAX_SEED_CHARACTERS DIGITS", viewWidth * 0.5f, viewHeight * 0.59f, dp(10f), Color.rgb(147, 165, 153), true)
+        drawRoundedRect(canvas, seedInputRect.left, seedInputRect.top, seedInputRect.right, seedInputRect.bottom, dp(10f), Color.rgb(28, 43, 34))
+        strokePaint.strokeWidth = dp(if (seedInputActive) 2f else 1.2f)
+        strokePaint.color = if (seedInputActive) Color.rgb(93, 220, 255) else Color.rgb(63, 87, 70)
+        canvas.drawRoundRect(seedInputRect, dp(10f), dp(10f), strokePaint)
+        drawCenteredText(canvas, if (customSeedText.isEmpty()) "TAP TO ENTER SEED" else customSeedText, seedInputRect.centerX(), seedInputRect.centerY(), dp(18f), Color.WHITE, true)
+        drawCenteredText(canvas, "TAP FIELD TO TYPE  •  DIGITS ONLY  •  MAX $MAX_SEED_CHARACTERS", viewWidth * 0.5f, seedInputRect.bottom + dp(18f), dp(8.5f), Color.rgb(147, 165, 153), true)
+        drawCenteredText(canvas, "DAILY  W$bestDailyWave  ${formatNumber(bestDailyScore)}   •   CUSTOM  W$bestCustomWave  ${formatNumber(bestCustomScore)}", viewWidth * 0.5f, viewHeight * 0.80f, dp(10f), Color.rgb(190, 244, 78), true)
         drawRoundedRect(canvas, challengeBackRect.left, challengeBackRect.top, challengeBackRect.right, challengeBackRect.bottom, dp(12f), Color.rgb(43, 57, 46))
         drawCenteredText(canvas, "BACK", challengeBackRect.centerX(), challengeBackRect.centerY(), dp(11f), Color.WHITE, true)
     }
@@ -4813,6 +4997,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         drawTopButton(canvas, primaryActionRect, actionLabel, if (canStart) Color.rgb(190, 244, 78) else Color.rgb(31, 44, 35), if (canStart) Color.rgb(13, 22, 17) else Color.rgb(104, 123, 110), canStart)
         drawTopButton(canvas, soundRect, if (audio.isEnabled()) "SFX" else "OFF", Color.rgb(31, 44, 35), Color.WHITE, true)
+        drawTopButton(canvas, feedbackToggleRect, if (feedbackEnabled) "TXT" else "OFF", Color.rgb(31, 44, 35), if (feedbackEnabled) Color.rgb(190, 244, 78) else Color.rgb(104, 123, 110), true)
         drawTopButton(canvas, pauseRect, "II", Color.rgb(31, 44, 35), Color.WHITE, true)
     }
 
@@ -5074,6 +5259,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawBanner(canvas: Canvas) {
+        if (!feedbackEnabled) return
         val timed = bannerTimer > 0f
         val instruction = when {
             timed -> bannerText
@@ -5083,44 +5269,42 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             phase == GamePhase.BUILD && waveNumber == 0 && towers.isEmpty() -> "CHOOSE A DEFENSE BELOW  •  TAP A FREE BLOCK TO BUILD"
             phase == GamePhase.BUILD && surveyAvailable() -> surveyPreviewText(waveNumber + 1)
             phase == GamePhase.BUILD -> "BUILD DEFENSES AND INFRASTRUCTURE  •  NEXT WAVE AUTO-LAUNCHES IN 10S"
-            phase == GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "$waveTheme  •  ${activeWaveNumbers.size} WAVES STACKED  •  TOWERS ARE AUTONOMOUS" else "$waveTheme  •  TAP STACK WAVE TO ADD PRESSURE"
+            phase == GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "$waveTheme  •  ${activeWaveNumbers.size} WAVES STACKED  •  TOWERS ARE AUTONOMOUS" else "$waveTheme  •  TAP NEXT WAVE TO STACK"
             else -> ""
         }
         if (instruction.isEmpty()) return
         val elapsed = if (timed) (bannerDuration - bannerTimer).coerceAtLeast(0f) else 0f
         val enter = if (timed) (elapsed / 0.22f).coerceIn(0f, 1f) else 1f
-        // Ease-out entrance
         val enterEase = 1f - (1f - enter) * (1f - enter)
         val fadeOut = if (timed && bannerTimer in 0f..0.38f) (bannerTimer / 0.38f) else 1f
         val alpha = (if (timed) 235f * fadeOut else 200f).toInt().coerceIn(0, 255)
-        val baseWidth = min(viewWidth * 0.69f, dp(610f))
-        val baseHeight = min(dp(28f), tileSize * 0.48f)
+        val baseWidth = min(viewWidth * 0.34f, dp(310f))
+        val baseHeight = min(dp(54f), max(dp(42f), tileSize * 0.78f))
         val widthScale = if (timed) 0.82f + 0.18f * enterEase else 1f
         val heightScale = if (timed) 0.88f + 0.20f * enterEase else 1f
         val width = baseWidth * widthScale
         val height = baseHeight * heightScale
-        val left = (viewWidth - width) * 0.5f
-        val top = boardTop + dp(7f) - (1f - enterEase) * dp(10f)
-        // Accent rim on timed banners (wave / forge / boss)
+        val left = dp(12f)
+        val top = topBarHeight + dp(9f) - (1f - enterEase) * dp(8f)
         if (timed) {
             val rim = Color.argb((alpha * 0.55f).toInt().coerceIn(0, 255), 190, 244, 78)
-            drawRoundedRect(canvas, left - dp(2f), top - dp(2f), left + width + dp(2f), top + height + dp(2f), height * 0.5f, rim)
-            // Soft glow under bar
+            drawRoundedRect(canvas, left - dp(2f), top - dp(2f), left + width + dp(2f), top + height + dp(2f), dp(10f), rim)
             paint.color = Color.argb((alpha * 0.18f).toInt().coerceIn(0, 255), 190, 244, 78)
-            canvas.drawRoundRect(left, top + height * 0.35f, left + width, top + height + dp(6f), height * 0.45f, height * 0.45f, paint)
+            canvas.drawRoundRect(left, top + height * 0.35f, left + width, top + height + dp(6f), dp(12f), dp(12f), paint)
         }
-        drawRoundedRect(canvas, left, top, left + width, top + height, height * 0.45f, Color.argb(alpha, 14, 23, 18))
-        val textSize = min(dp(9f), height * 0.34f) * (if (timed) 0.92f + 0.12f * enterEase else 1f)
-        drawCenteredText(
+        drawRoundedRect(canvas, left, top, left + width, top + height, dp(10f), Color.argb(alpha, 14, 23, 18))
+        val textSize = min(dp(9f), height * 0.24f) * (if (timed) 0.92f + 0.12f * enterEase else 1f)
+        drawWrappedText(
             canvas,
             instruction,
-            viewWidth * 0.5f,
-            top + height * 0.52f,
+            left + width * 0.5f,
+            top + height * 0.47f,
+            width - dp(18f),
             textSize,
             Color.argb(min(255, alpha + 25), 224, 232, 226),
+            2,
             true
         )
-        // Thin progress tick for timed announcements
         if (timed && bannerDuration > 0.01f) {
             val progress = (bannerTimer / bannerDuration).coerceIn(0f, 1f)
             paint.color = Color.argb((alpha * 0.85f).toInt().coerceIn(0, 255), 190, 244, 78)

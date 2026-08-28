@@ -132,7 +132,7 @@ Bosses also award **Evolution Cores**. A level-three tower with two Overcharge r
 
 ### Offline seeded challenges
 
-The title screen offers a date-derived daily seed and an editable six-digit custom seed. The same numeric seed reproduces wave composition, perk cards, elites, and corruption. Challenge records are separate from Endless and separated again into Daily and Custom records. Seeds deterministically select one modifier: traps only, towers only, no recycling, double corruption, armored horde, rush hour, short route, or fragile core. No network access or permission is used.
+The title screen offers a date-derived daily seed and an editable custom seed. Tap the custom seed field to type up to 12 digits; the same numeric seed reproduces wave composition, perk cards, elites, and corruption. Challenge records are separate from Endless and separated again into Daily and Custom records. Seeds deterministically select one modifier: traps only, towers only, no recycling, double corruption, armored horde, rush hour, short route, or fragile core. No network access or permission is used.
 
 ## Endless director
 
