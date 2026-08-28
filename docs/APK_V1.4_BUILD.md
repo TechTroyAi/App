@@ -112,3 +112,121 @@ CI are still being established.
 - If anything ever crashes after this, the in-app recovery screen (added in the
   diagnosis fixes) now shows the full stack trace with selectable text and a
   **Reset saved data** button — send that text.
+
+---
+
+# v1.4.1 — canvas save/restore balance fix
+
+Date: 2026-08-28
+Artifact: `artifacts/Blockhold-Defense-v1.4.1-installable.apk`
+SHA-256: `6c3807aca6fb593962a627ab78e4b9b99c832f305c898f26e569dd9e53619063`
+Version: `1.4.1` / `versionCode 15`
+Signed with: APK Signature Scheme **v2 + v3**, `--min-sdk-version 24`
+
+## The crash (Android 10 / API 29, HUVPING P60Pro)
+
+The in-app recovery screen reported, on the render thread `BlockholdInfiniteLoop`:
+
+```
+java.lang.IllegalStateException: Underflow in restore - more restores than saves
+    at android.graphics.Canvas.restore(Canvas.java:...)
+    at ai.techtroy.blockhold.GameView.drawParticle(GameView.kt:4625)
+    at ai.techtroy.blockhold.GameView.drawBoard(GameView.kt:3997)
+    at ai.techtroy.blockhold.GameView.drawFrame(...)
+    at ai.techtroy.blockhold.GameView$GameLoop.run(...)
+```
+
+Players hit it while dragging the route path at the very start of a run, and again
+on pinch-to-zoom.
+
+## Root cause — unbalanced canvas save stack
+
+`drawBoard` saves the canvas **once** near its top to clip the world draw to the board
+viewport (F0 wide hold):
+
+```kotlin
+// F0: clip world draw to board viewport so chrome stays screen-fixed
+canvas.save()
+canvas.clipRect(viewportLeft, viewportTop, viewportRight, viewportBottom)
+```
+
+That save's matching `canvas.restore()` had been placed at the end of **`drawParticle`**,
+which `drawBoard` calls **once per active particle**:
+
+```kotlin
+for (particle in particles) drawParticle(canvas, particle)
+```
+
+So the first particle in a frame consumed the single saved state and the second particle
+restored an empty stack — Android throws `IllegalStateException` immediately. Extending
+the route spawns a 5-particle burst per path block (`burst(...)` in the path-adding
+logic), so the crash was effectively guaranteed inside the first block or two. The same
+defect would have fired on virtually any combat action: there are 20+ `burst(...)` call
+sites for explosions, impacts, building, evolving and imbuing.
+
+## The fix (two spots, `GameView.kt`)
+
+1. **`drawParticle`** — the trailing `canvas.restore() // F0 viewport clip` is removed,
+   replaced by a comment explaining that restoring per particle underflows the stack.
+2. **`drawBoard`** — a single `canvas.restore()` is added as the last statement, after the
+   floating-labels loop, so the one save at the top is balanced by exactly one restore per
+   frame. `drawBoard` contains no early `return` between the save and the restore
+   (verified), so the restore always runs.
+
+## Save/restore audit of the whole file
+
+Every `canvas.save()` in `GameView.kt` now pairs 1:1 with a `restore()` on every path:
+
+| Function | save | restore | Notes |
+|---|---|---|---|
+| `drawFrame` | 1 | 1 | screen-shake translate; straight-line, no early return between them |
+| `drawBoard` | 1 | 1 | F0 viewport clip — **fixed here** |
+| `drawSpriteFrameCentered` | 1 | 1 | inside `if (rotation != 0f)`, both in the same branch |
+| `drawBitmapCentered` | 1 | 1 | same shape |
+| `drawParticle` | 0 | 0 | **fixed here** (previously 0 saves / 1 restore) |
+
+Confirmed at the bytecode level in the shipped dex: `drawParticle` contains no
+`Canvas.restore` invoke at all, and `drawBoard`, `drawFrame`, `drawSpriteFrameCentered`
+and `drawBitmapCentered` each contain exactly one `save` and one `restore`.
+
+## Build
+
+Identical offline toolchain to v1.4 above (jdk4py Temurin **21.0.8** JRE, `kotlin-compiler@1.9.25`
+from npm, API 35 `android.jar` from `Sable/android-platforms`, `dx.jar` + `apksigner.jar`
+from `screetsec/TheFatRat`, all via the GitHub contents API). Notes specific to this run:
+
+- `kotlinc` needs an explicit heap on this 3 GB sandbox: `-J-Xmx2600m` (the default
+  ergonomics OOM). Zero errors, deprecation warnings only.
+- `dx --dex --min-sdk-version=26` on app classes + extracted `kotlin-stdlib` +
+  `annotations-13.0` (all `module-info.class` deleted) → dex format `038`, valid on API 24+.
+- Repackaged from `artifacts/Blockhold-Defense-v1.4-installable.apk` with
+  `scripts/repackage-with-dex.py`: every resource, sprite and sound copied byte-identical;
+  only `classes.dex` and `AndroidManifest.xml` replaced, v1 signature files dropped.
+- Manifest patched in place, length-preserving: string pool `1.4.0` → `1.4.1` (UTF-16,
+  same character count) and the `manifest` element's `versionCode` integer `14` → `15`.
+
+```
+1. ZIP layout and alignment .......... PASS (classes.dex STORED @ offset 4096, 218 aligned)
+2. Signing ........................... PASS v2, v3
+3. DEX integrity ..................... PASS 038, adler32 + SHA-1 valid, 1424 types resolve
+4. AndroidManifest ................... PASS ai.techtroy.blockhold 1.4.1 (15), minSdk 24 / target 35
+5. Resources vs. runtime lookups ..... PASS 189 sprites + 13 sounds packaged
+6. Sprite strip geometry ............. PASS all 99 strips square-framed
+```
+
+`scripts/lint-kotlin-pitfalls.py`: **0 errors**, 15 audited warnings.
+
+## ⚠️ Signing key: this build does NOT update over v1.4 in place
+
+The v1.4 keystore lived in `build-manual/`, which is **gitignored** and therefore absent
+from a fresh clone of this repository — the private key did not survive the previous
+session. v1.4.1 is signed with a newly generated RSA 2048 key using the same distinguished
+name (`CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region,
+C=PH`), certificate SHA-256
+`4657880e291d2b83cd976ad9559aff994dd3a3a6a7f121a13d56872df7ab4bd9` — different from v1.4's
+`7e4dcdc2…`. Android will reject it as an in-place update, so **v1.4 must be uninstalled
+once** before installing v1.4.1.
+
+To stop this recurring: run `./scripts/make-signing-key.sh` on a durable machine, store the
+keystore outside the sandbox (encrypted backup in two places), and reuse it for every
+future build. `versionCode 15` is still correct and required regardless.

@@ -1,4 +1,15 @@
-> **✅ Use `Blockhold-Defense-v1.4-installable.apk` (built 2026-08-28).** It is the first
+> **✅ Use `Blockhold-Defense-v1.4.1-installable.apk` (built 2026-08-28).** It fixes the
+> `IllegalStateException: Underflow in restore - more restores than saves` crash that hit
+> players on Android 10 while dragging the route path or pinch-to-zooming: `drawParticle`
+> was calling `canvas.restore()` once per particle for a viewport clip that `drawBoard`
+> saves once per frame. Manifest stamped `1.4.1` / `versionCode 15`, v2 + v3 signed,
+> `classes.dex` page-aligned, `scripts/verify-apk.py` **0 failures**.
+>
+> ⚠️ The v1.4 private key was not committed (it lived in gitignored `build-manual/`), so
+> v1.4.1 is signed with a **new** key with the same DN — **uninstall v1.4 once** before
+> installing v1.4.1. See [`../docs/APK_V1.4_BUILD.md`](../docs/APK_V1.4_BUILD.md#-signing-key-this-build-does-not-update-over-v14-in-place).
+>
+> The v1.4 entry below is the first
 > artifact built from the fixed source tree: zipaligned (`classes.dex` page-aligned at 4096),
 > signed with APK Signature Scheme v2 + v3, manifest stamped `1.4.0` / `versionCode 14`, and
 > passes `scripts/verify-apk.py` with **0 failures**. The v1.2 installable below is the
@@ -6,7 +17,8 @@
 >
 > | File | SHA-256 | Status |
 > |---|---|---|
-> | `Blockhold-Defense-v1.4-installable.apk` | `7533c6b5967f492b0c33ece43bea36773eac4a4460ad98e55d3deb53f2147522` | **✅ install this** |
+> | `Blockhold-Defense-v1.4.1-installable.apk` | `6c3807aca6fb593962a627ab78e4b9b99c832f305c898f26e569dd9e53619063` | **✅ install this** — canvas restore-underflow fix, `1.4.1` (15) |
+> | `Blockhold-Defense-v1.4-installable.apk` | `7533c6b5967f492b0c33ece43bea36773eac4a4460ad98e55d3deb53f2147522` | crashes on first path block (canvas restore underflow) |
 > | `Blockhold-Defense-v1.2-installable.apk` | `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4` | crashes on launch / unaligned |
 > | `Blockhold-Defense-v1.2-unsigned.apk` | `07b51c08666ce88d1819adb7c0b377e1c031058cd5d9e4309cf8253fe8f5dbe0` | apktool rebuild, do not ship |
 > | `Blockhold-Defense-v1.0-release.apk` | `838eb6770d9d14b328be78f3f22b729de826c4601b90e31afa41c74c5517b5fc` | old, different signing key |
