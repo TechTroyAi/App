@@ -367,3 +367,72 @@ Implemented in the source tree:
 The next release artifact must pass `scripts/verify-apk.py` and should be smoke-tested with
 manual wave stacking, automatic launch, a wave-five perk, a wave-ten boss, five Block Generators
 placed and upgraded, and more than four different utilities placed in one run.
+
+---
+
+# v1.4.2 artifact — pressure waves APK retained
+
+Date: 2026-08-28
+Artifact: `artifacts/Blockhold-Defense-v1.4.2-installable.apk`
+SHA-256: `842e1602e05057b5b58e74a7bacabd962ca8db1dae5dca4c92dc9befe2731eea`
+Version: `1.4.2` / `versionCode 16`
+Signed with: APK Signature Scheme **v2 + v3**, `--min-sdk-version 24`
+
+## Build
+
+Identical offline toolchain to v1.4.1 (jdk4py Temurin **21.0.8** JRE, `kotlin-compiler@1.9.25`
+from npm, API 35 `android.jar` from `Sable/android-platforms`, `dx.jar` + `apksigner.jar`
+from `screetsec/TheFatRat`, all via the GitHub contents API — `raw.githubusercontent.com`
+is unreachable from this sandbox). Steps:
+
+1. `scripts/lint-kotlin-pitfalls.py` — **0 errors**, 15 audited warnings.
+2. `kotlinc -jvm-target 1.8 -Xlambdas=class -Xsam-conversions=class -J-Xmx2600m
+   -classpath android.jar -d classes/` on the five source files. The class-based lambda
+   flags remain mandatory — without them `dx` silently drops the two `MainActivity`
+   lambda classes and the app never opens (see v1.4.1 above). **68** app classes emitted
+   (four more lambdas than v1.4.1's 64, all real classes in the dex).
+3. `dx --dex --min-sdk-version=26` on app classes + extracted `kotlin-stdlib` +
+   `annotations-13.0` → dex format `038`, **1078 classes** (68 + 978 + 32) and
+   **6 `call_site_id`** entries — the healthy shape.
+4. `AndroidManifest.xml` bumped in place with the new
+   `scripts/bump-manifest-version.py`: string-pool `1.4.1` → `1.4.2` (UTF-16, same
+   length) and `versionCode` 15 → 16. Exactly two bytes changed; file size unchanged.
+5. Repackaged from `artifacts/Blockhold-Defense-v1.4.1-installable.apk` with
+   `scripts/repackage-with-dex.py`: all 225 entries, resources byte-identical,
+   `classes.dex` page-aligned (4096).
+6. Signed with `apksigner` v2 + v3.
+
+Verification:
+
+```
+verify-apk.py       All structural checks passed.
+                    (alignment, v2+v3 signing, dex 038 integrity + 1436 types resolve,
+                     manifest 1.4.2 (16) minSdk 24 / target 35, 189 sprites + 13 sounds,
+                     99 sprite strips square-framed)
+verify-dex-shape.py class_defs=1078, call_site_ids=6, MainActivity + both lambda classes
+                    present, canvas save/restore balanced — ALL DEX SHAPE CHECKS PASSED
+```
+
+## ⚠️ Signing key — new key again, but this one is backed up
+
+The v1.4.1 keystore (`7d596fee…`) lived in gitignored `build-manual/` and did not survive
+its build session, so an in-place update over v1.4.1 with the same key was impossible.
+v1.4.2 is signed with a freshly generated RSA 4096 key using the same distinguished name
+(`CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`),
+certificate SHA-256
+`f4:48:6a:bd:ba:07:f1:16:54:36:58:0f:85:49:f8:7a:92:ce:43:2b:3a:7e:b4:0b:88:3c:2c:22:09:a8:b2:2c`,
+valid 2026-08-28 → 2056-08-20. **Uninstall v1.4.1 once** before installing v1.4.2.
+
+This time the key was exported immediately: `build-manual/KEY_BACKUP_blockhold-release.p12.b64`
+plus `build-manual/KEY_CREDENTIALS.txt` (alias `blockhold`). Both are gitignored — move
+them into two encrypted locations outside the sandbox (password manager + GitHub repository
+secrets `BLOCKHOLD_KEYSTORE_BASE64` / `BLOCKHOLD_STORE_PASSWORD` / `BLOCKHOLD_KEY_ALIAS`)
+so CI can produce release-signed builds and v1.4.3 updates in place.
+
+## Install notes
+
+- One-time uninstall of v1.4.1 (new key), then install v1.4.2; later builds signed with
+  the backed-up key update in place.
+- Smoke-test checklist for first launch: manual wave stacking (**STACK WAVE**), automatic
+  ten-second countdown launch, a wave-five perk, a wave-ten boss, five Block Generators
+  placed and upgraded, and more than four different utilities placed in one run.
