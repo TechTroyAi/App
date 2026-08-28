@@ -5261,7 +5261,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val damage = tower?.currentDamage() ?: trap?.currentDamage() ?: 0f
         val range = tower?.currentRange()
         val rank = tower?.rankLabel() ?: trap?.rankLabel().orEmpty()
-        val definition = tower?.kind?.description ?: trap?.kind?.description ?: ""
+        val sellValue = tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: 0
+        val definition = tower?.evolution?.description ?: tower?.kind?.description ?: trap?.kind?.description ?: ""
         drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
         drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(11f), Color.WHITE, true)
         val upgradeColor = if (canBuy) accent else Color.rgb(27, 42, 33)
