@@ -11,12 +11,12 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 | Lane | Count (approx) |
 |------|----------------|
 | Board | **16×9** + pan/zoom (F0) |
-| Towers | 5 + 10 evolutions |
+| Towers | **8** + **16** evolutions (F4) |
 | Traps | 5 |
-| Utilities | ~7 |
-| Imbuements (enchants) | 6 |
-| Crafted supplies | 11 (8 + C1) |
-| Enemy normals / elites / bosses | small set |
+| Utilities | ~11 (F3 + prior) |
+| Imbuements (enchants) | 9 (F3 Ward/Leech/Surge) |
+| Crafted supplies | 14 (C1 + C2) |
+| Enemy normals / elites / bosses | F1 blood + F2 named threats |
 
 ## Target adds (player ask)
 
@@ -44,13 +44,13 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 +2 elites, +1–2 bosses with wind-up tells; banner sting.
 
 ### F3 — Toolkit
-Utilities +3–4, imbuements +2–3, **crafts packs**.
+**Shipped:** utilities +4 (Ward Beacon, Battle Banner, Essence Still, Trap Lattice), C2 crafts +3, imbuements Ward/Leech/Surge. See `docs/VERIFICATION_F3.md`.
 
 ### F4 — New guns
-+3 towers full kit (base/turret/proj/impact/evo×2/SFX).
+**Shipped:** +3 towers full kit — **Thorn Spire** (mark), **Shard Lance** (pierce), **Mire Spout** (bog); evo×6; TWR 1/2 paging. See `docs/VERIFICATION_F4.md`.
 
 ### F5+ — Fill quotas
-Remaining enemies, towers, utils, enchants, crafts.
+Remaining enemies (~5 normals, ~2 elites, ~2 bosses), towers (~7), utils (~6), enchants (~7), crafts (C3×4).
 
 ## Crafts roadmap (+10)
 
@@ -76,6 +76,9 @@ Remaining enemies, towers, utils, enchants, crafts.
 - **1.4 C1 crafts** (see `artwork/style-production/batch-21-crafted-supplies-c1/`)
 - **1.4 F0 Wide Hold** (see `artwork/style-production/batch-22-wide-hold-f0/`)
 - **1.4 F1 New blood** (see `artwork/style-production/batch-23-new-blood-f1/`)
+- **1.4 F2 Named threats** (see `docs/VERIFICATION` F2 notes)
+- **1.4 F3 Toolkit** (see `docs/VERIFICATION_F3.md`)
+- **1.4 F4 New guns** (see `artwork/style-production/batch-26-new-guns-f4/`, `docs/VERIFICATION_F4.md`)
 
 
 ## F3 status (2026-08-28)

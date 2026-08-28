@@ -51,6 +51,10 @@ internal enum class BuildTool(val title: String, val cost: Int) {
     CANNON("CANNON", 125),
     EMBER("EMBER", 145),
     BEACON("BEACON", 170),
+    // 1.4 F4 New guns — keep before traps so tower ordinals stay contiguous
+    THORN("THORN", 95),
+    LANCE("LANCE", 155),
+    MIRE("MIRE", 135),
     SPIKES("SPIKES", 45),
     ROOT("ROOT", 65),
     RUNE("RUNE", 85),
@@ -71,7 +75,11 @@ internal enum class TowerKind(
     FROST("Frost Prism", 90, 2.55f, 13f, 0.88f, 7.2f, Color.rgb(93, 220, 255)),
     CANNON("Core Cannon", 125, 2.45f, 46f, 1.38f, 5.2f, Color.rgb(255, 164, 75)),
     EMBER("Ember Forge", 145, 2.65f, 31f, 0.78f, 6.4f, Color.rgb(255, 91, 60)),
-    BEACON("Resonance Beacon", 170, 3.05f, 18f, 0.96f, 10.2f, Color.rgb(195, 120, 255))
+    BEACON("Resonance Beacon", 170, 3.05f, 18f, 0.96f, 10.2f, Color.rgb(195, 120, 255)),
+    // 1.4 F4 New guns
+    THORN("Thorn Spire", 95, 2.75f, 20f, 0.55f, 8.8f, Color.rgb(120, 210, 90)),
+    LANCE("Shard Lance", 155, 3.35f, 52f, 1.45f, 11.5f, Color.rgb(140, 220, 255)),
+    MIRE("Mire Spout", 135, 2.40f, 28f, 1.05f, 5.8f, Color.rgb(70, 190, 150))
 }
 
 internal enum class TowerEvolution(
@@ -88,7 +96,14 @@ internal enum class TowerEvolution(
     INFERNO_ENGINE("Inferno Engine", "Stronger burns spread through the horde", TowerKind.EMBER),
     CINDER_REACTOR("Cinder Reactor", "Nearby traps receive an Ember power boost", TowerKind.EMBER),
     STORM_CHOIR("Storm Choir", "Resonance reaches a much larger chain", TowerKind.BEACON),
-    HARMONY_NEXUS("Harmony Nexus", "Nearby towers fire faster and resist Hex", TowerKind.BEACON);
+    HARMONY_NEXUS("Harmony Nexus", "Nearby towers fire faster and resist Hex", TowerKind.BEACON),
+    // F4 evolutions
+    BRAMBLE_CROWN("Bramble Crown", "Marks last longer and stack bonus damage", TowerKind.THORN),
+    VENOM_QUILL("Venom Quill", "Marked foes also burn for a short tick", TowerKind.THORN),
+    PRISM_RAIL("Prism Rail", "Lance pierces farther along the route", TowerKind.LANCE),
+    SKEWER_ARRAY("Skewer Array", "Lance hits a second high-progress target", TowerKind.LANCE),
+    BOG_KING("Bog King", "Mire pools are larger and stickier", TowerKind.MIRE),
+    TAR_FONT("Tar Font", "Mire also briefly stuns the primary target", TowerKind.MIRE);
 
     companion object {
         fun choices(kind: TowerKind): List<TowerEvolution> = values().filter { it.kind == kind }
@@ -349,6 +364,12 @@ internal class Tower(
             TowerEvolution.SIEGE_MORTAR -> 1.22f
             TowerEvolution.INFERNO_ENGINE -> 1.18f
             TowerEvolution.STORM_CHOIR -> 1.12f
+            TowerEvolution.BRAMBLE_CROWN -> 1.10f
+            TowerEvolution.VENOM_QUILL -> 1.12f
+            TowerEvolution.PRISM_RAIL -> 1.20f
+            TowerEvolution.SKEWER_ARRAY -> 1.15f
+            TowerEvolution.BOG_KING -> 1.18f
+            TowerEvolution.TAR_FONT -> 1.12f
             else -> 1f
         }
         val imbuementMultiplier = if (imbuement == Imbuement.MIGHT) 1.15f else 1f
@@ -364,6 +385,9 @@ internal class Tower(
             TowerEvolution.SIEGE_MORTAR -> kind.range * 0.38f
             TowerEvolution.STORM_CHOIR -> 0.50f
             TowerEvolution.HARMONY_NEXUS -> 0.35f
+            TowerEvolution.PRISM_RAIL -> kind.range * 0.22f
+            TowerEvolution.SKEWER_ARRAY -> 0.40f
+            TowerEvolution.BOG_KING -> 0.25f
             else -> 0f
         }
         var range = kind.range + (level - 1) * 0.18f + min(0.65f, overcharge * 0.025f) + evolutionBonus + if (imbuement == Imbuement.REACH) 0.38f else 0f
@@ -478,8 +502,10 @@ internal class Enemy(
     var progress = 0f
     var x = 0f
     var y = 0f
-    var slowTimer = 0f
-    var rootTimer = 0f
+        var slowTimer = 0f
+    /** F4 Thorn Spire: marked for bonus incoming damage. */
+    var markTimer = 0f
+var rootTimer = 0f
     var stunTimer = 0f
     var armoredTimer = 0f
     var burnTimer = 0f

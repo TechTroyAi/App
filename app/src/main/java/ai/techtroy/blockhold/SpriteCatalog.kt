@@ -49,11 +49,17 @@ internal class SpriteCatalog(private val context: Context) {
     val cannonBase = load("tower_cannon_base")
     val emberBase = load("tower_ember_base")
     val beaconBase = load("tower_beacon_base")
+    val thornBase = load("tower_thorn_base")
+    val lanceBase = load("tower_lance_base")
+    val mireBase = load("tower_mire_base")
     val greenTurret = loadStrip("tower_bolt_turret")
     val paleTurret = loadStrip("tower_frost_turret")
     val cannonTurret = loadStrip("tower_cannon_turret")
     val emberFlame = loadStrip("tower_ember_flame")
     val beaconPulse = loadStrip("tower_beacon_pulse")
+    val thornTurret = loadStrip("tower_thorn_turret")
+    val lanceTurret = loadStrip("tower_lance_turret")
+    val mireTurret = loadStrip("tower_mire_turret")
 
     private val traps = mapOf(
         TrapKind.SPIKE to loadStrip("trap_spike_bed"),
@@ -85,7 +91,13 @@ internal class SpriteCatalog(private val context: Context) {
         TowerEvolution.INFERNO_ENGINE to load("evolution_inferno_engine"),
         TowerEvolution.CINDER_REACTOR to load("evolution_cinder_reactor"),
         TowerEvolution.STORM_CHOIR to load("evolution_storm_choir"),
-        TowerEvolution.HARMONY_NEXUS to load("evolution_harmony_nexus")
+        TowerEvolution.HARMONY_NEXUS to load("evolution_harmony_nexus"),
+        TowerEvolution.BRAMBLE_CROWN to load("evolution_bramble_crown"),
+        TowerEvolution.VENOM_QUILL to load("evolution_venom_quill"),
+        TowerEvolution.PRISM_RAIL to load("evolution_prism_rail"),
+        TowerEvolution.SKEWER_ARRAY to load("evolution_skewer_array"),
+        TowerEvolution.BOG_KING to load("evolution_bog_king"),
+        TowerEvolution.TAR_FONT to load("evolution_tar_font")
     )
 
     private val craftedItems = mapOf(
@@ -140,7 +152,10 @@ internal class SpriteCatalog(private val context: Context) {
         TowerKind.FROST to loadStrip("projectile_frost"),
         TowerKind.CANNON to loadStrip("projectile_cannon"),
         TowerKind.EMBER to loadStrip("projectile_ember"),
-        TowerKind.BEACON to loadStrip("projectile_beacon")
+        TowerKind.BEACON to loadStrip("projectile_beacon"),
+        TowerKind.THORN to loadStrip("projectile_thorn"),
+        TowerKind.LANCE to loadStrip("projectile_lance"),
+        TowerKind.MIRE to loadStrip("projectile_mire")
     )
 
     private val impacts = mapOf(
@@ -148,7 +163,10 @@ internal class SpriteCatalog(private val context: Context) {
         TowerKind.FROST to loadStrip("impact_frost"),
         TowerKind.CANNON to loadStrip("impact_cannon"),
         TowerKind.EMBER to loadStrip("impact_ember"),
-        TowerKind.BEACON to loadStrip("impact_beacon")
+        TowerKind.BEACON to loadStrip("impact_beacon"),
+        TowerKind.THORN to loadStrip("impact_thorn"),
+        TowerKind.LANCE to loadStrip("impact_lance"),
+        TowerKind.MIRE to loadStrip("impact_mire")
     )
 
     fun enemy(kind: EnemyKind): SpriteStrip = enemies.getValue(kind)
