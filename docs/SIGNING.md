@@ -86,6 +86,58 @@ A sandbox is not a key store. Put the key somewhere that outlives it:
    ./scripts/make-signing-key.sh --export   # prints base64 + secret values for backup
    ```
 
+### The current key (v1.4.1)
+
+| Field | Value |
+|---|---|
+| Alias | `blockhold` |
+| Store type | **JKS** (not PKCS12) |
+| Certificate SHA-256 | `7d:59:6f:ee:b2:7d:6e:0b:46:02:bf:06:36:ea:55:1a:d7:34:26:8e:e1:16:0c:8e:50:95:0e:e9:9a:77:8f:6d` |
+| Signs | v1.4.1, APK SHA-256 `789c964ad702a28531386e2e75f610a87c260275a47c53bfb4caf42fba6c7c96` |
+| Password | set when the key was generated; kept in gitignored `.signing/release.properties` inside the build sandbox. **Retrieve it from that file — do not paste it into issues, PRs or chat.** |
+
+A base64 copy lives at `.signing/blockhold-key.b64` (gitignored). That path is inside the
+build sandbox and **will vanish when the sandbox does** — move it somewhere durable first.
+
+Restore it on any machine:
+
+```bash
+mkdir -p ~/.config/blockhold && chmod 700 ~/.config/blockhold
+base64 -d .signing/blockhold-key.b64 > ~/.config/blockhold/release.jks
+chmod 600 ~/.config/blockhold/release.jks
+```
+
+Always confirm you restored the *right* key before using it — signing with the wrong one is
+what forces players to uninstall:
+
+```bash
+keytool -list -v -keystore ~/.config/blockhold/release.jks -alias blockhold | grep SHA256:
+# must print 7D:59:6F:EE:B2:7D:6E:0B:46:02:BF:06:36:EA:55:1A:D7:34:26:8E:E1:16:0C:8E:50:95:0E:E9:9A:77:8F:6D
+```
+
+Point a build at it:
+
+- **Offline pipeline** (`apksigner`) — JKS works directly:
+
+  ```bash
+  apksigner sign --ks ~/.config/blockhold/release.jks --ks-type JKS \
+    --ks-key-alias blockhold --min-sdk-version 24 \
+    --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true \
+    --in unsigned.apk --out signed.apk
+  ```
+
+- **Gradle** — `app/build.gradle.kts` hardcodes `storeType = "PKCS12"` and
+  `.signing/blockhold-release.p12`, so convert first:
+
+  ```bash
+  keytool -importkeystore -srckeystore ~/.config/blockhold/release.jks -srcstoretype JKS \
+          -destkeystore .signing/blockhold-release.p12 -deststoretype PKCS12
+  export BLOCKHOLD_STORE_PASS='<the password from .signing/release.properties>'
+  ./gradlew assembleRelease
+  ```
+
+Pass the password via `BLOCKHOLD_STORE_PASS` or `--ks-pass`; never hardcode it.
+
 Before shipping, confirm the build used the *expected* key rather than a fresh one:
 
 ```bash
