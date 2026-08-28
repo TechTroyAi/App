@@ -942,11 +942,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         enemies.add(enemy)
         // F2 banner sting on named elite/boss spawn
         if (spec.kind.boss) {
-            setBanner(spec.kind.title.toUpperCase() + "  TIER ${max(1, spec.bossTier)}", 2.6f)
+            setBanner(spec.kind.title.uppercase() + "  TIER ${max(1, spec.bossTier)}", 2.6f)
             audio.play("wave", 0.55f, 0.72f)
             burst(enemy.x, enemy.y, spec.kind.color, 16, 1.1f)
         } else if (spec.kind.elite && (spec.kind == EnemyKind.GRAVE_MENDER || spec.kind == EnemyKind.PYRE_WIGHT || spec.kind == EnemyKind.THORNBACK || spec.kind == EnemyKind.VEIN_LURKER || spec.kind == EnemyKind.MIRROR_MOTH)) {
-            setBanner("ELITE  ${spec.kind.title.toUpperCase()}", 1.6f)
+            setBanner("ELITE  ${spec.kind.title.uppercase()}", 1.6f)
             burst(enemy.x, enemy.y, spec.kind.color, 10, 0.8f)
         }
     }
@@ -1103,6 +1103,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.THORN -> audio.play("bolt", 0.20f, 1.12f + random.nextFloat() * 0.10f)
             TowerKind.LANCE -> audio.play("bolt", 0.28f, 0.78f + random.nextFloat() * 0.08f)
             TowerKind.MIRE -> audio.play("frost", 0.24f, 0.70f + random.nextFloat() * 0.10f)
+            // 1.4-era towers reuse existing effect sounds instead of throwing
+            // NoWhenBranchMatchedException on their first shot.
+            TowerKind.GALE, TowerKind.HOWL, TowerKind.VITRIOL -> audio.play("frost", 0.24f, 0.80f + random.nextFloat() * 0.10f)
+            TowerKind.SUNFORGE -> {
+                audio.play("ember", 0.30f, 0.90f + random.nextFloat() * 0.08f)
+                screenShake = max(screenShake, 0.06f)
+            }
+            TowerKind.LODESTONE -> audio.play("beacon", 0.26f, 0.90f + random.nextFloat() * 0.10f)
+            TowerKind.GRAVEBOLT -> audio.play("bolt", 0.26f, 1.05f + random.nextFloat() * 0.10f)
+            TowerKind.AEGIS_LOOM -> audio.play("frost", 0.20f, 0.95f + random.nextFloat() * 0.08f)
         }
     }
 
@@ -1770,7 +1780,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             else -> Unit
         }
         phase = GamePhase.BUILD
-        setBanner("FORGE PERK  ${perk.title.toUpperCase()}", 2.5f)
+        setBanner("FORGE PERK  ${perk.title.uppercase()}", 2.5f)
         saveRun()
         audio.play("build", 0.60f, 1.22f)
     }
@@ -2385,7 +2395,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         pathComplete = false
         diggingGesture = false
         waveTheme = "FORGE THE FIRST ROUTE"
-        bannerText = if (mode == GameMode.ENDLESS) "WIDE HOLD  DRAG GATE TO CORE  PINCH TO ZOOM" else "${challengeModifier.title.toUpperCase()}  SEED $runSeed"
+        bannerText = if (mode == GameMode.ENDLESS) "WIDE HOLD  DRAG GATE TO CORE  PINCH TO ZOOM" else "${challengeModifier.title.uppercase()}  SEED $runSeed"
         bannerDuration = 3.4f
         bannerTimer = 3.4f
         goldPulse = 0f
@@ -2896,7 +2906,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         score = safeAdd(score, 20)
         burst(cell.col + 0.5f, cell.row + 0.5f, kind.accent, 12, 0.8f)
         audio.play("build", 0.42f, 0.92f + kind.ordinal * 0.07f)
-        setBanner("${kind.title.toUpperCase()} ONLINE", 1.2f)
+        setBanner("${kind.title.uppercase()} ONLINE", 1.2f)
         saveRun()
     }
 
@@ -2917,7 +2927,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         traps.add(SpikeTrap(nextTrapId++, cell.col, cell.row, kind))
         burst(cell.col + 0.5f, cell.row + 0.5f, kind.accent, 9, 0.65f)
         audio.play("build", 0.34f, 1.12f + kind.ordinal * 0.05f)
-        setBanner("${kind.title.toUpperCase()} ARMED", 1.1f)
+        setBanner("${kind.title.uppercase()} ARMED", 1.1f)
         saveRun()
     }
 
@@ -2956,7 +2966,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         score = safeAdd(score, 50)
         burst(x, y, accent, 18, 1.1f)
         audio.play("build", 0.55f, 1.16f)
-        setBanner("${title.toUpperCase()}  $rank", 1.5f)
+        setBanner("${title.uppercase()}  $rank", 1.5f)
         saveRun()
     }
 
@@ -3001,7 +3011,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedStoredTrapIndex = storedTraps.lastIndex
         buildPage = BuildPage.CACHE
         rebuildToolRects()
-        setBanner("${trap.kind.title.toUpperCase()} CACHED  -$cost BLOCKS", 1.8f)
+        setBanner("${trap.kind.title.uppercase()} CACHED  -$cost BLOCKS", 1.8f)
         saveRun()
     }
 
@@ -3022,7 +3032,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         cachePageIndex = min(cachePageIndex, max(0, (storedTraps.size - 1) / 5))
         rebuildToolRects()
         burst(cell.col + 0.5f, cell.row + 0.5f, stored.kind.accent, 13, 0.8f)
-        setBanner("${stored.kind.title.toUpperCase()} RECOVERED  ${stored.rankLabel()}", 1.7f)
+        setBanner("${stored.kind.title.uppercase()} RECOVERED  ${stored.rankLabel()}", 1.7f)
         saveRun()
     }
 
@@ -3058,7 +3068,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedUtility = utility
         selectedUtilityKind = null
         burst(cell.col + 0.5f, cell.row + 0.5f, kind.accent, 18, 1.0f)
-        setBanner("${kind.title.toUpperCase()} ONLINE", 1.7f)
+        setBanner("${kind.title.uppercase()} ONLINE", 1.7f)
         saveRun()
     }
 
@@ -3078,7 +3088,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (hasGearset) consumeSupply(CraftedItem.UTILITY_GEARSET)
         utility.level += 1
         burst(utility.col + 0.5f, utility.row + 0.5f, utility.kind.accent, 20, 1.2f)
-        setBanner("${utility.kind.title.toUpperCase()}  LEVEL ${utility.level}", 1.7f)
+        setBanner("${utility.kind.title.uppercase()}  LEVEL ${utility.level}", 1.7f)
         rebuildToolRects()
         saveRun()
     }
@@ -3124,7 +3134,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             return
         }
         if (supplyCount(item) >= item.maxStack) {
-            setBanner("${item.title.toUpperCase()} STACK FULL", 1.4f)
+            setBanner("${item.title.uppercase()} STACK FULL", 1.4f)
             return
         }
         val blockCost = craftedBlockCost(item)
@@ -3136,7 +3146,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         salvageParts -= item.partCost
         growthEssence -= item.essenceCost
         supplies[item] = supplyCount(item) + 1
-        setBanner("CRAFTED  ${item.title.toUpperCase()}", 1.6f)
+        setBanner("CRAFTED  ${item.title.uppercase()}", 1.6f)
         audio.play("build", 0.42f, 1.18f)
         saveRun()
     }
@@ -3161,7 +3171,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 storedTraps[index].level += 1
                 consumeSupply(item)
                 rebuildToolRects()
-                setBanner("${storedTraps[index].kind.title.toUpperCase()} REFIT  LEVEL ${storedTraps[index].level}", 1.7f)
+                setBanner("${storedTraps[index].kind.title.uppercase()} REFIT  LEVEL ${storedTraps[index].level}", 1.7f)
             }
             CraftedItem.SPLINTER_BRACE -> {
                 if (splinterBraceReady) { setBanner("SPLINTER BRACE ALREADY ARMED", 1.4f); return }
@@ -3298,13 +3308,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             Imbuement.WARD -> utility.kind == UtilityKind.WARD_BEACON || utility.kind == UtilityKind.PURIFIER_TOTEM
             Imbuement.LEECH -> false
             Imbuement.SURGE -> utility.kind == UtilityKind.BATTLE_BANNER || utility.kind == UtilityKind.TRAP_LATTICE
+            // F8 combat imbuements: combat-tuned effects have no special utility
+            // interaction, so they never *fail* compatibility — a generic buff on a
+            // utility simply does nothing harmful and is allowed like MIGHT/CLARITY.
+            Imbuement.VOLLEY, Imbuement.SIEGE, Imbuement.FORTUNE, Imbuement.BINDING, Imbuement.RIME -> true
+            Imbuement.BULWARK -> utility.kind == UtilityKind.WARD_BEACON || utility.kind == UtilityKind.PURIFIER_TOTEM
+            Imbuement.HARVEST -> utility.kind == UtilityKind.ESSENCE_STILL || utility.kind == UtilityKind.CACHE_DEPOT
         }
     }
 
     private fun chooseImbuement(imbuement: Imbuement) {
         if (imbuementTower == null && imbuementTrap == null && imbuementUtility == null) return
         if (!imbuementCompatible(imbuement)) {
-            setBanner("${imbuement.title.toUpperCase()} HAS NO EFFECT ON THIS TARGET", 1.8f)
+            setBanner("${imbuement.title.uppercase()} HAS NO EFFECT ON THIS TARGET", 1.8f)
             return
         }
         if (supplyCount(CraftedItem.BLANK_SIGIL) <= 0 || growthEssence < 1 || gold < 120) return
@@ -3322,7 +3338,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val y = imbuementTower?.row ?: imbuementTrap?.row ?: imbuementUtility?.row ?: 0
         burst(x + 0.5f, y + 0.5f, imbuement.accent, 26, 1.4f)
         phase = GamePhase.BUILD
-        setBanner("IMBUED WITH ${imbuement.title.toUpperCase()}", 2f)
+        setBanner("IMBUED WITH ${imbuement.title.uppercase()}", 2f)
         imbuementTower = null
         imbuementTrap = null
         imbuementUtility = null
@@ -3530,7 +3546,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedCorruption = null
         score = safeAdd(score, 250)
         burst(corruption.cell.col + 0.5f, corruption.cell.row + 0.5f, corruption.kind.accent, 20, 1.2f)
-        setBanner("${corruption.kind.title.toUpperCase()} CLEANSED  +1 ESSENCE", 1.8f)
+        setBanner("${corruption.kind.title.uppercase()} CLEANSED  +1 ESSENCE", 1.8f)
         saveRun()
     }
 
@@ -3553,7 +3569,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         tower.evolveFlash = 1f
         tower.evolveAura = 2.4f
         tower.evolveProof = 2.2f
-        val evoTitle = tower.evolution!!.title.toUpperCase()
+        val evoTitle = tower.evolution!!.title.uppercase()
         setBanner("EVOLVED  $evoTitle", 2.6f)
         val cx = tower.col + 0.5f
         val cy = tower.row + 0.5f
@@ -3609,6 +3625,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 burst(cx, cy, Color.rgb(60, 160, 130), 22, 1.0f)
                 audio.play("frost", 0.50f, 0.75f)
                 audio.play("build", 0.50f, 0.68f)
+            }
+            // 1.4-era towers: evolution confirmation burst in the tower's own accent
+            // instead of throwing when a player evolves one.
+            else -> {
+                burst(cx, cy, tower.kind.accent, 40, 1.9f)
+                burst(cx, cy, Color.rgb(255, 215, 104), 20, 1.3f)
+                audio.play("build", 0.55f, 0.62f)
+                audio.play("ui_click", 0.40f, 1.20f)
             }
         }
         floatingLabels.add(
@@ -3739,7 +3763,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
         drawCenteredText(canvas, title, rect.centerX(), rect.top + rect.height() * 0.22f, dp(17f), accent, true, true)
         drawCenteredText(canvas, subtitle, rect.centerX(), rect.top + rect.height() * 0.41f, min(dp(9f), rect.width() * 0.035f), Color.rgb(178, 194, 183), true)
-        drawCenteredText(canvas, modifier.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.62f, dp(12f), Color.WHITE, true)
+        drawCenteredText(canvas, modifier.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.62f, dp(12f), Color.WHITE, true)
         drawWrappedText(canvas, modifier.description, rect.centerX(), rect.top + rect.height() * 0.75f, rect.width() * 0.84f, dp(9f), Color.rgb(150, 169, 156), 2)
     }
 
@@ -3763,7 +3787,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = accent
             canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
             drawCenteredText(canvas, perk.category.name, rect.centerX(), rect.top + rect.height() * 0.14f, dp(8f), accent, true)
-            drawWrappedText(canvas, perk.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.34f, rect.width() * 0.82f, dp(14f), Color.WHITE, 2, true)
+            drawWrappedText(canvas, perk.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.34f, rect.width() * 0.82f, dp(14f), Color.WHITE, 2, true)
             drawWrappedText(canvas, perk.description, rect.centerX(), rect.top + rect.height() * 0.62f, rect.width() * 0.82f, dp(9f), Color.rgb(169, 187, 174), 3)
             drawCenteredText(canvas, "STACK ${perkCount(perk) + 1}", rect.centerX(), rect.bottom - rect.height() * 0.12f, dp(9f), accent, true)
         }
@@ -3774,7 +3798,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         paint.color = Color.argb(232, 6, 12, 9)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
         drawCenteredText(canvas, "EVOLUTION CORE", viewWidth * 0.5f, viewHeight * 0.17f, min(dp(39f), viewHeight * 0.085f), Color.rgb(255, 203, 81), true, true)
-        drawCenteredText(canvas, "${tower.kind.title.toUpperCase()}  •  CHOOSE ONE MUTUALLY EXCLUSIVE FORM", viewWidth * 0.5f, viewHeight * 0.25f, dp(10f), Color.rgb(177, 192, 181), true)
+        drawCenteredText(canvas, "${tower.kind.title.uppercase()}  •  CHOOSE ONE MUTUALLY EXCLUSIVE FORM", viewWidth * 0.5f, viewHeight * 0.25f, dp(10f), Color.rgb(177, 192, 181), true)
         val options = TowerEvolution.choices(tower.kind)
         options.forEachIndexed { index, evolution ->
             if (index >= evolutionRects.size) return@forEachIndexed
@@ -3783,7 +3807,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.strokeWidth = dp(2f)
             strokePaint.color = tower.kind.accent
             canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
-            drawWrappedText(canvas, evolution.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.28f, rect.width() * 0.84f, dp(17f), Color.WHITE, 2, true)
+            drawWrappedText(canvas, evolution.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.28f, rect.width() * 0.84f, dp(17f), Color.WHITE, 2, true)
             drawWrappedText(canvas, evolution.description, rect.centerX(), rect.top + rect.height() * 0.58f, rect.width() * 0.82f, dp(10f), Color.rgb(169, 187, 174), 3)
             drawCenteredText(canvas, "SPEND 1 CORE", rect.centerX(), rect.bottom - rect.height() * 0.12f, dp(9f), Color.rgb(255, 203, 81), true)
         }
@@ -3811,7 +3835,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 if (targetName == null) {
                     drawCenteredText(canvas, "SELECT A LEVEL 3 STRUCTURE ON THE BOARD, THEN TAP IMBUE", viewWidth * 0.5f, viewHeight * 0.50f, dp(12f), Color.rgb(178, 194, 183), true)
                 } else {
-                    drawCenteredText(canvas, "TARGET ${targetName.toUpperCase()} • 120 BLOCKS + 1 ESSENCE + 1 SIGIL${if (currentImbuement != null) " • REPLACES ${currentImbuement.title.toUpperCase()}" else ""}", viewWidth * 0.5f, viewHeight * 0.265f, dp(9f), Color.rgb(213, 182, 255), true)
+                    drawCenteredText(canvas, "TARGET ${targetName.uppercase()} • 120 BLOCKS + 1 ESSENCE + 1 SIGIL${if (currentImbuement != null) " • REPLACES ${currentImbuement.title.uppercase()}" else ""}", viewWidth * 0.5f, viewHeight * 0.265f, dp(9f), Color.rgb(213, 182, 255), true)
                     Imbuement.values().drop(start).take(4).forEachIndexed { local, imbuement -> drawImbuementCard(canvas, workshopCardRects[local], imbuement) }
                 }
             }
@@ -3834,7 +3858,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         strokePaint.color = if (affordable) Color.rgb(255, 183, 105) else Color.rgb(65, 77, 68)
         canvas.drawRoundRect(rect, dp(12f), dp(12f), strokePaint)
         drawBitmapCentered(canvas, sprites.craftedItem(item), rect.left + rect.height() * 0.22f, rect.top + rect.height() * 0.22f, rect.height() * 0.31f)
-        drawCenteredText(canvas, item.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.19f, dp(11f), if (unlocked) Color.WHITE else Color.rgb(105, 119, 109), true)
+        drawCenteredText(canvas, item.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.19f, dp(11f), if (unlocked) Color.WHITE else Color.rgb(105, 119, 109), true)
         drawWrappedText(canvas, item.description, rect.centerX(), rect.top + rect.height() * 0.47f, rect.width() * 0.86f, dp(8f), Color.rgb(165, 182, 170), 2)
         drawCenteredText(canvas, "$blockCost B  •  ${item.partCost} P  •  ${item.essenceCost} E", rect.centerX(), rect.top + rect.height() * 0.72f, dp(8f), if (affordable) Color.rgb(190, 244, 78) else Color.rgb(255, 126, 110), true)
         drawCenteredText(canvas, if (unlocked) "CRAFT  ${supplyCount(item)}/${item.maxStack}" else "WORKSHOP LEVEL ${item.workshopLevel}", rect.centerX(), rect.top + rect.height() * 0.88f, dp(8f), Color.rgb(255, 183, 105), true)
@@ -3846,7 +3870,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         spritePaint.alpha = if (count > 0) 255 else 90
         drawBitmapCentered(canvas, sprites.craftedItem(item), rect.left + rect.height() * 0.22f, rect.top + rect.height() * 0.23f, rect.height() * 0.31f)
         spritePaint.alpha = 255
-        drawCenteredText(canvas, item.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.22f, dp(11f), if (count > 0) Color.WHITE else Color.rgb(104, 119, 109), true)
+        drawCenteredText(canvas, item.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.22f, dp(11f), if (count > 0) Color.WHITE else Color.rgb(104, 119, 109), true)
         drawWrappedText(canvas, item.description, rect.centerX(), rect.top + rect.height() * 0.50f, rect.width() * 0.86f, dp(8f), Color.rgb(165, 182, 170), 2)
         val automatic = item == CraftedItem.RECOVERY_WRAP || item == CraftedItem.PURIFIER_VIAL || item == CraftedItem.REFORGE_COUPLER || item == CraftedItem.UTILITY_GEARSET
         drawCenteredText(canvas, "OWNED $count  •  ${if (automatic) "AUTO" else "TAP TO USE"}", rect.centerX(), rect.top + rect.height() * 0.82f, dp(8f), if (count > 0) Color.rgb(190, 244, 78) else Color.rgb(112, 126, 116), true)
@@ -3861,7 +3885,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         spritePaint.alpha = if (compatible) 255 else 70
         drawBitmapCentered(canvas, sprites.imbuement(imbuement), rect.left + rect.height() * 0.22f, rect.top + rect.height() * 0.25f, rect.height() * 0.34f)
         spritePaint.alpha = 255
-        drawCenteredText(canvas, imbuement.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.24f, dp(12f), if (compatible) imbuement.accent else Color.rgb(105, 116, 109), true)
+        drawCenteredText(canvas, imbuement.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.24f, dp(12f), if (compatible) imbuement.accent else Color.rgb(105, 116, 109), true)
         drawWrappedText(canvas, imbuement.description, rect.centerX(), rect.top + rect.height() * 0.55f, rect.width() * 0.86f, dp(8f), if (compatible) Color.rgb(179, 194, 183) else Color.rgb(103, 114, 107), 3)
         drawCenteredText(canvas, if (compatible) "BIND SIGIL" else "NO EFFECT ON TARGET", rect.centerX(), rect.top + rect.height() * 0.84f, dp(8f), if (compatible) Color.WHITE else Color.rgb(126, 137, 130), true)
     }
@@ -4204,6 +4228,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 TowerKind.THORN -> 0.07f + evoFlash * 0.05f
                 TowerKind.LANCE -> 0.06f + evoFlash * 0.05f
                 TowerKind.MIRE -> 0.08f + evoFlash * 0.06f
+                else -> 0.08f + evoFlash * 0.06f
             }
             val rimExpand = when (tower.kind) {
                 TowerKind.BOLT -> 0.28f
@@ -4214,6 +4239,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 TowerKind.THORN -> 0.27f
                 TowerKind.LANCE -> 0.29f
                 TowerKind.MIRE -> 0.25f
+                else -> 0.26f
             }
             strokePaint.style = Paint.Style.STROKE
             strokePaint.strokeWidth = tileSize * rimThick
@@ -4258,6 +4284,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     strokePaint.color = Color.argb((120 * evoFlash).toInt().coerceIn(0, 255), 255, 140, 60)
                     canvas.drawCircle(x, y, tileSize * (0.28f + evoFlash * 0.06f), strokePaint)
                 }
+                // 1.4-era towers evolve with the accent ring only; no secondary ring
+                // (an empty branch is fine here — this when is statement context).
+                else -> {}
             }
         }
         val base = when (tower.kind) {
@@ -4509,6 +4538,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.THORN -> tileSize * 0.40f
             TowerKind.LANCE -> tileSize * 0.55f
             TowerKind.MIRE -> tileSize * 0.54f
+            // 1.4-era tower kinds (GALE, SUNFORGE, LODESTONE, HOWL, VITRIOL,
+            // GRAVEBOLT, AEGIS_LOOM) and any future kind share a sensible default
+            // instead of throwing NoWhenBranchMatchedException mid-wave.
+            else -> tileSize * 0.50f
         }
         val dx = projectile.target.x - projectile.x
         val dy = projectile.target.y - projectile.y
@@ -4552,6 +4585,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.THORN -> tileSize * 0.70f
             TowerKind.LANCE -> tileSize * 0.82f
             TowerKind.MIRE -> tileSize * 0.90f
+            // 1.4-era tower kinds and any future kind: default impact size.
+            else -> tileSize * 0.85f
         }
         val t = (fx.age / fx.duration).coerceIn(0f, 0.999f)
         val frame = when {
@@ -4654,7 +4689,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun phaseLabel(): String {
         return when (phase) {
             GamePhase.DIG -> if (gameMode == GameMode.ENDLESS) "PATH FORGE" else "${gameMode.name} $runSeed"
-            GamePhase.BUILD -> if (gameMode == GameMode.ENDLESS) "ENDLESS BUILD" else challengeModifier.title.toUpperCase()
+            GamePhase.BUILD -> if (gameMode == GameMode.ENDLESS) "ENDLESS BUILD" else challengeModifier.title.uppercase()
             GamePhase.REFORGE -> "PATH REFORGE"
             GamePhase.PERK_DRAFT -> "FORGE PERK"
             GamePhase.EVOLUTION_DRAFT -> "EVOLUTION"
@@ -4728,7 +4763,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 min(rect.width(), rect.height()) * 0.54f
             )
             spritePaint.alpha = 255
-            drawCenteredText(canvas, kind.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.70f, min(dp(8f), rect.width() * 0.09f), if (unlocked) Color.WHITE else Color.rgb(105, 116, 108), true)
+            drawCenteredText(canvas, kind.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.70f, min(dp(8f), rect.width() * 0.09f), if (unlocked) Color.WHITE else Color.rgb(105, 116, 108), true)
             drawCenteredText(canvas, if (unlocked) kind.cost.toString() else "WAVE 10", rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (unlocked && gold >= kind.cost) Color.rgb(190, 244, 78) else Color.rgb(255, 111, 100), true)
         }
         for ((index, rect) in cacheRects) {
@@ -4737,7 +4772,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) stored.kind.accent else Color.rgb(25, 38, 30))
             if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
             drawSpriteFrameCentered(canvas, sprites.trap(stored.kind), 0, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
-            drawCenteredText(canvas, stored.kind.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
+            drawCenteredText(canvas, stored.kind.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
             drawCenteredText(canvas, stored.rankLabel(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(7f), rect.width() * 0.08f), if (stored.imbuement != null) stored.imbuement!!.accent else Color.rgb(190, 244, 78), true)
         }
         if (buildPage == BuildPage.CACHE && storedTraps.isEmpty()) drawCenteredText(canvas, "CACHE EMPTY  •  STORE A PLACED TRAP", (cachePageRect.right + viewWidth) * 0.5f, viewHeight - bottomBarHeight * 0.5f, dp(11f), Color.rgb(137, 153, 142), true)
@@ -4843,7 +4878,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val upgradeColor = if (canBuy) accent else Color.rgb(27, 42, 33)
         drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), upgradeColor)
         val titleColor = if (canBuy) Color.rgb(12, 21, 16) else Color.rgb(150, 168, 156)
-        drawCenteredText(canvas, "UPGRADE ${title.toUpperCase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
+        drawCenteredText(canvas, "UPGRADE ${title.uppercase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
         val stats = if (range != null) "DMG ${damage.toInt()}  RANGE ${oneDecimal(range)}  •  $cost BLOCKS" else "DMG ${damage.toInt()}  •  $cost BLOCKS"
         drawCenteredText(canvas, stats, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.70f, min(dp(9f), upgradeRect.width() * 0.026f), titleColor, true)
         val canEvolve = tower?.canEvolve() == true
@@ -4852,7 +4887,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, storeLabel, storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (canEvolve) Color.rgb(255, 222, 126) else Color.rgb(186, 221, 241), true)
         val existingImbuement = tower?.imbuement ?: trap?.imbuement
         drawRoundedRect(canvas, imbueRect.left, imbueRect.top, imbueRect.right, imbueRect.bottom, dp(7f), Color.rgb(53, 43, 68))
-        drawCenteredText(canvas, if (existingImbuement == null) "IMBUE" else "IMBUED • ${existingImbuement.title.toUpperCase()}", imbueRect.centerX(), imbueRect.centerY(), min(dp(8f), imbueRect.height() * 0.43f), existingImbuement?.accent ?: Color.rgb(213, 182, 255), true)
+        drawCenteredText(canvas, if (existingImbuement == null) "IMBUE" else "IMBUED • ${existingImbuement.title.uppercase()}", imbueRect.centerX(), imbueRect.centerY(), min(dp(8f), imbueRect.height() * 0.43f), existingImbuement?.accent ?: Color.rgb(213, 182, 255), true)
         val recycleLocked = challengeModifier == ChallengeModifier.NO_RECYCLING
         drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(7f), if (recycleLocked) Color.rgb(35, 36, 34) else Color.rgb(50, 37, 32))
         drawCenteredText(canvas, if (recycleLocked) "NO RECYCLING" else "RECYCLE • +$sellValue", sellRect.centerX(), sellRect.centerY(), min(dp(8f), sellRect.height() * 0.43f), Color.rgb(255, 188, 126), true)
@@ -4864,12 +4899,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
         drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(10f), Color.WHITE, true)
         drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (utility.level < 3 && gold >= cost) utility.kind.accent else Color.rgb(31, 43, 35))
-        drawCenteredText(canvas, "${utility.kind.title.toUpperCase()}  •  LEVEL ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.33f, min(dp(10f), upgradeRect.width() * 0.03f), if (utility.level < 3 && gold >= cost) Color.rgb(12, 21, 16) else Color.WHITE, true)
+        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LEVEL ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.33f, min(dp(10f), upgradeRect.width() * 0.03f), if (utility.level < 3 && gold >= cost) Color.rgb(12, 21, 16) else Color.WHITE, true)
         drawWrappedText(canvas, if (utility.level < 3) "${utility.kind.description} • UPGRADE $cost BLOCKS" else "${utility.kind.description} • MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.68f, upgradeRect.width() * 0.90f, dp(8f), if (utility.level < 3 && gold >= cost) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), 2)
         drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(81, 49, 31) else Color.rgb(31, 40, 34))
         drawCenteredText(canvas, if (utility.kind == UtilityKind.FORGE_WORKSHOP) "OPEN FORGEWORKS" else "PASSIVE UTILITY", storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(255, 187, 116) else Color.rgb(137, 153, 142), true)
         drawRoundedRect(canvas, imbueRect.left, imbueRect.top, imbueRect.right, imbueRect.bottom, dp(7f), Color.rgb(53, 43, 68))
-        drawCenteredText(canvas, if (utility.imbuement == null) "IMBUE" else "IMBUED • ${utility.imbuement!!.title.toUpperCase()}", imbueRect.centerX(), imbueRect.centerY(), min(dp(8f), imbueRect.height() * 0.43f), utility.imbuement?.accent ?: Color.rgb(213, 182, 255), true)
+        drawCenteredText(canvas, if (utility.imbuement == null) "IMBUE" else "IMBUED • ${utility.imbuement!!.title.uppercase()}", imbueRect.centerX(), imbueRect.centerY(), min(dp(8f), imbueRect.height() * 0.43f), utility.imbuement?.accent ?: Color.rgb(213, 182, 255), true)
         drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(7f), Color.rgb(50, 37, 32))
         drawCenteredText(canvas, if (challengeModifier == ChallengeModifier.NO_RECYCLING) "NO RECYCLING" else "RECYCLE UTILITY", sellRect.centerX(), sellRect.centerY(), min(dp(8f), sellRect.height() * 0.43f), Color.rgb(255, 188, 126), true)
     }
@@ -4881,7 +4916,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
         drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(11f), Color.WHITE, true)
         drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (forgeCharges >= cost) corruption.kind.accent else Color.rgb(42, 37, 42))
-        drawCenteredText(canvas, "CLEANSE ${corruption.kind.title.toUpperCase()}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, dp(10f), Color.WHITE, true)
+        drawCenteredText(canvas, "CLEANSE ${corruption.kind.title.uppercase()}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, dp(10f), Color.WHITE, true)
         drawWrappedText(canvas, corruption.kind.description, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.69f, upgradeRect.width() * 0.90f, dp(8f), Color.rgb(224, 230, 225), 2)
         drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(12f), Color.rgb(53, 43, 68))
         drawCenteredText(canvas, "$cost FORGE${if (vial) " + VIAL" else ""}", sellRect.centerX(), sellRect.top + sellRect.height() * 0.40f, dp(10f), Color.rgb(213, 182, 255), true)

@@ -479,7 +479,7 @@ internal class Tower(
     fun canEvolve(): Boolean = evolution == null && level >= 3 && overcharge >= 2
 
     fun rankLabel(): String = when {
-        evolution != null -> evolution!!.title.toUpperCase()
+        evolution != null -> evolution!!.title.uppercase()
         level < 3 -> "LEVEL $level"
         overcharge == 0 -> "LEVEL 3"
         else -> "OVERCHARGE $overcharge"
