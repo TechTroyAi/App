@@ -56,6 +56,11 @@ internal class SpriteCatalog(private val context: Context) {
     val towerBase = load("tower_bolt_base")
     val frostBase = load("tower_frost_base")
     val cannonBase = load("tower_cannon_base")
+    // 1.4.2: tower_cannon_turret regenerated as a clean vertical barrel
+    // + cannonball on a 3-frame strip (idle/charge/fire). Barrel points
+    // straight up in the sprite so the existing canvas-rotation produces
+    // a correct aim at every angle. No code change required — the draw
+    // call already passes tower.angle * 57.29578f to drawSpriteFrameCentered.
     val emberBase = load("tower_ember_base")
     val beaconBase = load("tower_beacon_base")
     val thornBase = load("tower_thorn_base")
