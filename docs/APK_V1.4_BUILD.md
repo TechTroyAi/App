@@ -330,4 +330,40 @@ up before the next release** — see [docs/SIGNING.md](./SIGNING.md#keeping-the-
 
 To stop this recurring: run `./scripts/make-signing-key.sh` on a durable machine, store the
 keystore outside the sandbox (encrypted backup in two places), and reuse it for every
-future build. `versionCode 15` is still correct and required regardless.
+future v1.4.1 rebuild. The v1.4.2 source update below increments the code to `16`.
+
+
+---
+
+# v1.4.2 source update — pressure waves and continuous spawning
+
+Date: 2026-08-28
+
+The v1.4.2 source target is `versionName 1.4.2` / `versionCode 16`. Hosted CI has now
+built the debug APK with JDK 17 and Android SDK Platform 35 and passed the structural
+verifier; the signed installable release artifact is not yet retained in `artifacts/`.
+
+Implemented in the source tree:
+
+- A steeper wave pressure curve: increased enemy health growth, faster movement, denser
+  deployment, a larger regular roster per wave, faster spawn cadence, and a second elite
+  beginning at wave 20.
+- A **NEXT WAVE** action that manually starts the next wave during build time.
+- A ten-second build countdown after a cleared wave that automatically launches the next wave;
+  the countdown pauses while the player is in the workshop, reforge screen, or pause menu.
+- A **STACK WAVE** action during combat. Stacked waves share the live battlefield but retain
+  separate wave identity, rewards, boss cycles, source-owned child enemies, and milestone perks.
+- Custom challenge seeds now accept direct keyboard input, persist the last value, and cap input at
+  12 numeric digits instead of requiring six tap-to-increment boxes.
+- The in-game feedback/instruction banner can be toggled with the **TXT** control and appears as a
+  compact rounded rectangle in the upper-left corner of the playfield.
+- Removal of the global four-utility capacity. Free terrain and cost remain meaningful limits; each
+  utility kind is unique, except that up to five Block Generators may be active at once.
+- Every tower, trap, and utility now has a readable in-game definition. Selecting a build card or
+  placed structure shows its effect, while utility panels expose the normal three upgrade levels.
+  Block Generators produce 18/30/45 Blocks per cleared wave at levels 1/2/3 and use the same
+  upgrade action and escalating costs as other utilities.
+
+The next release artifact must pass `scripts/verify-apk.py` and should be smoke-tested with
+manual wave stacking, automatic launch, a wave-five perk, a wave-ten boss, five Block Generators
+placed and upgraded, and more than four different utilities placed in one run.

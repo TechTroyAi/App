@@ -10,9 +10,15 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.SystemClock
+import android.text.InputType
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
 import java.util.Calendar
 import java.util.Random
 import kotlin.math.abs
@@ -37,6 +43,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         private const val STARTING_CORE = 12
         private const val MIN_CAMERA_ZOOM = 0.72f
         private const val MAX_CAMERA_ZOOM = 2.15f
+        private const val AUTO_NEXT_WAVE_DELAY = 10f
+        private const val MAX_SEED_CHARACTERS = 12
+        private const val DEFAULT_CUSTOM_SEED = "733101"
+        private const val MAX_BLOCK_GENERATORS = 5
+        private const val ELITE_TRAP_BREAK_DELAY = 1.75f
     }
 
     private val stateLock = Any()
@@ -116,6 +127,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val impactEffects = ArrayList<ImpactFx>()
     private val floatingLabels = ArrayList<FloatingLabel>()
     private val waveQueue = ArrayList<SpawnSpec>()
+    /** Waves launched but not fully cleared; multiple entries are allowed when waves are stacked. */
+    private val activeWaveNumbers = LinkedHashSet<Int>()
+    /** Milestone perk drafts waiting until all stacked waves have been cleared. */
+    private val pendingPerkWaves = ArrayList<Int>()
 
     private var gold = STARTING_BLOCKS
     private var maxCore = STARTING_CORE
@@ -128,8 +143,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var bestCustomScore = prefInt("best_custom_score", prefInt("best_challenge_score", 0))
     private var bestCustomWave = prefInt("best_custom_wave", prefInt("best_challenge_wave", 0))
     private var waveNumber = 0
+    private var lastClearedWave = 0
     private var spawnIndex = 0
     private var spawnTimer = 0f
+    /** Build-phase countdown before the next wave starts automatically. */
+    private var nextWaveTimer = -1f
     private var nextEnemyId = 1
     private var nextTrapId = 1
     private var nextCorruptionId = 1
@@ -150,7 +168,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var gameMode = GameMode.ENDLESS
     private var challengeModifier = ChallengeModifier.NONE
     private var runSeed = 7331L
-    private val challengeDigits = intArrayOf(7, 3, 3, 1, 0, 1)
+    private var customSeedText = try {
+        preferences.getString("custom_seed_text", DEFAULT_CUSTOM_SEED).orEmpty()
+            .filter { it in '0'..'9' }.take(MAX_SEED_CHARACTERS)
+            .ifEmpty { DEFAULT_CUSTOM_SEED }
+    } catch (_: Exception) {
+        DEFAULT_CUSTOM_SEED
+    }
+    private var seedInputActive = false
+    private var seedInputReplaceOnNextInput = false
+    private var seedComposingText = ""
+    private var feedbackEnabled = prefBoolean("feedback_enabled", true)
     private var pathComplete = false
     private var ambientTime = 0f
     private var bannerText = ""
@@ -198,6 +226,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val resetPathRect = RectF()
     private val pauseRect = RectF()
     private val soundRect = RectF()
+    private val feedbackToggleRect = RectF()
     private val titlePlayRect = RectF()
     private val titleContinueRect = RectF()
     private val titleChallengeRect = RectF()
@@ -216,7 +245,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val challengeDailyRect = RectF()
     private val challengeSeedStartRect = RectF()
     private val challengeBackRect = RectF()
-    private val seedDigitRects = ArrayList<RectF>()
+    private val seedInputRect = RectF()
     private val perkRects = ArrayList<RectF>()
     private val evolutionRects = ArrayList<RectF>()
     private val toolRects = ArrayList<Pair<BuildTool, RectF>>()
@@ -228,12 +257,71 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val workshopPreviousRect = RectF()
     private val workshopNextRect = RectF()
 
+    /**
+     * The game is a custom SurfaceView, so the challenge seed uses a lightweight input connection
+     * instead of adding an EditText over the renderer. This lets the normal Android keyboard paste
+     * and type digits while keeping the visual field in the same Canvas UI.
+     */
+    private val seedInputConnection = object : BaseInputConnection(this, true) {
+        override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
+            commitSeedInput(text.toString())
+            return true
+        }
+
+        override fun setComposingText(text: CharSequence, newCursorPosition: Int): Boolean {
+            updateSeedComposition(text.toString())
+            return true
+        }
+
+        override fun finishComposingText(): Boolean {
+            seedComposingText = ""
+            return true
+        }
+
+        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            deleteSeedInput(beforeLength.coerceAtLeast(1))
+            return true
+        }
+
+        override fun sendKeyEvent(event: KeyEvent): Boolean {
+            if (event.action != KeyEvent.ACTION_DOWN) return true
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DEL -> deleteSeedInput(1)
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> startCustomChallenge()
+                else -> {
+                    val character = event.unicodeChar
+                    if (character in '0'.code..'9'.code) commitSeedInput(character.toChar().toString())
+                }
+            }
+            return true
+        }
+
+        override fun performEditorAction(actionCode: Int): Boolean {
+            if (actionCode == EditorInfo.IME_ACTION_DONE || actionCode == EditorInfo.IME_ACTION_UNSPECIFIED) startCustomChallenge()
+            return true
+        }
+
+        override fun getTextBeforeCursor(n: Int, flags: Int): CharSequence = customSeedText.takeLast(n.coerceAtLeast(0))
+
+        override fun getTextAfterCursor(n: Int, flags: Int): CharSequence = ""
+    }
+
     init {
         holder.addCallback(this)
         isFocusable = true
+        isFocusableInTouchMode = true
         keepScreenOn = true
         strokePaint.style = Paint.Style.STROKE
         pathCells.add(GridCell(0, START_ROW))
+    }
+
+    override fun onCheckIsTextEditor(): Boolean = seedInputActive
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        if (!seedInputActive) return null
+        outAttrs.inputType = InputType.TYPE_CLASS_NUMBER
+        outAttrs.imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        return seedInputConnection
     }
 
     override fun surfaceCreated(surfaceHolder: SurfaceHolder) {
@@ -326,7 +414,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         synchronized(stateLock) {
             when (phase) {
                 GamePhase.TITLE -> return false
-                GamePhase.CHALLENGE_MENU -> phase = GamePhase.TITLE
+                GamePhase.CHALLENGE_MENU -> {
+                    endSeedInput()
+                    phase = GamePhase.TITLE
+                }
                 GamePhase.REFORGE -> cancelReforge()
                 GamePhase.WORKSHOP -> closeWorkshop()
                 GamePhase.PAUSED, GamePhase.VICTORY, GamePhase.GAME_OVER -> returnToTitle()
@@ -358,6 +449,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val bottom = topBarHeight - dp(7f)
         pauseRect.set(viewWidth - dp(8f) - smallButton, top, viewWidth - dp(8f), bottom)
         soundRect.set(pauseRect.left - dp(7f) - smallButton, top, pauseRect.left - dp(7f), bottom)
+        feedbackToggleRect.set(soundRect.left - dp(7f) - smallButton, top, soundRect.left - dp(7f), bottom)
         val actionWidth = min(dp(130f), viewWidth * 0.17f)
         primaryActionRect.set(soundRect.left - dp(8f) - actionWidth, top, soundRect.left - dp(8f), bottom)
         val resetWidth = min(dp(96f), viewWidth * 0.13f)
@@ -427,12 +519,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         challengeDailyRect.set(viewWidth * 0.5f - challengeWidth - dp(7f), challengeTop, viewWidth * 0.5f - dp(7f), challengeBottom)
         challengeSeedStartRect.set(viewWidth * 0.5f + dp(7f), challengeTop, viewWidth * 0.5f + challengeWidth + dp(7f), challengeBottom)
         challengeBackRect.set(viewWidth * 0.5f - dp(90f), viewHeight * 0.82f, viewWidth * 0.5f + dp(90f), viewHeight * 0.82f + min(dp(45f), viewHeight * 0.10f))
-        seedDigitRects.clear()
-        val digitSize = min(dp(45f), viewWidth * 0.055f)
-        val digitGap = dp(7f)
-        val digitTotal = digitSize * 6f + digitGap * 5f
-        val digitLeft = (viewWidth - digitTotal) * 0.5f
-        repeat(6) { index -> seedDigitRects.add(RectF(digitLeft + index * (digitSize + digitGap), viewHeight * 0.63f, digitLeft + index * (digitSize + digitGap) + digitSize, viewHeight * 0.63f + digitSize)) }
+        val seedFieldWidth = min(dp(420f), viewWidth * 0.58f)
+        val seedFieldHeight = min(dp(52f), viewHeight * 0.105f)
+        seedInputRect.set(
+            viewWidth * 0.5f - seedFieldWidth * 0.5f,
+            viewHeight * 0.63f,
+            viewWidth * 0.5f + seedFieldWidth * 0.5f,
+            viewHeight * 0.63f + seedFieldHeight
+        )
 
         workshopBackRect.set(dp(16f), dp(14f), dp(92f), dp(54f))
         workshopTabRects.clear()
@@ -527,6 +621,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         lastDisplayedGold = gold
         lastDisplayedForge = forgeCharges
         if (screenShake > 0f) screenShake -= delta
+        if (phase == GamePhase.BUILD && nextWaveTimer >= 0f && pendingPerkWaves.isEmpty()) {
+            nextWaveTimer = max(0f, nextWaveTimer - delta)
+            if (nextWaveTimer <= 0f) startWave()
+        }
         if (phase == GamePhase.WAVE) updateWave(delta)
         updateEffects(delta)
     }
@@ -535,10 +633,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (spawnIndex < waveQueue.size) {
             spawnTimer -= delta
             if (spawnTimer <= 0f) {
-                spawnEnemy(waveQueue[spawnIndex])
+                val spec = waveQueue[spawnIndex]
+                spawnEnemy(spec)
                 spawnIndex += 1
-                val rush = waveNumber % 8 == 2 || waveNumber % 8 == 1 || challengeModifier == ChallengeModifier.RUSH_HOUR
-                spawnTimer = if (rush) 0.40f else max(0.46f, 0.82f - waveNumber * 0.008f)
+                val sourceWave = if (spec.sourceWave > 0) spec.sourceWave else waveNumber
+                val rush = sourceWave % 8 == 2 || sourceWave % 8 == 1 || challengeModifier == ChallengeModifier.RUSH_HOUR
+                // Denser deployment keeps later waves threatening and makes stacked waves feel
+                // like a real pressure system instead of a second queue sitting idle.
+                spawnTimer = if (rush) 0.32f else max(0.34f, 0.72f - sourceWave * 0.007f)
             }
         }
         updateCorruptions(delta)
@@ -596,7 +698,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     ignite(it, it.maxHealth * 0.012f, 0.8f)
                 }
             }
-            val regeneration = enemy.kind.regeneration + if (waveNumber % 8 == 4) 0.006f else 0f
+            val enemyWave = if (enemy.sourceWave > 0) enemy.sourceWave else waveNumber
+            val regeneration = enemy.kind.regeneration + if (enemyWave % 8 == 4) 0.006f else 0f
             if (regeneration > 0f && enemy.health > 0f && enemy.health < enemy.maxHealth) enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * regeneration * delta)
             if (!enemy.alive || enemy.dying) continue
             updateEnemyAbility(enemy)
@@ -610,10 +713,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             var gateSlow = 1f
             if (routeOilWaves > 0 && enemy.progress < 4.5f) gateSlow = 0.55f
             val wardenSlow = pathWardenSlow(enemy.x, enemy.y)
+            val progressBeforeMove = enemy.progress
             if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * gateSlow * wardenSlow * delta
             updateEnemyPosition(enemy)
+            if (enemy.kind.elite || enemy.kind.boss) {
+                val advanced = enemy.progress > progressBeforeMove + 0.0001f
+                enemy.stuckTimer = if (advanced) 0f else enemy.stuckTimer + delta
+            }
             applyCorruptionToEnemy(enemy, delta)
             triggerTrapIfNeeded(enemy)
+            if (!enemy.alive || enemy.dying) continue
+            breakTrapUnderStalledEnemy(enemy)
+
             if (!enemy.alive) continue
 
             if (enemy.progress >= pathCells.size - 1f) {
@@ -683,7 +794,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             pendingSpawns.clear()
         }
         removeDefeatedEnemies()
-        if (spawnIndex >= waveQueue.size && enemies.isEmpty() && projectiles.isEmpty() && phase == GamePhase.WAVE) completeWave()
+        if (phase == GamePhase.WAVE) processClearedWaves()
     }
 
     private fun updateCorruptions(delta: Float) {
@@ -845,7 +956,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * (0.025f + min(0.025f, enemy.bossTier * 0.003f)))
                 if (enemy.bossTier >= 2) {
                     repeat(min(3, 1 + enemy.bossTier / 3)) {
-                        val minion = Enemy(nextEnemyId++, EnemyKind.SPLITLING, enemy.healthScale * 0.11f, min(1.55f, enemy.speedScale * 1.18f), 0.45f, splitDepth = 1)
+                        val minion = Enemy(nextEnemyId++, EnemyKind.SPLITLING, enemy.healthScale * 0.11f, min(1.55f, enemy.speedScale * 1.18f), 0.45f, splitDepth = 1, sourceWave = enemy.sourceWave)
                         minion.progress = max(0f, enemy.progress - it * 0.18f)
                         updateEnemyPosition(minion)
                         pendingSpawns.add(minion)
@@ -874,7 +985,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             5 -> { // Spore Sovereign bloom
                 enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * 0.04f)
                 repeat(min(4, 2 + enemy.bossTier / 2)) {
-                    val minion = Enemy(nextEnemyId++, EnemyKind.MYCELIAL, enemy.healthScale * 0.14f, min(1.4f, enemy.speedScale * 1.1f), 0.4f, splitDepth = 1)
+                    val minion = Enemy(nextEnemyId++, EnemyKind.MYCELIAL, enemy.healthScale * 0.14f, min(1.4f, enemy.speedScale * 1.1f), 0.4f, splitDepth = 1, sourceWave = enemy.sourceWave)
                     minion.progress = max(0f, enemy.progress - it * 0.22f)
                     updateEnemyPosition(minion)
                     pendingSpawns.add(minion)
@@ -930,7 +1041,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun spawnEnemy(spec: SpawnSpec) {
         if (pathCells.size < 2) return
         val challengeSpeed = if (challengeModifier == ChallengeModifier.RUSH_HOUR) 1.18f else 1f
-        val enemy = Enemy(nextEnemyId++, spec.kind, spec.healthScale, spec.speedScale * challengeSpeed, spec.rewardScale, spec.bossTier, spec.splitDepth)
+        val enemy = Enemy(
+            nextEnemyId++,
+            spec.kind,
+            spec.healthScale,
+            spec.speedScale * challengeSpeed,
+            spec.rewardScale,
+            spec.bossTier,
+            spec.splitDepth,
+            spec.sourceWave
+        )
         // F5 Hollow Shell: temporary armor shell absorbs first hits
         if (spec.kind == EnemyKind.HOLLOW_SHELL) {
             enemy.shellBuffer = enemy.maxHealth * 0.45f
@@ -966,6 +1086,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun triggerTrapIfNeeded(enemy: Enemy) {
         val pathIndex = min(max(0, (enemy.progress + 0.25f).toInt()), pathCells.size - 1)
         val cell = pathCells[pathIndex]
+        var destroyAfterTrigger: SpikeTrap? = null
         for (trap in traps) {
             if (trap.col != cell.col || trap.row != cell.row) continue
             if (trap.jamTimer > 0f) continue
@@ -973,7 +1094,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val maxTriggers = 1 + perkCount(ForgePerk.DOUBLE_TRIGGER) + if (beaconRelay) 1 else 0
             val triggers = enemy.trapTriggerCounts[trap.id] ?: 0
             if (triggers >= maxTriggers) continue
-            // F1 Sapper: after 2 trap hits this life, skip further traps
+            // F1 Sapper: after 2 sabotaged traps this life, skip further traps
             if (enemy.kind == EnemyKind.SAPPER && enemy.sapperTraps >= 2) continue
             enemy.trapTriggerCounts[trap.id] = triggers + 1
             if (enemy.kind == EnemyKind.SAPPER) enemy.sapperTraps += 1
@@ -1024,7 +1145,36 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             burst(enemy.x, enemy.y, trap.kind.accent, if (trap.kind == TrapKind.CRUSHER) 15 else 9, 0.9f)
             audio.play("dig", 0.32f, 1.18f + trap.kind.ordinal * 0.04f)
+            // Sappers use the trap as a breach point, then remove it. Defer the removal until
+            // after the loop so the ArrayList is never mutated while it is being iterated.
+            if (enemy.kind == EnemyKind.SAPPER && enemy.targetable) destroyAfterTrigger = trap
         }
+        destroyAfterTrigger?.let { trap ->
+            destroyTrap(
+                trap,
+                "SAPPER SABOTAGED  ${trap.kind.title.uppercase()}",
+                EnemyKind.SAPPER.color
+            )
+        }
+    }
+
+    private fun breakTrapUnderStalledEnemy(enemy: Enemy) {
+        if ((!enemy.kind.elite && !enemy.kind.boss) || enemy.stuckTimer < ELITE_TRAP_BREAK_DELAY) return
+        val pathIndex = min(max(0, (enemy.progress + 0.25f).toInt()), pathCells.size - 1)
+        val cell = pathCells[pathIndex]
+        val trap = traps.firstOrNull { it.col == cell.col && it.row == cell.row } ?: return
+        val title = if (enemy.kind.boss) "BOSS" else "ELITE"
+        destroyTrap(trap, "$title  ${enemy.kind.title.uppercase()} BROKE ${trap.kind.title.uppercase()}", enemy.kind.color)
+        enemy.stuckTimer = 0f
+    }
+
+    private fun destroyTrap(trap: SpikeTrap, message: String, effectColor: Int) {
+        if (!traps.remove(trap)) return
+        if (selectedTrap === trap) selectedTrap = null
+        floatingLabels.add(FloatingLabel("TRAP BROKEN", trap.col + 0.5f, trap.row + 0.18f, effectColor, life = 0.9f, pop = 1.3f))
+        burst(trap.col + 0.5f, trap.row + 0.5f, effectColor, 16, 1.0f)
+        setBanner(message, 1.8f)
+        audio.play("dig", 0.42f, 0.62f)
     }
 
     private fun effectiveTrapDamage(trap: SpikeTrap): Float {
@@ -1582,7 +1732,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             audio.play("enemy_down", if (enemy.kind.boss) 0.65f else 0.22f, if (enemy.kind.boss) 0.65f else 1.05f)
             if (enemy.kind == EnemyKind.SPLITLING && enemy.splitDepth < 1) {
                 repeat(2) {
-                    val child = Enemy(nextEnemyId++, EnemyKind.MOSSER, enemy.healthScale * 0.34f, min(1.7f, enemy.speedScale * 1.3f), 0.32f, splitDepth = 1)
+                    val child = Enemy(nextEnemyId++, EnemyKind.MOSSER, enemy.healthScale * 0.34f, min(1.7f, enemy.speedScale * 1.3f), 0.32f, splitDepth = 1, sourceWave = enemy.sourceWave)
                     child.progress = max(0f, enemy.progress - it * 0.12f)
                     updateEnemyPosition(child)
                     pendingSpawns.add(child)
@@ -1648,39 +1798,89 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         floatingLabels.removeAll { it.life <= 0f }
     }
 
-    private fun completeWave() {
-        var reward = min(250_000L, 45L + waveNumber.toLong() * 13L).toInt()
+    /**
+     * Resolve wave ownership independently of the flat spawn queue. A player can launch wave N+1
+     * while N is still alive, so the queue and the enemy list may contain several waves at once.
+     */
+    private fun processClearedWaves() {
+        if (phase != GamePhase.WAVE) return
+        val clearedWaves = activeWaveNumbers.filter { sourceWave ->
+            val lastQueuedIndex = waveQueue.indexOfLast { it.sourceWave == sourceWave }
+            lastQueuedIndex >= 0 &&
+                spawnIndex > lastQueuedIndex &&
+                enemies.none { it.sourceWave == sourceWave } &&
+                pendingSpawns.none { it.sourceWave == sourceWave }
+        }
+        for (sourceWave in clearedWaves) completeWave(sourceWave)
+
+        if (phase == GamePhase.WAVE && activeWaveNumbers.isEmpty() &&
+            spawnIndex >= waveQueue.size && enemies.isEmpty() &&
+            pendingSpawns.isEmpty() && projectiles.isEmpty()
+        ) {
+            finishWaveStack()
+        }
+    }
+
+    private fun completeWave(completedWave: Int) {
+        if (!activeWaveNumbers.remove(completedWave)) return
+        lastClearedWave = max(lastClearedWave, completedWave)
+
+        var reward = min(250_000L, 45L + completedWave.toLong() * 13L).toInt()
         reward = (reward * (1f + perkCount(ForgePerk.COMPOUND_BLOCKS) * 0.20f)).toInt()
-        if (perkCount(ForgePerk.LONG_ROAD_DIVIDEND) > 0) reward = safeAdd(reward, max(0, pathCells.size - 12) * 3 * perkCount(ForgePerk.LONG_ROAD_DIVIDEND))
+        if (perkCount(ForgePerk.LONG_ROAD_DIVIDEND) > 0) {
+            reward = safeAdd(reward, max(0, pathCells.size - 12) * 3 * perkCount(ForgePerk.LONG_ROAD_DIVIDEND))
+        }
         val utilityIncome = processUtilityWaveClear()
         gold = safeAdd(gold, safeAdd(reward, utilityIncome))
         score = safeAdd(score, reward * 5 + utilityIncome * 3)
         if (surveyLensWaves > 0) surveyLensWaves -= 1
-        if (waveNumber % 5 == 0 && perkCount(ForgePerk.CORE_REGENERATION) > 0) lives = min(maxCore, lives + perkCount(ForgePerk.CORE_REGENERATION))
-        if (waveNumber % 10 == 0) {
-            val tier = waveNumber / 10
+        if (completedWave % 5 == 0 && perkCount(ForgePerk.CORE_REGENERATION) > 0) {
+            lives = min(maxCore, lives + perkCount(ForgePerk.CORE_REGENERATION))
+        }
+        if (completedWave % 10 == 0) {
+            val tier = completedWave / 10
             lives = min(maxCore, lives + 1)
             forgeCharges = safeAdd(forgeCharges, 6 + tier * 2 + perkCount(ForgePerk.FORGE_MASTERY) * 2 + perkCount(ForgePerk.BOSS_HARVEST) * 3)
             evolutionCores = safeAdd(evolutionCores, 1 + perkCount(ForgePerk.BOSS_HARVEST))
-            spreadBossCorruption(tier)
+            spreadBossCorruption(tier, completedWave)
             activateBossCycleUtilities()
             setBanner("BOSS BROKEN  +${safeAdd(reward, utilityIncome)} BLOCKS  +${6 + tier * 2} FORGE", 3.0f)
         } else {
-            setBanner("WAVE $waveNumber CLEARED  +${safeAdd(reward, utilityIncome)} BLOCKS", 2.4f)
-        if (routeOilWaves > 0) routeOilWaves -= 1
+            setBanner("WAVE $completedWave CLEARED  +${safeAdd(reward, utilityIncome)} BLOCKS", 2.4f)
         }
+        if (routeOilWaves > 0) routeOilWaves -= 1
+        if (completedWave % 5 == 0) pendingPerkWaves.add(completedWave)
+
         selectedTower = null
         selectedTrap = null
         selectedUtility = null
         selectedCorruption = null
-        updateRecords()
+        updateRecords(completedWave)
         audio.play("build", 0.45f, 1.14f)
-        if (waveNumber % 5 == 0) {
-            generatePerkChoices()
+
+        if (activeWaveNumbers.isNotEmpty()) {
+            setBanner("WAVE $completedWave CLEARED  •  ${activeWaveNumbers.size} WAVE(S) STILL LIVE", 2.2f)
+        }
+    }
+
+    private fun finishWaveStack() {
+        if (phase != GamePhase.WAVE || activeWaveNumbers.isNotEmpty()) return
+        // Do not retain every completed wave's spawn specs during an endless run.
+        waveQueue.clear()
+        spawnIndex = 0
+        spawnTimer = 0f
+
+        if (pendingPerkWaves.isNotEmpty()) {
+            val draftWave = pendingPerkWaves.removeAt(0)
+            generatePerkChoices(draftWave)
+            nextWaveTimer = -1f
             phase = GamePhase.PERK_DRAFT
+            setBanner("WAVE $draftWave REWARD READY  •  CHOOSE YOUR FORGE PERK", 2.8f)
             saveRun()
         } else {
             phase = GamePhase.BUILD
+            nextWaveTimer = AUTO_NEXT_WAVE_DELAY
+            setBanner("WAVE $lastClearedWave CLEARED  •  NEXT WAVE IN 10S", 2.8f)
             saveRun()
         }
     }
@@ -1691,7 +1891,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (utility.disabledTimer > 0f) continue
             when (utility.kind) {
                 UtilityKind.BLOCK_GENERATOR -> {
-                    val base = when (utility.level) { 1 -> 18; 2 -> 30; else -> 45 }
+                    val base = utility.blockOutput()
                     val adjacentRoute = pathCells.count { abs(it.col - utility.col) + abs(it.row - utility.row) == 1 }
                     val outputScale = (if (utility.imbuement == Imbuement.MIGHT) 1.15f else 1f) * (if (utility.imbuement == Imbuement.TEMPO) 1.10f else 1f)
                     var produced = ((base + min(3, adjacentRoute) * 3) * outputScale).toInt()
@@ -1758,10 +1958,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
-    private fun generatePerkChoices() {
+    private fun generatePerkChoices(forWave: Int) {
         perkChoices.clear()
         val pool = ForgePerk.values().toMutableList()
-        val choiceRandom = Random(runSeed xor (waveNumber.toLong() * 0x5DEECE66DL))
+        val choiceRandom = Random(runSeed xor (forWave.toLong() * 0x5DEECE66DL))
         while (perkChoices.size < 3 && pool.isNotEmpty()) {
             val index = choiceRandom.nextInt(pool.size)
             perkChoices.add(pool.removeAt(index))
@@ -1779,17 +1979,27 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             ForgePerk.FORGE_MASTERY -> forgeCharges = safeAdd(forgeCharges, 3)
             else -> Unit
         }
-        phase = GamePhase.BUILD
-        setBanner("FORGE PERK  ${perk.title.uppercase()}", 2.5f)
+        perkChoices.clear()
+        if (pendingPerkWaves.isNotEmpty()) {
+            val draftWave = pendingPerkWaves.removeAt(0)
+            generatePerkChoices(draftWave)
+            nextWaveTimer = -1f
+            phase = GamePhase.PERK_DRAFT
+            setBanner("WAVE $draftWave REWARD READY  •  CHOOSE YOUR FORGE PERK", 2.8f)
+        } else {
+            phase = GamePhase.BUILD
+            nextWaveTimer = AUTO_NEXT_WAVE_DELAY
+            setBanner("FORGE PERK  ${perk.title.uppercase()}  •  NEXT WAVE IN 10S", 2.8f)
+        }
         saveRun()
         audio.play("build", 0.60f, 1.22f)
     }
 
-    private fun spreadBossCorruption(tier: Int) {
+    private fun spreadBossCorruption(tier: Int, sourceWave: Int) {
         var count = min(6, 2 + tier)
         if (challengeModifier == ChallengeModifier.DOUBLE_CORRUPTION) count *= 2
         count = max(1, count - perkCount(ForgePerk.CORRUPTION_WARD))
-        val corruptionRandom = Random(runSeed xor (waveNumber.toLong() * 7919L))
+        val corruptionRandom = Random(runSeed xor (sourceWave.toLong() * 7919L))
         val kinds = CorruptionKind.values()
         repeat(count) {
             val kind = kinds[corruptionRandom.nextInt(kinds.size)]
@@ -1812,6 +2022,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun finishRun(victory: Boolean) {
         phase = if (victory) GamePhase.VICTORY else GamePhase.GAME_OVER
+        activeWaveNumbers.clear()
+        pendingPerkWaves.clear()
+        waveQueue.clear()
+        spawnIndex = 0
+        nextWaveTimer = -1f
         selectedTower = null
         selectedTrap = null
         selectedUtility = null
@@ -1820,17 +2035,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         clearSavedRun()
     }
 
-    private fun updateRecords() {
+    private fun updateRecords(clearedWave: Int = waveNumber) {
         val editor = preferences.edit()
         if (gameMode == GameMode.ENDLESS) {
             if (score > bestScore) { bestScore = score; editor.putInt("best_score", bestScore) }
-            if (waveNumber > bestWave) { bestWave = waveNumber; editor.putInt("best_wave", bestWave) }
+            if (clearedWave > bestWave) { bestWave = clearedWave; editor.putInt("best_wave", bestWave) }
         } else if (gameMode == GameMode.DAILY) {
             if (score > bestDailyScore) { bestDailyScore = score; editor.putInt("best_daily_score", bestDailyScore) }
-            if (waveNumber > bestDailyWave) { bestDailyWave = waveNumber; editor.putInt("best_daily_wave", bestDailyWave) }
+            if (clearedWave > bestDailyWave) { bestDailyWave = clearedWave; editor.putInt("best_daily_wave", bestDailyWave) }
         } else {
             if (score > bestCustomScore) { bestCustomScore = score; editor.putInt("best_custom_score", bestCustomScore) }
-            if (waveNumber > bestCustomWave) { bestCustomWave = waveNumber; editor.putInt("best_custom_wave", bestCustomWave) }
+            if (clearedWave > bestCustomWave) { bestCustomWave = clearedWave; editor.putInt("best_custom_wave", bestCustomWave) }
         }
         editor.apply()
     }
@@ -1838,11 +2053,27 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun startWave() {
         if (phase != GamePhase.BUILD || !pathComplete) return
         saveRun()
-        waveNumber += 1
-        waveQueue.clear()
-        buildWaveQueue(waveNumber)
-        spawnIndex = 0
-        spawnTimer = 0.25f
+        launchWave(waveNumber + 1, stacked = false)
+    }
+
+    /** Launch another wave without stopping the current wave; this is the manual stack action. */
+    private fun stackNextWave() {
+        if (phase != GamePhase.WAVE || !pathComplete || activeWaveNumbers.isEmpty()) return
+        launchWave(waveNumber + 1, stacked = true)
+    }
+
+    private fun launchWave(nextWave: Int, stacked: Boolean) {
+        if (!stacked) {
+            activeWaveNumbers.clear()
+            waveQueue.clear()
+            spawnIndex = 0
+            spawnTimer = 0f
+        }
+        nextWaveTimer = -1f
+        waveNumber = nextWave
+        buildWaveQueue(nextWave)
+        if (!stacked) spawnTimer = 0.25f else if (spawnTimer <= 0f) spawnTimer = 0.05f
+        activeWaveNumbers.add(nextWave)
         selectedTower = null
         selectedTrap = null
         selectedCorruption = null
@@ -1850,28 +2081,33 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (tower in towers) if (tower.imbuement == Imbuement.SURGE) tower.surgeCharges = 3
         for (trap in traps) if (trap.imbuement == Imbuement.SURGE) trap.surgeCharges = 3
         val message = when {
-            waveNumber % 10 == 0 -> {
-                val tier = waveNumber / 10
+            nextWave % 10 == 0 -> {
+                val tier = nextWave / 10
                 val bossName = when {
-                    waveNumber % 30 == 0 -> "MUTATED OVERGROWTH"
-                    tier % 3 == 1 -> "IRON MONARCH"
-                    tier % 3 == 2 -> "SPORE SOVEREIGN"
+                    nextWave % 30 == 0 -> "MUTATED OVERGROWTH"
+                    tier % 5 == 1 -> "IRON MONARCH"
+                    tier % 5 == 2 -> "SPORE SOVEREIGN"
+                    tier % 5 == 3 -> "TIDAL ROOT"
+                    tier % 5 == 4 -> "ASHEN CHOIR"
                     else -> "MUTATED OVERGROWTH"
                 }
                 "$bossName  TIER $tier"
             }
-            waveNumber % 5 == 0 -> "ELITE SIGNAL  $waveTheme"
-            else -> "WAVE $waveNumber  $waveTheme"
+            nextWave % 5 == 0 -> "ELITE SIGNAL  $waveTheme"
+            else -> "WAVE $nextWave  $waveTheme"
         }
-        setBanner(message, 2.4f)
-        audio.play("wave", 0.65f, if (waveNumber % 10 == 0) 0.78f else 1f)
+        setBanner(if (stacked) "STACKED  $message" else message, 2.4f)
+        audio.play("wave", 0.65f, if (nextWave % 10 == 0) 0.78f else 1f)
     }
 
     private fun buildWaveQueue(wave: Int) {
+        // v1.4.2 pressure pass: more bodies, a steeper health curve, faster deployment, and
+        // earlier second elites. This keeps the first several loops from being free clears while
+        // still rewarding the player with a matching economy curve.
         val healthScale = waveHealthScale(wave)
-        val speedScale = min(1.42f, 1f + wave * 0.006f)
-        val rewardScale = min(16f, 1f + wave * 0.075f)
-        val regularCount = min(36, 6 + wave / 2)
+        val speedScale = min(1.62f, 1f + wave * 0.0085f)
+        val rewardScale = min(20f, 1f + wave * 0.085f)
+        val regularCount = min(54, 8 + (wave * 0.65f).toInt())
         val regulars = arrayOf(
             EnemyKind.MOSSER, EnemyKind.RUNNER, EnemyKind.BRUTE, EnemyKind.SHELLBACK, EnemyKind.SPLITLING,
             EnemyKind.SAPPER, EnemyKind.MYCELIAL, EnemyKind.NEEDLEFLY, EnemyKind.GLOOMKIN, EnemyKind.CARRION_HULK
@@ -1935,12 +2171,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 else -> regulars[(index * 3 + wave + seedOffset) % regulars.size]
             }
             val speedMul = when (kind) {
+                EnemyKind.SAPPER -> 1.06f
                 EnemyKind.RUNNER, EnemyKind.NEEDLEFLY, EnemyKind.BRIAR_MITE, EnemyKind.DRIFT_SEED -> 1.03f
                 else -> 1f
             }
-            waveQueue.add(SpawnSpec(kind, healthScale, speedScale * speedMul, rewardScale))
+            waveQueue.add(SpawnSpec(kind, healthScale, speedScale * speedMul, rewardScale, sourceWave = wave))
         }
-        if (wave % 8 == 5 && wave % 5 != 0) waveQueue.add(min(waveQueue.size, waveQueue.size * 2 / 3), SpawnSpec(EnemyKind.HEX_WEAVER, healthScale * 0.34f, speedScale, rewardScale * 0.55f))
+        if (wave % 8 == 5 && wave % 5 != 0) waveQueue.add(min(waveQueue.size, waveQueue.size * 2 / 3), SpawnSpec(EnemyKind.HEX_WEAVER, healthScale * 0.34f, speedScale, rewardScale * 0.55f, sourceWave = wave))
         if (wave % 5 == 0) {
             val elites = arrayOf(
                 EnemyKind.IRONHIDE, EnemyKind.BLINK_STALKER, EnemyKind.ROOTCALLER, EnemyKind.HEX_WEAVER,
@@ -1948,8 +2185,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             )
             val eliteKind = elites[((wave / 5) - 1 + seedOffset) % elites.size]
             val insertAt = min(waveQueue.size, waveQueue.size * 2 / 3)
-            waveQueue.add(insertAt, SpawnSpec(eliteKind, healthScale * 0.72f, speedScale, rewardScale * 1.1f))
-            if (wave >= 30) waveQueue.add(min(waveQueue.size, insertAt + 5), SpawnSpec(elites[((wave / 5) + 1 + seedOffset) % elites.size], healthScale * 0.58f, speedScale, rewardScale))
+            waveQueue.add(insertAt, SpawnSpec(eliteKind, healthScale * 0.72f, speedScale, rewardScale * 1.1f, sourceWave = wave))
+            if (wave >= 20) waveQueue.add(min(waveQueue.size, insertAt + 5), SpawnSpec(elites[((wave / 5) + 1 + seedOffset) % elites.size], healthScale * 0.58f, speedScale, rewardScale, sourceWave = wave))
         }
         if (wave % 10 == 0) {
             val tier = wave / 10
@@ -1962,10 +2199,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 tier % 5 == 4 -> EnemyKind.ASHEN_CHOIR
                 else -> EnemyKind.OVERGROWTH
             }
-            waveQueue.add(SpawnSpec(bossKind, healthScale * (0.78f + min(1.2f, tier * 0.05f)), min(1.28f, speedScale), rewardScale * 1.3f, tier))
+            waveQueue.add(SpawnSpec(bossKind, healthScale * (0.90f + min(1.45f, tier * 0.065f)), min(1.36f, speedScale), rewardScale * 1.3f, tier, sourceWave = wave))
         }
         val broodCount = corruptions.count { it.kind == CorruptionKind.BROOD_NEST }
-        repeat(min(18, broodCount)) { waveQueue.add(min(waveQueue.size, 2 + it), SpawnSpec(EnemyKind.SPLITLING, healthScale * 0.28f, speedScale * 1.12f, rewardScale * 0.25f, splitDepth = 1)) }
+        repeat(min(18, broodCount)) { waveQueue.add(min(waveQueue.size, 2 + it), SpawnSpec(EnemyKind.SPLITLING, healthScale * 0.28f, speedScale * 1.12f, rewardScale * 0.25f, splitDepth = 1, sourceWave = wave)) }
     }
 
     private fun surveyAvailable(): Boolean = surveyLensWaves > 0 || utilities.any { it.kind == UtilityKind.SURVEYOR_STATION }
@@ -1994,7 +2231,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun waveHealthScale(wave: Int): Float {
         val exponentialWave = min(80, max(0, wave - 1))
         val tail = max(0, wave - 81)
-        return min(1_000_000_000f, 1.085.pow(exponentialWave.toDouble()).toFloat() * (1f + min(100_000, tail) * 0.055f))
+        return min(1_000_000_000f, 1.095.pow(exponentialWave.toDouble()).toFloat() * (1f + min(100_000, tail) * 0.060f))
     }
 
     private fun perkCount(perk: ForgePerk): Int = perks[perk] ?: 0
@@ -2061,7 +2298,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         return max(1, cost)
     }
 
-    private fun utilityCapacity(): Int = 4
+    // There is intentionally no global utility capacity in v1.4.2. Free terrain and cost remain
+    // meaningful limits; each kind is unique except for the five-structure Block Generator cap.
 
     private fun workshopLevel(): Int = utilities.filter { it.kind == UtilityKind.FORGE_WORKSHOP }.map { it.level }.maxOrNull() ?: 0
 
@@ -2164,6 +2402,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val corruptionData = corruptions.joinToString(";") { "${it.id},${it.cell.col},${it.cell.row},${it.kind.name}" }
         val perkData = perks.entries.joinToString(";") { "${it.key.name},${it.value}" }
         val pendingPerkData = if (phase == GamePhase.PERK_DRAFT) perkChoices.joinToString(",") { it.name } else ""
+        val pendingPerkWavesData = pendingPerkWaves.joinToString(",")
+        val savedNextWaveTimer = if (phase == GamePhase.BUILD || (phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.BUILD)) nextWaveTimer else -1f
         val inventoryData = storedTraps.joinToString(";") { "${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"}" }
         val supplyData = supplies.entries.filter { it.value > 0 }.joinToString(";") { "${it.key.name},${it.value}" }
         preferences.edit()
@@ -2176,6 +2416,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             .putString("run_corruptions", corruptionData)
             .putString("run_perks", perkData)
             .putString("run_pending_perks", pendingPerkData)
+            .putString("run_pending_perk_waves", pendingPerkWavesData)
+            .putFloat("run_next_wave_timer", savedNextWaveTimer)
             .putString("run_inventory", inventoryData)
             .putString("run_supplies", supplyData)
             .putInt("run_gold", gold)
@@ -2234,12 +2476,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 traps.add(trap)
             }
             utilities.clear()
-            preferences.getString("run_utilities", "").orEmpty().split(';').filter { it.isNotBlank() }.take(utilityCapacity()).forEach {
+            // Utilities no longer have a four-structure global cap. The board and placement
+            // rules still protect the save from impossible coordinates/collisions.
+            preferences.getString("run_utilities", "").orEmpty().split(';').filter { it.isNotBlank() }.take(COLS * ROWS).forEach {
                 val values = it.split(',')
                 val col = values[0].toInt()
                 val row = values[1].toInt()
                 if (col !in 0 until COLS || row !in 0 until ROWS) throw IllegalStateException("Invalid utility cell")
-                val utility = Utility(col, row, UtilityKind.valueOf(values[2]))
+                val kind = UtilityKind.valueOf(values[2])
+                if (kind == UtilityKind.BLOCK_GENERATOR && utilities.count { it.kind == kind } >= MAX_BLOCK_GENERATORS) return@forEach
+                val utility = Utility(col, row, kind)
                 utility.level = values[3].toInt().coerceIn(1, 3)
                 utility.imbuement = if (values.size >= 5 && values[4] != "NONE") Imbuement.valueOf(values[4]) else null
                 utility.productionProgress = if (values.size >= 6) values[5].toInt().coerceIn(0, 20) else 0
@@ -2261,6 +2507,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             perkChoices.clear()
             preferences.getString("run_pending_perks", "").orEmpty().split(',').filter { it.isNotBlank() }.take(3).forEach { perkChoices.add(ForgePerk.valueOf(it)) }
+            pendingPerkWaves.clear()
+            preferences.getString("run_pending_perk_waves", "").orEmpty().split(',').filter { it.isNotBlank() }.take(32).forEach { pendingPerkWaves.add(it.toInt().coerceAtLeast(1)) }
             storedTraps.clear()
             val saveVersion = preferences.getInt("run_save_version", 1)
             preferences.getString("run_inventory", "").orEmpty().split(';').filter { it.isNotBlank() }.take(20).forEach {
@@ -2286,6 +2534,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             lives = preferences.getInt("run_lives", STARTING_CORE).coerceIn(1, maxCore)
             score = preferences.getInt("run_score", 0).coerceIn(0, 2_000_000_000)
             waveNumber = preferences.getInt("run_wave", 0).coerceIn(0, 2_000_000_000)
+            lastClearedWave = waveNumber
+            nextWaveTimer = preferences.getFloat("run_next_wave_timer", if (waveNumber > 0) AUTO_NEXT_WAVE_DELAY else -1f).coerceIn(-1f, AUTO_NEXT_WAVE_DELAY)
             forgeCharges = preferences.getInt("run_forge_charges", 0).coerceIn(0, 2_000_000_000)
             evolutionCores = preferences.getInt("run_evolution_cores", 0).coerceIn(0, 2_000_000_000)
             salvageParts = preferences.getInt("run_salvage_parts", 0).coerceIn(0, 2_000_000_000)
@@ -2303,6 +2553,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             impactEffects.clear()
             floatingLabels.clear()
             waveQueue.clear()
+            activeWaveNumbers.clear()
             pathComplete = true
             selectedTool = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildTool.SPIKES else BuildTool.BOLT
             selectedTower = null
@@ -2314,6 +2565,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             buildPage = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildPage.TRAPS else BuildPage.TOWERS
             rebuildToolRects()
             phase = if (perkChoices.size == 3) GamePhase.PERK_DRAFT else GamePhase.BUILD
+            if (phase != GamePhase.BUILD) nextWaveTimer = -1f
             setBanner(if (phase == GamePhase.PERK_DRAFT) "CHOOSE YOUR FORGE PERK" else "RUN RESTORED  WAVE ${waveNumber + 1} AWAITS", 3f)
             audio.play("build", 0.50f, 1.05f)
         } catch (_: Exception) {
@@ -2332,7 +2584,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun clearSavedRun() {
         val editor = preferences.edit()
-        arrayOf("run_path", "run_towers", "run_traps", "run_utilities", "run_corruptions", "run_perks", "run_pending_perks", "run_inventory", "run_supplies", "run_gold", "run_lives", "run_max_core", "run_score", "run_wave", "run_forge_charges", "run_evolution_cores", "run_salvage_parts", "run_growth_essence", "run_survey_lens_waves", "run_phase_barrier", "run_mode", "run_modifier", "run_seed", "run_save_version").forEach { editor.remove(it) }
+        arrayOf("run_path", "run_towers", "run_traps", "run_utilities", "run_corruptions", "run_perks", "run_pending_perks", "run_pending_perk_waves", "run_next_wave_timer", "run_inventory", "run_supplies", "run_gold", "run_lives", "run_max_core", "run_score", "run_wave", "run_forge_charges", "run_evolution_cores", "run_salvage_parts", "run_growth_essence", "run_survey_lens_waves", "run_phase_barrier", "run_mode", "run_modifier", "run_seed", "run_save_version").forEach { editor.remove(it) }
         editor.putBoolean("has_saved_run", false).apply()
         savedRunAvailable = false
     }
@@ -2374,11 +2626,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         impactEffects.clear()
         floatingLabels.clear()
         waveQueue.clear()
+        activeWaveNumbers.clear()
+        pendingPerkWaves.clear()
         gold = STARTING_BLOCKS
         maxCore = if (challengeModifier == ChallengeModifier.FRAGILE_CORE) 5 else STARTING_CORE
         lives = maxCore
         score = 0
         waveNumber = 0
+        lastClearedWave = 0
+        nextWaveTimer = -1f
         nextEnemyId = 1
         nextTrapId = 1
         nextCorruptionId = 1
@@ -2406,16 +2662,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun startDailyChallenge() {
+        endSeedInput()
         val calendar = Calendar.getInstance()
         val seed = calendar.get(Calendar.YEAR).toLong() * 10000L + (calendar.get(Calendar.MONTH) + 1).toLong() * 100L + calendar.get(Calendar.DAY_OF_MONTH).toLong()
         newRun(GameMode.DAILY, seed, modifierForSeed(seed))
     }
 
     private fun startCustomChallenge() {
-        var seed = 0L
-        for (digit in challengeDigits) seed = seed * 10L + digit
-        if (seed == 0L) seed = 1L
-        newRun(GameMode.CUSTOM, seed, modifierForSeed(seed))
+        if (phase != GamePhase.CHALLENGE_MENU) return
+        synchronized(stateLock) {
+            if (phase != GamePhase.CHALLENGE_MENU) return@synchronized
+            endSeedInput()
+            val seed = customSeedValue()
+            newRun(GameMode.CUSTOM, seed, modifierForSeed(seed))
+        }
     }
 
     private fun modifierForSeed(seed: Long): ChallengeModifier {
@@ -2486,6 +2746,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         pathComplete = false
         diggingGesture = false
         phase = GamePhase.DIG
+        activeWaveNumbers.clear()
+        pendingPerkWaves.clear()
+        nextWaveTimer = -1f
         selectedTool = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildTool.SPIKES else BuildTool.DIG
         selectedTower = null
         selectedTrap = null
@@ -2508,6 +2771,95 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         bannerDuration = max(0.35f, duration)
         bannerTimer = bannerDuration
     }
+
+    private fun persistCustomSeed() {
+        preferences.edit().putString("custom_seed_text", customSeedText).apply()
+    }
+
+    private fun sanitizeSeedInput(value: String): String = value.filter { it in '0'..'9' }
+
+    private fun commitSeedInput(value: String) {
+        synchronized(stateLock) {
+            val clean = sanitizeSeedInput(value)
+            if (clean.isEmpty()) return
+            var prefix = customSeedText
+            if (seedComposingText.isNotEmpty() && prefix.endsWith(seedComposingText)) prefix = prefix.dropLast(seedComposingText.length)
+            if (seedInputReplaceOnNextInput) {
+                prefix = ""
+                seedInputReplaceOnNextInput = false
+            }
+            seedComposingText = ""
+            customSeedText = (prefix + clean.take((MAX_SEED_CHARACTERS - prefix.length).coerceAtLeast(0))).take(MAX_SEED_CHARACTERS)
+            persistCustomSeed()
+            invalidate()
+        }
+    }
+
+    private fun updateSeedComposition(value: String) {
+        synchronized(stateLock) {
+            val clean = sanitizeSeedInput(value)
+            if (clean.isEmpty() && seedComposingText.isEmpty()) return
+            var prefix = customSeedText
+            if (seedComposingText.isNotEmpty() && prefix.endsWith(seedComposingText)) prefix = prefix.dropLast(seedComposingText.length)
+            if (seedInputReplaceOnNextInput && clean.isNotEmpty()) {
+                prefix = ""
+                seedInputReplaceOnNextInput = false
+            }
+            seedComposingText = clean.take((MAX_SEED_CHARACTERS - prefix.length).coerceAtLeast(0))
+            customSeedText = (prefix + seedComposingText).take(MAX_SEED_CHARACTERS)
+            persistCustomSeed()
+            invalidate()
+        }
+    }
+
+    private fun deleteSeedInput(count: Int) {
+        synchronized(stateLock) {
+            if (seedInputReplaceOnNextInput) {
+                customSeedText = ""
+                seedInputReplaceOnNextInput = false
+                seedComposingText = ""
+            } else if (seedComposingText.isNotEmpty()) {
+                customSeedText = customSeedText.dropLast(seedComposingText.length)
+                seedComposingText = ""
+            } else {
+                customSeedText = customSeedText.dropLast(count.coerceAtMost(customSeedText.length))
+            }
+            persistCustomSeed()
+            invalidate()
+        }
+    }
+
+    private fun beginSeedInput() {
+        if (phase != GamePhase.CHALLENGE_MENU) return
+        seedInputActive = true
+        seedInputReplaceOnNextInput = true
+        seedComposingText = ""
+        requestFocus()
+        post {
+            if (!seedInputActive || phase != GamePhase.CHALLENGE_MENU) return@post
+            val inputManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            inputManager?.restartInput(this)
+            inputManager?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+        }
+        invalidate()
+    }
+
+    private fun endSeedInput() {
+        seedInputActive = false
+        seedInputReplaceOnNextInput = false
+        seedComposingText = ""
+        val inputManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        inputManager?.hideSoftInputFromWindow(windowToken, 0)
+        clearFocus()
+        invalidate()
+    }
+
+    private fun customSeedValue(): Long {
+        val value = customSeedText.toLongOrNull() ?: 0L
+        return if (value == 0L) 1L else value
+    }
+
+    private fun nextWaveCountdownSeconds(): Int = max(1, (nextWaveTimer + 0.99f).toInt())
 
     private fun burst(x: Float, y: Float, color: Int, count: Int, force: Float) {
         repeat(count) {
@@ -2559,8 +2911,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     when {
                         challengeDailyRect.contains(x, y) -> startDailyChallenge()
                         challengeSeedStartRect.contains(x, y) -> startCustomChallenge()
-                        challengeBackRect.contains(x, y) -> phase = GamePhase.TITLE
-                        else -> seedDigitRects.forEachIndexed { index, rect -> if (rect.contains(x, y)) challengeDigits[index] = (challengeDigits[index] + 1) % 10 }
+                        challengeBackRect.contains(x, y) -> {
+                            endSeedInput()
+                            phase = GamePhase.TITLE
+                        }
+                        seedInputRect.contains(x, y) -> beginSeedInput()
                     }
                 }
                 return true
@@ -2613,6 +2968,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     audio.toggle()
                     return true
                 }
+                if (feedbackToggleRect.contains(x, y)) {
+                    feedbackEnabled = !feedbackEnabled
+                    preferences.edit().putBoolean("feedback_enabled", feedbackEnabled).apply()
+                    if (feedbackEnabled) setBanner("FEEDBACK TEXT ON", 1.4f) else bannerTimer = 0f
+                    return true
+                }
                 if (resetPathRect.contains(x, y)) {
                     if (phase == GamePhase.REFORGE) cancelReforge()
                     else if (phase == GamePhase.BUILD && waveNumber == 0) resetPath()
@@ -2620,7 +2981,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     return true
                 }
                 if (primaryActionRect.contains(x, y)) {
-                    if (phase == GamePhase.BUILD) startWave() else if (phase == GamePhase.REFORGE) confirmReforge()
+                    when (phase) {
+                        GamePhase.BUILD -> startWave()
+                        GamePhase.REFORGE -> confirmReforge()
+                        GamePhase.WAVE -> stackNextWave()
+                        else -> Unit
+                    }
                     return true
                 }
             }
@@ -2708,6 +3074,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     clearBuildSelections()
                     selectedUtilityKind = entry.first
                     audio.play("ui_click", 0.28f, 1.04f)
+                    val kind = entry.first
+                    val status = if (kind == UtilityKind.BLOCK_GENERATOR) " • ${utilities.count { it.kind == kind }}/$MAX_BLOCK_GENERATORS ACTIVE" else ""
+                    setBanner("${kind.title.uppercase()}  •  ${kind.description}$status", 2.8f)
                     return true
                 }
                 for (entry in cacheRects) if (entry.second.contains(x, y)) {
@@ -2759,6 +3128,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         clearBuildSelections()
         selectedTool = tool
         audio.play("ui_click", 0.28f, 1f + tool.ordinal * 0.025f)
+        setBanner("${tool.title.uppercase()}  •  ${toolDescription(tool)}", 2.8f)
     }
 
     private fun extendPath(cell: GridCell) {
@@ -2828,6 +3198,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedUtility = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 1.12f)
+            setBanner("${existingTower.kind.title.uppercase()}  •  ${existingTower.kind.description}", 2.8f)
             return
         }
         val existingUtility = findUtility(cell.col, cell.row)
@@ -2837,6 +3208,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedTrap = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 0.92f)
+            val status = if (existingUtility.kind == UtilityKind.BLOCK_GENERATOR) " • ${utilities.count { it.kind == existingUtility.kind }}/$MAX_BLOCK_GENERATORS ACTIVE" else ""
+            setBanner("${existingUtility.kind.title.uppercase()}  •  ${existingUtility.kind.description}$status", 2.8f)
             return
         }
         val existingTrap = findTrap(cell.col, cell.row)
@@ -2846,6 +3219,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedUtility = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 1.06f)
+            setBanner("${existingTrap.kind.title.uppercase()}  •  ${existingTrap.kind.description}", 2.8f)
             return
         }
         if (phase != GamePhase.BUILD) return
@@ -3045,13 +3419,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("DEFEAT THE FIRST OVERGROWTH TO UNLOCK", 1.8f)
             return
         }
-        if (utilities.size >= utilityCapacity()) {
-            setBanner("UTILITY CAPACITY ${utilityCapacity()} REACHED", 1.7f)
-            return
-        }
+        // v1.4.2 removes the global four-utility capacity. Keep one copy for each utility
+        // roster entry, while allowing a maximum of five Block Generators.
         val copies = utilities.count { it.kind == kind }
-        if ((kind != UtilityKind.BLOCK_GENERATOR && copies >= 1) || (kind == UtilityKind.BLOCK_GENERATOR && copies >= 2)) {
-            setBanner("UTILITY LIMIT REACHED", 1.5f)
+        if (kind == UtilityKind.BLOCK_GENERATOR) {
+            if (copies >= MAX_BLOCK_GENERATORS) {
+                setBanner("BLOCK GENERATOR LIMIT  $MAX_BLOCK_GENERATORS/$MAX_BLOCK_GENERATORS", 1.6f)
+                return
+            }
+        } else if (copies >= 1) {
+            setBanner("ONE COPY OF THIS UTILITY IS ALREADY ACTIVE", 1.5f)
             return
         }
         if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row) != null) {
@@ -3742,16 +4119,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val calendar = Calendar.getInstance()
         val dailySeed = calendar.get(Calendar.YEAR).toLong() * 10000L + (calendar.get(Calendar.MONTH) + 1).toLong() * 100L + calendar.get(Calendar.DAY_OF_MONTH).toLong()
         drawChallengeCard(canvas, challengeDailyRect, "DAILY PATH", "SEED $dailySeed", modifierForSeed(dailySeed), Color.rgb(190, 244, 78))
-        var customSeed = 0L
-        for (digit in challengeDigits) customSeed = customSeed * 10L + digit
-        if (customSeed == 0L) customSeed = 1L
-        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "TAP DIGITS • THEN TAP HERE", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
-        drawCenteredText(canvas, "SHAREABLE SEED", viewWidth * 0.5f, viewHeight * 0.59f, dp(10f), Color.rgb(147, 165, 153), true)
-        seedDigitRects.forEachIndexed { index, rect ->
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(9f), Color.rgb(28, 43, 34))
-            drawCenteredText(canvas, challengeDigits[index].toString(), rect.centerX(), rect.centerY(), dp(18f), Color.WHITE, true)
-        }
-        drawCenteredText(canvas, "DAILY  W$bestDailyWave  ${formatNumber(bestDailyScore)}   •   CUSTOM  W$bestCustomWave  ${formatNumber(bestCustomScore)}", viewWidth * 0.5f, viewHeight * 0.76f, dp(10f), Color.rgb(190, 244, 78), true)
+        val customSeed = customSeedValue()
+        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "TAP CUSTOM SEED TO START", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
+        drawCenteredText(canvas, "SHAREABLE SEED  •  UP TO $MAX_SEED_CHARACTERS DIGITS", viewWidth * 0.5f, viewHeight * 0.59f, dp(10f), Color.rgb(147, 165, 153), true)
+        drawRoundedRect(canvas, seedInputRect.left, seedInputRect.top, seedInputRect.right, seedInputRect.bottom, dp(10f), Color.rgb(28, 43, 34))
+        strokePaint.strokeWidth = dp(if (seedInputActive) 2f else 1.2f)
+        strokePaint.color = if (seedInputActive) Color.rgb(93, 220, 255) else Color.rgb(63, 87, 70)
+        canvas.drawRoundRect(seedInputRect, dp(10f), dp(10f), strokePaint)
+        drawCenteredText(canvas, if (customSeedText.isEmpty()) "TAP TO ENTER SEED" else customSeedText, seedInputRect.centerX(), seedInputRect.centerY(), dp(18f), Color.WHITE, true)
+        drawCenteredText(canvas, "TAP FIELD TO TYPE  •  DIGITS ONLY  •  MAX $MAX_SEED_CHARACTERS", viewWidth * 0.5f, seedInputRect.bottom + dp(18f), dp(8.5f), Color.rgb(147, 165, 153), true)
+        drawCenteredText(canvas, "DAILY  W$bestDailyWave  ${formatNumber(bestDailyScore)}   •   CUSTOM  W$bestCustomWave  ${formatNumber(bestCustomScore)}", viewWidth * 0.5f, viewHeight * 0.80f, dp(10f), Color.rgb(190, 244, 78), true)
         drawRoundedRect(canvas, challengeBackRect.left, challengeBackRect.top, challengeBackRect.right, challengeBackRect.bottom, dp(12f), Color.rgb(43, 57, 46))
         drawCenteredText(canvas, "BACK", challengeBackRect.centerX(), challengeBackRect.centerY(), dp(11f), Color.WHITE, true)
     }
@@ -4516,6 +4893,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = if (enemy.stunTimer > 0f) Color.rgb(195, 120, 255) else Color.rgb(93, 220, 255)
             canvas.drawCircle(x, y, size * 0.53f, strokePaint)
         }
+        if (!dying && (enemy.kind.elite || enemy.kind.boss) && enemy.stuckTimer > 0.15f) {
+            val stuckRatio = (enemy.stuckTimer / ELITE_TRAP_BREAK_DELAY).coerceIn(0f, 1f)
+            strokePaint.strokeWidth = max(2f, tileSize * 0.04f)
+            strokePaint.color = Color.rgb(255, 166, 76)
+            val ring = RectF(x - size * 0.63f, y - size * 0.63f, x + size * 0.63f, y + size * 0.63f)
+            canvas.drawArc(ring, -90f, 360f * stuckRatio, false, strokePaint)
+        }
         if (!dying && enemy.burnTimer > 0f) drawSpriteFrameCentered(canvas, sprites.trap(TrapKind.EMBER), 0, x + size * 0.25f, y - size * 0.26f, size * 0.35f)
         if (!dying && (healthRatio < 0.995f || enemy.kind.elite || enemy.kind.boss)) {
             val barWidth = size * 0.90f
@@ -4642,7 +5026,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, "B", dp(29f), topBarHeight * 0.5f, min(dp(21f), topBarHeight * 0.42f), Color.rgb(13, 22, 17), true, true)
         drawText(canvas, "BLOCKHOLD", dp(58f), topBarHeight * 0.43f, min(dp(14f), topBarHeight * 0.27f), Color.WHITE, Paint.Align.LEFT, true, true)
         val forgeResources = if (phase == GamePhase.WAVE) "F$forgeCharges E$evolutionCores" else "F$forgeCharges E$evolutionCores P$salvageParts G$growthEssence"
-        drawText(canvas, "${phaseLabel()} • $forgeResources", dp(58f), topBarHeight * 0.72f, min(dp(7.5f), topBarHeight * 0.16f), Color.rgb(139, 157, 144), Paint.Align.LEFT, true)
+        val stackLabel = if (phase == GamePhase.WAVE && activeWaveNumbers.size > 1) " • STACK ${activeWaveNumbers.size}" else ""
+        drawText(canvas, "${phaseLabel()}$stackLabel • $forgeResources", dp(58f), topBarHeight * 0.72f, min(dp(7.5f), topBarHeight * 0.16f), Color.rgb(139, 157, 144), Paint.Align.LEFT, true)
 
         val statStart = min(viewWidth * 0.27f, dp(265f))
         val statGap = min(dp(102f), viewWidth * 0.115f)
@@ -4660,16 +5045,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             waveNumber == 0 && (phase == GamePhase.DIG || phase == GamePhase.BUILD) -> drawTopButton(canvas, resetPathRect, "RESET", Color.rgb(36, 50, 40), Color.rgb(214, 224, 216), true)
             phase == GamePhase.BUILD -> drawTopButton(canvas, resetPathRect, "REFORGE $forgeCharges", Color.rgb(53, 43, 68), Color.rgb(213, 182, 255), true)
         }
-        val canStart = (phase == GamePhase.BUILD && pathComplete) || (phase == GamePhase.REFORGE && pathComplete && effectiveReforgeCost() <= forgeCharges && reforgeRecoveryCost() <= gold && storedTraps.size + displacedReforgeTraps().size <= cacheCapacity())
+        val canStart = when {
+            phase == GamePhase.BUILD && pathComplete -> true
+            phase == GamePhase.REFORGE && pathComplete && effectiveReforgeCost() <= forgeCharges && reforgeRecoveryCost() <= gold && storedTraps.size + displacedReforgeTraps().size <= cacheCapacity() -> true
+            phase == GamePhase.WAVE && activeWaveNumbers.isNotEmpty() -> true
+            else -> false
+        }
         val actionLabel = when (phase) {
             GamePhase.DIG -> "CONNECT CORE"
-            GamePhase.BUILD -> "START WAVE ${waveNumber + 1}"
+            GamePhase.BUILD -> if (nextWaveTimer > 0f) "NEXT WAVE" else "START WAVE ${waveNumber + 1}"
             GamePhase.REFORGE -> "CONFIRM F${effectiveReforgeCost()}  B${reforgeRecoveryCost()}"
-            GamePhase.WAVE -> "WAVE LIVE"
+            GamePhase.WAVE -> "NEXT WAVE"
             else -> "STANDBY"
         }
         drawTopButton(canvas, primaryActionRect, actionLabel, if (canStart) Color.rgb(190, 244, 78) else Color.rgb(31, 44, 35), if (canStart) Color.rgb(13, 22, 17) else Color.rgb(104, 123, 110), canStart)
         drawTopButton(canvas, soundRect, if (audio.isEnabled()) "SFX" else "OFF", Color.rgb(31, 44, 35), Color.WHITE, true)
+        drawTopButton(canvas, feedbackToggleRect, if (feedbackEnabled) "TXT" else "OFF", Color.rgb(31, 44, 35), if (feedbackEnabled) Color.rgb(190, 244, 78) else Color.rgb(104, 123, 110), true)
         drawTopButton(canvas, pauseRect, "II", Color.rgb(31, 44, 35), Color.WHITE, true)
     }
 
@@ -4771,7 +5162,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             )
             spritePaint.alpha = 255
             drawCenteredText(canvas, kind.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.70f, min(dp(8f), rect.width() * 0.09f), if (unlocked) Color.WHITE else Color.rgb(105, 116, 108), true)
-            drawCenteredText(canvas, if (unlocked) kind.cost.toString() else "WAVE 10", rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (unlocked && gold >= kind.cost) Color.rgb(190, 244, 78) else Color.rgb(255, 111, 100), true)
+            val placedGenerators = if (kind == UtilityKind.BLOCK_GENERATOR) utilities.count { it.kind == kind } else 0
+            val utilityFooter = when {
+                !unlocked -> "WAVE 10"
+                kind == UtilityKind.BLOCK_GENERATOR -> "${kind.cost}  •  $placedGenerators/$MAX_BLOCK_GENERATORS"
+                else -> kind.cost.toString()
+            }
+            val footerColor = when {
+                !unlocked -> Color.rgb(255, 111, 100)
+                kind == UtilityKind.BLOCK_GENERATOR && placedGenerators >= MAX_BLOCK_GENERATORS -> Color.rgb(255, 111, 100)
+                gold < kind.cost -> Color.rgb(255, 111, 100)
+                else -> Color.rgb(190, 244, 78)
+            }
+            drawCenteredText(canvas, utilityFooter, rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(12, 22, 17) else footerColor, true)
         }
         for ((index, rect) in cacheRects) {
             val stored = storedTraps[index]
@@ -4824,6 +5227,32 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.ARC -> TrapKind.ARC
             BuildTool.CRUSHER -> TrapKind.CRUSHER
             else -> null
+        }
+    }
+
+    private fun toolDescription(tool: BuildTool): String {
+        return when (tool) {
+            BuildTool.BOLT -> TowerKind.BOLT.description
+            BuildTool.FROST -> TowerKind.FROST.description
+            BuildTool.CANNON -> TowerKind.CANNON.description
+            BuildTool.EMBER -> TowerKind.EMBER.description
+            BuildTool.BEACON -> TowerKind.BEACON.description
+            BuildTool.THORN -> TowerKind.THORN.description
+            BuildTool.LANCE -> TowerKind.LANCE.description
+            BuildTool.MIRE -> TowerKind.MIRE.description
+            BuildTool.GALE -> TowerKind.GALE.description
+            BuildTool.SUNFORGE -> TowerKind.SUNFORGE.description
+            BuildTool.LODESTONE -> TowerKind.LODESTONE.description
+            BuildTool.HOWL -> TowerKind.HOWL.description
+            BuildTool.VITRIOL -> TowerKind.VITRIOL.description
+            BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT.description
+            BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM.description
+            BuildTool.SPIKES -> TrapKind.SPIKE.description
+            BuildTool.ROOT -> TrapKind.ROOT.description
+            BuildTool.RUNE -> TrapKind.EMBER.description
+            BuildTool.ARC -> TrapKind.ARC.description
+            BuildTool.CRUSHER -> TrapKind.CRUSHER.description
+            BuildTool.DIG -> "Draw the route one block at a time"
         }
     }
 
@@ -4880,14 +5309,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val range = tower?.currentRange()
         val rank = tower?.rankLabel() ?: trap?.rankLabel().orEmpty()
         val sellValue = tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: 0
+        val definition = tower?.evolution?.description ?: tower?.kind?.description ?: trap?.kind?.description ?: ""
         drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
         drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(11f), Color.WHITE, true)
         val upgradeColor = if (canBuy) accent else Color.rgb(27, 42, 33)
         drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), upgradeColor)
         val titleColor = if (canBuy) Color.rgb(12, 21, 16) else Color.rgb(150, 168, 156)
-        drawCenteredText(canvas, "UPGRADE ${title.uppercase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
+        drawCenteredText(canvas, "UPGRADE ${title.uppercase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
+        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.50f, upgradeRect.width() * 0.90f, dp(8f), titleColor, 2)
         val stats = if (range != null) "DMG ${damage.toInt()}  RANGE ${oneDecimal(range)}  •  $cost BLOCKS" else "DMG ${damage.toInt()}  •  $cost BLOCKS"
-        drawCenteredText(canvas, stats, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.70f, min(dp(9f), upgradeRect.width() * 0.026f), titleColor, true)
+        drawCenteredText(canvas, stats, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.81f, min(dp(9f), upgradeRect.width() * 0.026f), titleColor, true)
         val canEvolve = tower?.canEvolve() == true
         val storeLabel = when { canEvolve -> "EVOLVE • $evolutionCores CORE"; trap != null -> "STORE • ${trapStorageCost(trap)} B"; else -> "EVOLUTION LOCKED" }
         drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (canEvolve) Color.rgb(68, 55, 30) else if (trap != null) Color.rgb(35, 54, 68) else Color.rgb(31, 40, 34))
@@ -4903,11 +5334,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawUtilityPanel(canvas: Canvas) {
         val utility = selectedUtility ?: return
         val cost = if (utility.level < 3) utility.upgradeCost() else 0
+        val canUpgrade = utility.level < 3 && gold >= cost
+        val utilityTextColor = if (canUpgrade) Color.rgb(12, 21, 16) else Color.WHITE
         drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
         drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(10f), Color.WHITE, true)
-        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (utility.level < 3 && gold >= cost) utility.kind.accent else Color.rgb(31, 43, 35))
-        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LEVEL ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.33f, min(dp(10f), upgradeRect.width() * 0.03f), if (utility.level < 3 && gold >= cost) Color.rgb(12, 21, 16) else Color.WHITE, true)
-        drawWrappedText(canvas, if (utility.level < 3) "${utility.kind.description} • UPGRADE $cost BLOCKS" else "${utility.kind.description} • MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.68f, upgradeRect.width() * 0.90f, dp(8f), if (utility.level < 3 && gold >= cost) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), 2)
+        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (canUpgrade) utility.kind.accent else Color.rgb(31, 43, 35))
+        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LEVEL ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.03f), utilityTextColor, true)
+        val definition = if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
+            "Produces ${utility.blockOutput()} Blocks after every cleared wave"
+        } else {
+            utility.kind.description
+        }
+        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), 2)
+        if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
+            val activeGenerators = utilities.count { it.kind == UtilityKind.BLOCK_GENERATOR }
+            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  ${if (utility.level < 3) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL"}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+        } else {
+            drawCenteredText(canvas, if (utility.level < 3) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+        }
         drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(81, 49, 31) else Color.rgb(31, 40, 34))
         drawCenteredText(canvas, if (utility.kind == UtilityKind.FORGE_WORKSHOP) "OPEN FORGEWORKS" else "PASSIVE UTILITY", storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(255, 187, 116) else Color.rgb(137, 153, 142), true)
         drawRoundedRect(canvas, imbueRect.left, imbueRect.top, imbueRect.right, imbueRect.bottom, dp(7f), Color.rgb(53, 43, 68))
@@ -4931,52 +5375,52 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawBanner(canvas: Canvas) {
+        if (!feedbackEnabled) return
         val timed = bannerTimer > 0f
         val instruction = when {
             timed -> bannerText
             phase == GamePhase.DIG -> "DRAG ONE BLOCK AT A TIME  •  BACKTRACK TO UNDO  •  MAX ${currentPathLimit()}"
             phase == GamePhase.REFORGE -> "PREVIEW • CONFIRM/CANCEL • F${effectiveReforgeCost()}/$forgeCharges • RECOVERY ${reforgeRecoveryCost()} B • CACHE ${storedTraps.size + displacedReforgeTraps().size}/${cacheCapacity()}"
+            phase == GamePhase.BUILD && nextWaveTimer > 0f -> "NEXT WAVE IN ${nextWaveCountdownSeconds()}S  •  TAP NEXT WAVE TO LAUNCH NOW"
             phase == GamePhase.BUILD && waveNumber == 0 && towers.isEmpty() -> "CHOOSE A DEFENSE BELOW  •  TAP A FREE BLOCK TO BUILD"
             phase == GamePhase.BUILD && surveyAvailable() -> surveyPreviewText(waveNumber + 1)
-            phase == GamePhase.BUILD -> "BUILD DEFENSES AND INFRASTRUCTURE  •  REFORGE BETWEEN WAVES"
-            phase == GamePhase.WAVE -> "$waveTheme  •  TOWERS ARE AUTONOMOUS"
+            phase == GamePhase.BUILD -> "BUILD DEFENSES AND INFRASTRUCTURE  •  NEXT WAVE AUTO-LAUNCHES IN 10S"
+            phase == GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "$waveTheme  •  ${activeWaveNumbers.size} WAVES STACKED  •  TOWERS ARE AUTONOMOUS" else "$waveTheme  •  TAP NEXT WAVE TO STACK"
             else -> ""
         }
         if (instruction.isEmpty()) return
         val elapsed = if (timed) (bannerDuration - bannerTimer).coerceAtLeast(0f) else 0f
         val enter = if (timed) (elapsed / 0.22f).coerceIn(0f, 1f) else 1f
-        // Ease-out entrance
         val enterEase = 1f - (1f - enter) * (1f - enter)
         val fadeOut = if (timed && bannerTimer in 0f..0.38f) (bannerTimer / 0.38f) else 1f
         val alpha = (if (timed) 235f * fadeOut else 200f).toInt().coerceIn(0, 255)
-        val baseWidth = min(viewWidth * 0.69f, dp(610f))
-        val baseHeight = min(dp(28f), tileSize * 0.48f)
+        val baseWidth = min(viewWidth * 0.34f, dp(310f))
+        val baseHeight = min(dp(54f), max(dp(42f), tileSize * 0.78f))
         val widthScale = if (timed) 0.82f + 0.18f * enterEase else 1f
         val heightScale = if (timed) 0.88f + 0.20f * enterEase else 1f
         val width = baseWidth * widthScale
         val height = baseHeight * heightScale
-        val left = (viewWidth - width) * 0.5f
-        val top = boardTop + dp(7f) - (1f - enterEase) * dp(10f)
-        // Accent rim on timed banners (wave / forge / boss)
+        val left = dp(12f)
+        val top = topBarHeight + dp(9f) - (1f - enterEase) * dp(8f)
         if (timed) {
             val rim = Color.argb((alpha * 0.55f).toInt().coerceIn(0, 255), 190, 244, 78)
-            drawRoundedRect(canvas, left - dp(2f), top - dp(2f), left + width + dp(2f), top + height + dp(2f), height * 0.5f, rim)
-            // Soft glow under bar
+            drawRoundedRect(canvas, left - dp(2f), top - dp(2f), left + width + dp(2f), top + height + dp(2f), dp(10f), rim)
             paint.color = Color.argb((alpha * 0.18f).toInt().coerceIn(0, 255), 190, 244, 78)
-            canvas.drawRoundRect(left, top + height * 0.35f, left + width, top + height + dp(6f), height * 0.45f, height * 0.45f, paint)
+            canvas.drawRoundRect(left, top + height * 0.35f, left + width, top + height + dp(6f), dp(12f), dp(12f), paint)
         }
-        drawRoundedRect(canvas, left, top, left + width, top + height, height * 0.45f, Color.argb(alpha, 14, 23, 18))
-        val textSize = min(dp(9f), height * 0.34f) * (if (timed) 0.92f + 0.12f * enterEase else 1f)
-        drawCenteredText(
+        drawRoundedRect(canvas, left, top, left + width, top + height, dp(10f), Color.argb(alpha, 14, 23, 18))
+        val textSize = min(dp(9f), height * 0.24f) * (if (timed) 0.92f + 0.12f * enterEase else 1f)
+        drawWrappedText(
             canvas,
             instruction,
-            viewWidth * 0.5f,
-            top + height * 0.52f,
+            left + width * 0.5f,
+            top + height * 0.47f,
+            width - dp(18f),
             textSize,
             Color.argb(min(255, alpha + 25), 224, 232, 226),
+            2,
             true
         )
-        // Thin progress tick for timed announcements
         if (timed && bannerDuration > 0.01f) {
             val progress = (bannerTimer / bannerDuration).coerceIn(0f, 1f)
             paint.color = Color.argb((alpha * 0.85f).toInt().coerceIn(0, 255), 190, 244, 78)

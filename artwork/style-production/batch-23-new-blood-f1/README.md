@@ -5,7 +5,7 @@ Five normals + one elite with **one readable job each**.
 ## Normals
 | Kind | Job |
 |------|-----|
-| **Sapper** | Ignores traps after the 2nd trigger |
+| **Sapper** | Very fast; destroys its first two triggered traps, then ignores the rest |
 | **Mycelial** | Regen + death spores heal nearby hostiles |
 | **Needlefly** | Fast flyer; resists most slow |
 | **Gloomkin** | Soft stealth pulses (towers prefer other targets) |
