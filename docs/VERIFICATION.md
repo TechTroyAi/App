@@ -71,12 +71,12 @@ No Android emulator or physical Android device is available in the build environ
 
 ---
 
-## Sideload installable (1.3 ladder complete)
+## Sideload installable (1.3 ladder + 1.4 Crafts C1)
 
 Artifact: `artifacts/Blockhold-Defense-v1.2-installable.apk`
 
 - Content: v1.2 Forgeworks + Batches 15–19 / 1.3 Phases A (impacts+SFX), B (death dissolve), D (UI moments), C (board ambient)
-- APK SHA-256: `c1036b2b0f13e22c92cfe8c13105bcd07cedd6ff1c9811d09555131067185ccf`
+- APK SHA-256: `b0718dddc5d18837615d7a9de90ea3576ef72dd40c15851b283b8a19935b910e`
 - Size: ~2.52 MB
 - Signing: APK Signature Scheme v2 + v3 (sideload/debug key)
 - Certificate SHA-256: `dbcf288d01f8114d8e38a63c6c6fa059521bb49c4ad30a664a9625d0371da55a`
@@ -88,16 +88,16 @@ The historical baseline unsigned Forgeworks hash above (`a429a231…`) records t
 
 - On evolution pick: lime→gold rim flash, emblem scale-pop, dual particle burst, gold floating title, forge SFX
 - Tower field `evolveFlash` decays ~0.4s
-- APK SHA-256: `c1036b2b0f13e22c92cfe8c13105bcd07cedd6ff1c9811d09555131067185ccf`
+- APK SHA-256: `b0718dddc5d18837615d7a9de90ea3576ef72dd40c15851b283b8a19935b910e`
 
 ### E2 — board acknowledgment
 
 - Path sheen boost near evolved towers (`evolveAura` ~2.4s)
 - Hotter projectile trail/impact while `evolveProof` ~2.2s
-- APK SHA-256: `c1036b2b0f13e22c92cfe8c13105bcd07cedd6ff1c9811d09555131067185ccf`
+- APK SHA-256: `b0718dddc5d18837615d7a9de90ea3576ef72dd40c15851b283b8a19935b910e`
 
 ### E3 — per-family evolution flavor
 
 - Confirm rim lerps family accent → gold
 - Family secondary bursts + tower SFX (`bolt`/`frost`/`cannon`/`ember`/`beacon`)
-- APK SHA-256: `c1036b2b0f13e22c92cfe8c13105bcd07cedd6ff1c9811d09555131067185ccf`
+- APK SHA-256: `b0718dddc5d18837615d7a9de90ea3576ef72dd40c15851b283b8a19935b910e`

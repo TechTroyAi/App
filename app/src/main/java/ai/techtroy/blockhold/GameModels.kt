@@ -139,7 +139,12 @@ internal enum class CraftedItem(
     UTILITY_GEARSET("Utility Gearset", "Automatically halves the next utility upgrade cost", 150, 5, 0, 2, 3),
     SURVEY_LENS("Survey Lens", "Use to reveal the next three wave themes", 50, 2, 0, 2, 3),
     TRAP_REFIT_KIT("Trap Refit Kit", "Use to upgrade the lowest-ranked cached trap", 100, 4, 0, 2, 3),
-    BLANK_SIGIL("Blank Sigil", "Required to bind one persistent run imbuement", 100, 5, 1, 3, 6)
+    BLANK_SIGIL("Blank Sigil", "Required to bind one persistent run imbuement", 100, 5, 1, 3, 6),
+
+    // 1.4 Crafts C1 — panic forge kit
+    SPLINTER_BRACE("Splinter Brace", "Next Core hit that would deal 2+ damage loses 1 damage", 90, 4, 1, 2, 2),
+    RESIN_SEAL("Resin Seal", "Arm a one-leak Core barrier for the next combat wave", 110, 3, 1, 2, 2),
+    COOLING_FLASK("Cooling Flask", "Clear Hex on a selected tower and grant brief Hex immunity", 70, 3, 0, 2, 3)
 }
 
 internal enum class Imbuement(val title: String, val description: String, val accent: Int) {

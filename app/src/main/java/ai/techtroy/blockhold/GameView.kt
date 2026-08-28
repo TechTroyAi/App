@@ -111,6 +111,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var growthEssence = 0
     private var surveyLensWaves = 0
     private var phaseBarrierReady = false
+    /** Crafts C1: next multi-damage core hit loses 1 damage. */
+    private var splinterBraceReady = false
+    /** Crafts C1: brief Hex immunity per tower cell key. */
+    private var coolingImmunity = HashMap<Int, Float>()
     private var reforgeCost = 0
     private var gameMode = GameMode.ENDLESS
     private var challengeModifier = ChallengeModifier.NONE
@@ -523,10 +527,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 enemy.alive = false
                 if (phaseBarrierReady) {
                     phaseBarrierReady = false
+                    splinterBraceReady = false
+                    coolingImmunity.clear()
                     floatingLabels.add(FloatingLabel("BARRIER", enemy.x, enemy.y, Color.rgb(93, 220, 255)))
                     burst(enemy.x, enemy.y, Color.rgb(93, 220, 255), 22, 1.3f)
                 } else {
-                    val coreDamage = enemy.kind.baseDamage + if (enemy.bossTier >= 3) 1 else 0
+                    var coreDamage = enemy.kind.baseDamage + if (enemy.bossTier >= 3) 1 else 0
+                    if (splinterBraceReady && coreDamage >= 2) {
+                        coreDamage -= 1
+                        splinterBraceReady = false
+                        floatingLabels.add(FloatingLabel("BRACED", enemy.x, enemy.y - 0.35f, Color.rgb(190, 244, 78), pop = 1.35f))
+                        burst(enemy.x, enemy.y, Color.rgb(190, 244, 78), 14, 0.9f)
+                    }
                     lives = max(0, lives - coreDamage)
                     floatingLabels.add(FloatingLabel("-$coreDamage CORE", enemy.x, enemy.y, Color.rgb(255, 107, 96)))
                 }
@@ -547,6 +559,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             tower.evolveAura = max(0f, tower.evolveAura - delta)
             tower.evolveProof = max(0f, tower.evolveProof - delta)
             tower.disabledTimer = max(0f, tower.disabledTimer - delta)
+            val immKey = tower.col * 100 + tower.row
+            val imm = coolingImmunity[immKey] ?: 0f
+            if (imm > 0f) {
+                val left = imm - delta
+                if (left <= 0f) coolingImmunity.remove(immKey) else coolingImmunity[immKey] = left
+            }
             if (tower.disabledTimer > 0f) continue
             val target = findTarget(tower)
             if (target != null) {
@@ -583,7 +601,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (min(towerDistance, utilityDistance) <= 12f) {
                 if (towerDistance <= utilityDistance && towerTarget != null) {
                     val clarity = if (towerTarget.imbuement == Imbuement.CLARITY) 0.25f else 1f
-                    towerTarget.disabledTimer = max(towerTarget.disabledTimer, (if (hasHarmonyNear(towerTarget)) 0.8f else 1.8f) * clarity)
+                    applyTowerHex(towerTarget, (if (hasHarmonyNear(towerTarget)) 0.8f else 1.8f) * clarity)
                     floatingLabels.add(FloatingLabel("HEX BLOOM", towerTarget.col + 0.5f, towerTarget.row + 0.3f, corruption.kind.accent))
                 } else if (utilityTarget != null) {
                     utilityTarget.disabledTimer = max(utilityTarget.disabledTimer, 1.8f * if (utilityTarget.imbuement == Imbuement.CLARITY) 0.25f else 1f)
@@ -630,7 +648,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             EnemyKind.HEX_WEAVER -> {
                 val target = towers.filter { it.disabledTimer <= 0f }.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
                 if (target != null && distanceSquared(target.col + 0.5f, target.row + 0.5f, enemy.x, enemy.y) <= 10f) {
-                    target.disabledTimer = (if (hasHarmonyNear(target)) 1.2f else 2.8f) * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f
+                    applyTowerHex(target, (if (hasHarmonyNear(target)) 1.2f else 2.8f) * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f)
                     floatingLabels.add(FloatingLabel("HEXED", target.col + 0.5f, target.row + 0.35f, enemy.kind.color))
                 }
                 enemy.abilityTimer = 5.7f
@@ -647,7 +665,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 if (enemy.bossTier >= 3) {
                     towers.sortedBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }.take(min(3, enemy.bossTier - 1)).forEach {
-                        it.disabledTimer = (if (hasHarmonyNear(it)) 0.9f else 2.2f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f
+                        applyTowerHex(it, (if (hasHarmonyNear(it)) 0.9f else 2.2f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
                     }
                 }
                 enemy.abilityTimer = max(3.4f, 6.8f - enemy.bossTier * 0.25f)
@@ -1306,6 +1324,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun supplyCount(item: CraftedItem): Int = supplies[item] ?: 0
 
+    private fun towerKey(col: Int, row: Int) = col * 100 + row
+
+    private fun hasCoolingImmunity(col: Int, row: Int) = (coolingImmunity[towerKey(col, row)] ?: 0f) > 0.02f
+
+    private fun applyTowerHex(tower: Tower, duration: Float) {
+        if (hasCoolingImmunity(tower.col, tower.row)) {
+            floatingLabels.add(FloatingLabel("COOLED", tower.col + 0.5f, tower.row + 0.2f, Color.rgb(93, 220, 255), pop = 1.3f))
+            return
+        }
+        tower.disabledTimer = max(tower.disabledTimer, duration)
+    }
+
     private fun consumeSupply(item: CraftedItem): Boolean {
         val count = supplyCount(item)
         if (count <= 0) return false
@@ -1351,6 +1381,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             .putInt("run_growth_essence", growthEssence)
             .putInt("run_survey_lens_waves", surveyLensWaves)
             .putBoolean("run_phase_barrier", phaseBarrierReady)
+            .putBoolean("run_splinter_brace", splinterBraceReady)
             .putString("run_mode", gameMode.name)
             .putString("run_modifier", challengeModifier.name)
             .putLong("run_seed", runSeed)
@@ -1453,6 +1484,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             growthEssence = preferences.getInt("run_growth_essence", 0).coerceIn(0, 2_000_000_000)
             surveyLensWaves = preferences.getInt("run_survey_lens_waves", 0).coerceIn(0, 3)
             phaseBarrierReady = preferences.getBoolean("run_phase_barrier", false)
+            splinterBraceReady = preferences.getBoolean("run_splinter_brace", false)
             nextTrapId = (traps.maxBy { it.id }?.id ?: 0) + 1
             nextCorruptionId = (corruptions.maxBy { it.id }?.id ?: 0) + 1
             nextEnemyId = 1
@@ -1548,6 +1580,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         growthEssence = 0
         surveyLensWaves = 0
         phaseBarrierReady = false
+        splinterBraceReady = false
+        coolingImmunity.clear()
         reforgeCost = 0
         pathComplete = false
         diggingGesture = false
@@ -2295,6 +2329,31 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 consumeSupply(item)
                 rebuildToolRects()
                 setBanner("${storedTraps[index].kind.title.toUpperCase()} REFIT  LEVEL ${storedTraps[index].level}", 1.7f)
+            }
+            CraftedItem.SPLINTER_BRACE -> {
+                if (splinterBraceReady) { setBanner("SPLINTER BRACE ALREADY ARMED", 1.4f); return }
+                splinterBraceReady = true
+                consumeSupply(item)
+                setBanner("SPLINTER BRACE ARMED", 1.6f)
+                audio.play("build", 0.45f, 1.1f)
+            }
+            CraftedItem.RESIN_SEAL -> {
+                if (phaseBarrierReady) { setBanner("CORE BARRIER ALREADY ARMED", 1.4f); return }
+                phaseBarrierReady = true
+                consumeSupply(item)
+                setBanner("RESIN SEAL ARMED  NEXT LEAK BLOCKED", 1.8f)
+                audio.play("build", 0.5f, 0.9f)
+            }
+            CraftedItem.COOLING_FLASK -> {
+                val tower = selectedTower
+                if (tower == null) { setBanner("SELECT A TOWER TO COOL", 1.5f); return }
+                tower.disabledTimer = 0f
+                coolingImmunity[towerKey(tower.col, tower.row)] = 6f
+                consumeSupply(item)
+                setBanner("TOWER COOLED  HEX WARD 6s", 1.7f)
+                floatingLabels.add(FloatingLabel("COOLED", tower.col + 0.5f, tower.row + 0.15f, Color.rgb(93, 220, 255), pop = 1.4f))
+                burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(93, 220, 255), 18, 1.0f)
+                audio.play("frost", 0.4f, 1.2f)
             }
             CraftedItem.RECOVERY_WRAP, CraftedItem.PURIFIER_VIAL, CraftedItem.REFORGE_COUPLER, CraftedItem.UTILITY_GEARSET -> setBanner("THIS SUPPLY ACTIVATES AUTOMATICALLY", 1.5f)
             CraftedItem.BLANK_SIGIL -> setBanner("SELECT A LEVEL 3 STRUCTURE AND CHOOSE IMBUE", 1.8f)
@@ -3293,6 +3352,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 y - tileSize * 0.27f,
                 tileSize * 0.34f * emblemPop
             )
+        }
+        if (hasCoolingImmunity(tower.col, tower.row)) {
+            strokePaint.strokeWidth = tileSize * 0.04f
+            strokePaint.color = Color.argb(180, 93, 220, 255)
+            canvas.drawCircle(x, y, tileSize * 0.44f, strokePaint)
         }
         if (tower.disabledTimer > 0f) {
             paint.color = Color.argb(145, 130, 48, 165)

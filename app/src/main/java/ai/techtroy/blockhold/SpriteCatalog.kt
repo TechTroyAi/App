@@ -86,7 +86,10 @@ internal class SpriteCatalog(private val context: Context) {
         CraftedItem.UTILITY_GEARSET to load("item_utility_gearset"),
         CraftedItem.SURVEY_LENS to load("item_survey_lens"),
         CraftedItem.TRAP_REFIT_KIT to load("item_trap_refit_kit"),
-        CraftedItem.BLANK_SIGIL to load("item_blank_sigil")
+        CraftedItem.BLANK_SIGIL to load("item_blank_sigil"),
+        CraftedItem.SPLINTER_BRACE to load("item_splinter_brace"),
+        CraftedItem.RESIN_SEAL to load("item_resin_seal"),
+        CraftedItem.COOLING_FLASK to load("item_cooling_flask")
     )
 
     private val imbuements = mapOf(

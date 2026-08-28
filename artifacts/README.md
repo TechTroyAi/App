@@ -2,17 +2,17 @@
 
 ## Download this one (installable v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of v1.2 Forgeworks plus Batches 06–07, 15–19, and **1.3 Phases A–D + C** (projectile flight, impact bursts, dedicated SFX, enemy death dissolve, UI banner/resource pops, board ambient life, evolution confirm beat + E2 board acknowledgment + E3 family flavor). Install this on an Android phone.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build of v1.2 Forgeworks plus Batches 06–07, 15–19, **1.3 Phases A–D + C + E1–E3**, and **1.4 Crafts C1** (Splinter Brace, Resin Seal, Cooling Flask). Install this on an Android phone.
 
 - Package: `ai.techtroy.blockhold`
-- Version: `1.2.0` (`12`) — content includes full 1.3 ladder (A–D + C + E1 evolution confirm)
+- Version: `1.2.0` (`12`) — content includes 1.3 ladder (A–D + C + E1–E3) + 1.4 Crafts C1
 - Minimum Android: 7.0 / API 24
 - Target Android API: 35
 - Orientation: landscape
 - Permissions requested: none
 - Offline: yes
 - Size: ~2.5 MB
-- APK SHA-256: `c1036b2b0f13e22c92cfe8c13105bcd07cedd6ff1c9811d09555131067185ccf`
+- APK SHA-256: `b0718dddc5d18837615d7a9de90ea3576ef72dd40c15851b283b8a19935b910e`
 - Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
 - Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
 - Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
@@ -30,7 +30,7 @@
 
 `Blockhold-Defense-v1.2-unsigned.apk` is the rebuilt v1.2 Forgeworks + 1.3 content payload before signing (from the latest apktool rebuild).
 
-- APK SHA-256: `ebcf405aa1e024cee9a1c909ed81d0f340a9207e240a1a00716a45e710b796ee`
+- APK SHA-256: `50856d5adeaf5d1d8f26b339b4f677be15fcbb21fa7ac970734bc8c5afbb748a`
 - Signing state: **unsigned** (cannot install until signed)
 
 For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.

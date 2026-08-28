@@ -91,6 +91,10 @@ Quiet path shimmer, grass sway, gate intake glow, health-linked core heartbeat. 
 
 E1–E3 evolve moments: confirm beat, path aura/hot trail, per-family flavor. See `batch-20-evolution-moments/`.
 
+## Batch 21 — crafted supplies C1 (1.4)
+
+Panic forge kit: Splinter Brace, Resin Seal, Cooling Flask. See `batch-21-crafted-supplies-c1/`.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.
