@@ -357,9 +357,13 @@ Implemented in the source tree:
   12 numeric digits instead of requiring six tap-to-increment boxes.
 - The in-game feedback/instruction banner can be toggled with the **TXT** control and appears as a
   compact rounded rectangle in the upper-left corner of the playfield.
-- Removal of the global four-utility capacity. Free terrain, cost, and the existing one-copy-per-kind
-  rule remain in place.
+- Removal of the global four-utility capacity. Free terrain and cost remain meaningful limits; each
+  utility kind is unique, except that up to five Block Generators may be active at once.
+- Every tower, trap, and utility now has a readable in-game definition. Selecting a build card or
+  placed structure shows its effect, while utility panels expose the normal three upgrade levels.
+  Block Generators produce 18/30/45 Blocks per cleared wave at levels 1/2/3 and use the same
+  upgrade action and escalating costs as other utilities.
 
 The next release artifact must pass `scripts/verify-apk.py` and should be smoke-tested with
-manual wave stacking, automatic launch, a wave-five perk, a wave-ten boss, and more than four
-utilities placed in one run.
+manual wave stacking, automatic launch, a wave-five perk, a wave-ten boss, five Block Generators
+placed and upgraded, and more than four different utilities placed in one run.

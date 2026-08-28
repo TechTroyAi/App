@@ -96,7 +96,26 @@ internal enum class TowerKind(
     VITRIOL("Vitriol Spout", 155, 2.50f, 30f, 1.00f, 6.5f, Color.rgb(140, 200, 50)),
     // 1.4 F8c towers
     GRAVEBOLT("Gravebolt", 165, 2.85f, 34f, 0.95f, 7.8f, Color.rgb(160, 90, 220)),
-    AEGIS_LOOM("Aegis Loom", 175, 2.70f, 20f, 1.10f, 8.0f, Color.rgb(230, 180, 70))
+    AEGIS_LOOM("Aegis Loom", 175, 2.70f, 20f, 1.10f, 8.0f, Color.rgb(230, 180, 70));
+
+    val description: String
+        get() = when (this) {
+            BOLT -> "Fast single-target bolts with balanced damage and range"
+            FROST -> "Slows enemies on impact and punishes frozen targets"
+            CANNON -> "Slow heavy shells that explode for area damage"
+            EMBER -> "Burning shells splash nearby enemies and ignite them"
+            BEACON -> "Resonance shots chain across enemies near the target"
+            THORN -> "Marks enemies so follow-up damage cuts deeper"
+            LANCE -> "Piercing shards strike several enemies along the route"
+            MIRE -> "Spreads a slowing mire around every impact"
+            GALE -> "Wind shots damage foes and shove them backward"
+            SUNFORGE -> "Hot projectiles deal damage and leave enemies burning"
+            LODESTONE -> "Magnetic shots pull nearby enemies backward"
+            HOWL -> "Reveals hidden enemies and briefly slows the pack"
+            VITRIOL -> "Acid shots shred enemy armor for your whole defense"
+            GRAVEBOLT -> "Brands enemies so their deaths can burst with dark damage"
+            AEGIS_LOOM -> "Damages enemies while cleansing Hex from nearby towers"
+        }
 }
 
 internal enum class TowerEvolution(
@@ -154,7 +173,16 @@ internal enum class TrapKind(
     ROOT("Root Snare", 65, 20f, Color.rgb(91, 196, 99)),
     EMBER("Ember Rune", 85, 34f, Color.rgb(255, 104, 55)),
     ARC("Arc Plate", 110, 48f, Color.rgb(92, 224, 255)),
-    CRUSHER("Crusher Block", 145, 94f, Color.rgb(190, 164, 130))
+    CRUSHER("Crusher Block", 145, 94f, Color.rgb(190, 164, 130));
+
+    val description: String
+        get() = when (this) {
+            SPIKE -> "Reliable physical damage whenever an enemy crosses this tile"
+            ROOT -> "Damages, roots, and slows an enemy on the path"
+            EMBER -> "Ignites the enemy for damage over time after triggering"
+            ARC -> "Stuns the trigger and chains lightning into nearby enemies"
+            CRUSHER -> "A heavy smash that deals high damage and a long stun"
+        }
 }
 
 internal enum class UtilityKind(
@@ -163,7 +191,7 @@ internal enum class UtilityKind(
     val cost: Int,
     val accent: Int
 ) {
-    BLOCK_GENERATOR("Block Generator", "Produces Blocks after every cleared wave", 200, Color.rgb(255, 203, 81)),
+    BLOCK_GENERATOR("Block Generator", "Produces Blocks after every cleared wave; upgrades increase its output", 200, Color.rgb(255, 203, 81)),
     CACHE_DEPOT("Cache Depot", "Expands trap storage and lowers recovery fees", 180, Color.rgb(93, 220, 255)),
     FORGE_WORKSHOP("Forge Workshop", "Repairs, fabricates supplies, and binds sigils", 220, Color.rgb(255, 157, 84)),
     PURIFIER_TOTEM("Purifier Totem", "Reduces nearby corruption cleansing costs", 210, Color.rgb(112, 231, 143)),
@@ -549,6 +577,12 @@ internal class Utility(
     }
 
     fun outputMultiplier(): Float = (1f + (level - 1) * 0.38f) * if (imbuement == Imbuement.MIGHT) 1.15f else 1f
+
+    fun blockOutput(): Int = when (level) {
+        1 -> 18
+        2 -> 30
+        else -> 45
+    }
 
     fun effectRadius(): Float = 2.2f + (level - 1) * 0.65f + if (imbuement == Imbuement.REACH) 0.75f else 0f
 

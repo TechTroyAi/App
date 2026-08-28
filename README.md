@@ -39,19 +39,31 @@ See `artifacts/README.md` for artifact hashes and signing status, `docs/VERIFICA
 
 ### Towers
 
-- **Bolt Tower — 70 Blocks:** fast single-target fire
-- **Frost Prism — 90 Blocks:** slows targets and pierces part of their armor
-- **Core Cannon — 125 Blocks:** heavy area damage
-- **Ember Forge — 145 Blocks:** splash damage plus burning damage over time
-- **Resonance Beacon — 170 Blocks:** long-range arcs that chain through groups
+Every tower definition is also shown when its build card or placed tower is selected:
+
+- **Bolt Tower — 70 Blocks:** fast single-target bolts with balanced damage and range
+- **Frost Prism — 90 Blocks:** slows enemies on impact and punishes frozen targets
+- **Core Cannon — 125 Blocks:** slow heavy shells that explode for area damage
+- **Ember Forge — 145 Blocks:** burning shells splash nearby enemies and ignite them
+- **Resonance Beacon — 170 Blocks:** resonance shots chain across enemies near the target
+- **Thorn Spire — 95 Blocks:** marks enemies so follow-up damage cuts deeper
+- **Shard Lance — 155 Blocks:** piercing shards strike several enemies along the route
+- **Mire Spout — 135 Blocks:** spreads a slowing mire around every impact
+- **Gale Spire — 140 Blocks:** wind shots damage foes and shove them backward
+- **Sunforge — 160 Blocks:** hot projectiles deal damage and leave enemies burning
+- **Lodestone — 150 Blocks:** magnetic shots pull nearby enemies backward
+- **Howl Spire — 145 Blocks:** reveals hidden enemies and briefly slows the pack
+- **Vitriol Spout — 155 Blocks:** acid shots shred enemy armor for your whole defense
+- **Gravebolt — 165 Blocks:** brands enemies so their deaths can burst with dark damage
+- **Aegis Loom — 175 Blocks:** damages enemies while cleansing Hex from nearby towers
 
 ### Traps
 
-- **Spike Bed — 45 Blocks:** direct route damage
-- **Root Snare — 65 Blocks:** damage plus a long slow
-- **Ember Rune — 85 Blocks:** impact and burn damage
-- **Arc Plate — 110 Blocks:** chain damage plus a short stun
-- **Crusher Block — 145 Blocks:** very heavy damage and a full stun
+- **Spike Bed — 45 Blocks:** reliable physical damage whenever an enemy crosses this tile
+- **Root Snare — 65 Blocks:** damages, roots, and slows an enemy on the path
+- **Ember Rune — 85 Blocks:** ignites the enemy for damage over time after triggering
+- **Arc Plate — 110 Blocks:** stuns the trigger and chains lightning into nearby enemies
+- **Crusher Block — 145 Blocks:** a heavy smash that deals high damage and a long stun
 
 Towers and traps have three normal levels. After level three, repeatable **Overcharge** ranks provide a continuing long-run currency sink with escalating costs.
 
@@ -63,15 +75,25 @@ Only traps already placed on the battlefield can be stored. **Store** pays a Blo
 
 ### Utilities
 
-Utilities never attack, occupy clean free terrain, have three levels, and have no global active-structure capacity limit in v1.4.2. Each kind is unique except that two Block Generators are allowed:
+Utilities never attack, occupy clean free terrain, and have three upgrade levels. v1.4.2 has no global active-utility capacity limit: each utility kind is unique, while up to **five Block Generators** may be placed at once. Selecting a utility shows its definition and upgrade action:
 
-- **Block Generator:** produces Blocks after waves, with a route-adjacency bonus
-- **Cache Depot:** expands Cache capacity and reduces recovery fees
-- **Forge Workshop:** unlocks Forgeworks recipes, Supplies, repair, and imbuement
-- **Purifier Totem:** lowers nearby cleanse costs and can automatically purify mutations
-- **Surveyor Station:** reveals increasingly detailed information about the next wave
-- **Reforge Anchor:** lowers route-editing costs in its operating radius
-- **Salvage Yard:** improves recycling returns and Salvage Parts recovery
+- **Block Generator:** produces Blocks after every cleared wave; upgrades increase output
+- **Cache Depot:** expands trap storage and lowers recovery fees
+- **Forge Workshop:** repairs, fabricates supplies, and binds sigils
+- **Purifier Totem:** reduces nearby corruption cleansing costs
+- **Surveyor Station:** reveals approaching waves and elite threats
+- **Reforge Anchor:** reduces the cost of nearby route changes
+- **Salvage Yard:** improves recycling returns and recovered Parts
+- **Ward Beacon:** nearby towers shrug off Hex faster and gain brief immunity pulses
+- **Battle Banner:** towers near the banner deal extra damage during waves
+- **Essence Still:** converts wave pressure into Growth Essence over time
+- **Trap Lattice:** path traps near the lattice deal more damage
+- **Aegis Pylon:** nearby towers take shorter Hex and gain a light shield pulse
+- **Growth Nursery:** cleared waves yield bonus Growth Essence
+- **Path Warden:** enemies on nearby path tiles move slightly slower
+- **Spark Relay:** nearby towers fire a touch faster
+- **Bounty Board:** kills near the board grant a small Blocks bonus
+- **Cinder Kiln:** nearby Ember traps and Ember towers burn hotter
 
 ### Crafting, Supplies, and Imbuement
 

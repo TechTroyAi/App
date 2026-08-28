@@ -46,6 +46,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         private const val AUTO_NEXT_WAVE_DELAY = 10f
         private const val MAX_SEED_CHARACTERS = 12
         private const val DEFAULT_CUSTOM_SEED = "733101"
+        private const val MAX_BLOCK_GENERATORS = 5
     }
 
     private val stateLock = Any()
@@ -1851,7 +1852,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (utility.disabledTimer > 0f) continue
             when (utility.kind) {
                 UtilityKind.BLOCK_GENERATOR -> {
-                    val base = when (utility.level) { 1 -> 18; 2 -> 30; else -> 45 }
+                    val base = utility.blockOutput()
                     val adjacentRoute = pathCells.count { abs(it.col - utility.col) + abs(it.row - utility.row) == 1 }
                     val outputScale = (if (utility.imbuement == Imbuement.MIGHT) 1.15f else 1f) * (if (utility.imbuement == Imbuement.TEMPO) 1.10f else 1f)
                     var produced = ((base + min(3, adjacentRoute) * 3) * outputScale).toInt()
@@ -2257,8 +2258,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         return max(1, cost)
     }
 
-    // There is intentionally no global utility capacity in v1.4.2. Free terrain, cost, and the
-    // existing one-copy-per-kind rule remain the meaningful limits.
+    // There is intentionally no global utility capacity in v1.4.2. Free terrain and cost remain
+    // meaningful limits; each kind is unique except for the five-structure Block Generator cap.
 
     private fun workshopLevel(): Int = utilities.filter { it.kind == UtilityKind.FORGE_WORKSHOP }.map { it.level }.maxOrNull() ?: 0
 
@@ -2442,7 +2443,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 val col = values[0].toInt()
                 val row = values[1].toInt()
                 if (col !in 0 until COLS || row !in 0 until ROWS) throw IllegalStateException("Invalid utility cell")
-                val utility = Utility(col, row, UtilityKind.valueOf(values[2]))
+                val kind = UtilityKind.valueOf(values[2])
+                if (kind == UtilityKind.BLOCK_GENERATOR && utilities.count { it.kind == kind } >= MAX_BLOCK_GENERATORS) return@forEach
+                val utility = Utility(col, row, kind)
                 utility.level = values[3].toInt().coerceIn(1, 3)
                 utility.imbuement = if (values.size >= 5 && values[4] != "NONE") Imbuement.valueOf(values[4]) else null
                 utility.productionProgress = if (values.size >= 6) values[5].toInt().coerceIn(0, 20) else 0
@@ -3031,6 +3034,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     clearBuildSelections()
                     selectedUtilityKind = entry.first
                     audio.play("ui_click", 0.28f, 1.04f)
+                    val kind = entry.first
+                    val status = if (kind == UtilityKind.BLOCK_GENERATOR) " • ${utilities.count { it.kind == kind }}/$MAX_BLOCK_GENERATORS ACTIVE" else ""
+                    setBanner("${kind.title.uppercase()}  •  ${kind.description}$status", 2.8f)
                     return true
                 }
                 for (entry in cacheRects) if (entry.second.contains(x, y)) {
@@ -3082,6 +3088,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         clearBuildSelections()
         selectedTool = tool
         audio.play("ui_click", 0.28f, 1f + tool.ordinal * 0.025f)
+        setBanner("${tool.title.uppercase()}  •  ${toolDescription(tool)}", 2.8f)
     }
 
     private fun extendPath(cell: GridCell) {
@@ -3151,6 +3158,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedUtility = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 1.12f)
+            setBanner("${existingTower.kind.title.uppercase()}  •  ${existingTower.kind.description}", 2.8f)
             return
         }
         val existingUtility = findUtility(cell.col, cell.row)
@@ -3160,6 +3168,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedTrap = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 0.92f)
+            val status = if (existingUtility.kind == UtilityKind.BLOCK_GENERATOR) " • ${utilities.count { it.kind == existingUtility.kind }}/$MAX_BLOCK_GENERATORS ACTIVE" else ""
+            setBanner("${existingUtility.kind.title.uppercase()}  •  ${existingUtility.kind.description}$status", 2.8f)
             return
         }
         val existingTrap = findTrap(cell.col, cell.row)
@@ -3169,6 +3179,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedUtility = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 1.06f)
+            setBanner("${existingTrap.kind.title.uppercase()}  •  ${existingTrap.kind.description}", 2.8f)
             return
         }
         if (phase != GamePhase.BUILD) return
@@ -3368,10 +3379,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("DEFEAT THE FIRST OVERGROWTH TO UNLOCK", 1.8f)
             return
         }
-        // v1.4.2 removes the global four-utility capacity. Keep the existing roster rule so a
-        // utility type remains unique (Block Generators still allow two copies).
+        // v1.4.2 removes the global four-utility capacity. Keep one copy for each utility
+        // roster entry, while allowing a maximum of five Block Generators.
         val copies = utilities.count { it.kind == kind }
-        if ((kind != UtilityKind.BLOCK_GENERATOR && copies >= 1) || (kind == UtilityKind.BLOCK_GENERATOR && copies >= 2)) {
+        if (kind == UtilityKind.BLOCK_GENERATOR) {
+            if (copies >= MAX_BLOCK_GENERATORS) {
+                setBanner("BLOCK GENERATOR LIMIT  $MAX_BLOCK_GENERATORS/$MAX_BLOCK_GENERATORS", 1.6f)
+                return
+            }
+        } else if (copies >= 1) {
             setBanner("ONE COPY OF THIS UTILITY IS ALREADY ACTIVE", 1.5f)
             return
         }
@@ -5099,7 +5115,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             )
             spritePaint.alpha = 255
             drawCenteredText(canvas, kind.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.70f, min(dp(8f), rect.width() * 0.09f), if (unlocked) Color.WHITE else Color.rgb(105, 116, 108), true)
-            drawCenteredText(canvas, if (unlocked) kind.cost.toString() else "WAVE 10", rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (unlocked && gold >= kind.cost) Color.rgb(190, 244, 78) else Color.rgb(255, 111, 100), true)
+            val placedGenerators = if (kind == UtilityKind.BLOCK_GENERATOR) utilities.count { it.kind == kind } else 0
+            val utilityFooter = when {
+                !unlocked -> "WAVE 10"
+                kind == UtilityKind.BLOCK_GENERATOR -> "${kind.cost}  •  $placedGenerators/$MAX_BLOCK_GENERATORS"
+                else -> kind.cost.toString()
+            }
+            val footerColor = when {
+                !unlocked -> Color.rgb(255, 111, 100)
+                kind == UtilityKind.BLOCK_GENERATOR && placedGenerators >= MAX_BLOCK_GENERATORS -> Color.rgb(255, 111, 100)
+                gold < kind.cost -> Color.rgb(255, 111, 100)
+                else -> Color.rgb(190, 244, 78)
+            }
+            drawCenteredText(canvas, utilityFooter, rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(12, 22, 17) else footerColor, true)
         }
         for ((index, rect) in cacheRects) {
             val stored = storedTraps[index]
@@ -5155,6 +5183,32 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
+    private fun toolDescription(tool: BuildTool): String {
+        return when (tool) {
+            BuildTool.BOLT -> TowerKind.BOLT.description
+            BuildTool.FROST -> TowerKind.FROST.description
+            BuildTool.CANNON -> TowerKind.CANNON.description
+            BuildTool.EMBER -> TowerKind.EMBER.description
+            BuildTool.BEACON -> TowerKind.BEACON.description
+            BuildTool.THORN -> TowerKind.THORN.description
+            BuildTool.LANCE -> TowerKind.LANCE.description
+            BuildTool.MIRE -> TowerKind.MIRE.description
+            BuildTool.GALE -> TowerKind.GALE.description
+            BuildTool.SUNFORGE -> TowerKind.SUNFORGE.description
+            BuildTool.LODESTONE -> TowerKind.LODESTONE.description
+            BuildTool.HOWL -> TowerKind.HOWL.description
+            BuildTool.VITRIOL -> TowerKind.VITRIOL.description
+            BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT.description
+            BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM.description
+            BuildTool.SPIKES -> TrapKind.SPIKE.description
+            BuildTool.ROOT -> TrapKind.ROOT.description
+            BuildTool.RUNE -> TrapKind.EMBER.description
+            BuildTool.ARC -> TrapKind.ARC.description
+            BuildTool.CRUSHER -> TrapKind.CRUSHER.description
+            BuildTool.DIG -> "Draw the route one block at a time"
+        }
+    }
+
     private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float, color: Int) {
         val towerLayers: Pair<Bitmap, SpriteStrip>? = when (tool) {
             BuildTool.BOLT -> Pair(sprites.towerBase, sprites.greenTurret)
@@ -5207,15 +5261,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val damage = tower?.currentDamage() ?: trap?.currentDamage() ?: 0f
         val range = tower?.currentRange()
         val rank = tower?.rankLabel() ?: trap?.rankLabel().orEmpty()
-        val sellValue = tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: 0
+        val definition = tower?.kind?.description ?: trap?.kind?.description ?: ""
         drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
         drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(11f), Color.WHITE, true)
         val upgradeColor = if (canBuy) accent else Color.rgb(27, 42, 33)
         drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), upgradeColor)
         val titleColor = if (canBuy) Color.rgb(12, 21, 16) else Color.rgb(150, 168, 156)
-        drawCenteredText(canvas, "UPGRADE ${title.uppercase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
+        drawCenteredText(canvas, "UPGRADE ${title.uppercase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
+        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.50f, upgradeRect.width() * 0.90f, dp(8f), titleColor, 2)
         val stats = if (range != null) "DMG ${damage.toInt()}  RANGE ${oneDecimal(range)}  •  $cost BLOCKS" else "DMG ${damage.toInt()}  •  $cost BLOCKS"
-        drawCenteredText(canvas, stats, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.70f, min(dp(9f), upgradeRect.width() * 0.026f), titleColor, true)
+        drawCenteredText(canvas, stats, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.81f, min(dp(9f), upgradeRect.width() * 0.026f), titleColor, true)
         val canEvolve = tower?.canEvolve() == true
         val storeLabel = when { canEvolve -> "EVOLVE • $evolutionCores CORE"; trap != null -> "STORE • ${trapStorageCost(trap)} B"; else -> "EVOLUTION LOCKED" }
         drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (canEvolve) Color.rgb(68, 55, 30) else if (trap != null) Color.rgb(35, 54, 68) else Color.rgb(31, 40, 34))
@@ -5231,11 +5286,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawUtilityPanel(canvas: Canvas) {
         val utility = selectedUtility ?: return
         val cost = if (utility.level < 3) utility.upgradeCost() else 0
+        val canUpgrade = utility.level < 3 && gold >= cost
+        val utilityTextColor = if (canUpgrade) Color.rgb(12, 21, 16) else Color.WHITE
         drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
         drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(10f), Color.WHITE, true)
-        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (utility.level < 3 && gold >= cost) utility.kind.accent else Color.rgb(31, 43, 35))
-        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LEVEL ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.33f, min(dp(10f), upgradeRect.width() * 0.03f), if (utility.level < 3 && gold >= cost) Color.rgb(12, 21, 16) else Color.WHITE, true)
-        drawWrappedText(canvas, if (utility.level < 3) "${utility.kind.description} • UPGRADE $cost BLOCKS" else "${utility.kind.description} • MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.68f, upgradeRect.width() * 0.90f, dp(8f), if (utility.level < 3 && gold >= cost) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), 2)
+        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (canUpgrade) utility.kind.accent else Color.rgb(31, 43, 35))
+        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LEVEL ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.03f), utilityTextColor, true)
+        val definition = if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
+            "Produces ${utility.blockOutput()} Blocks after every cleared wave"
+        } else {
+            utility.kind.description
+        }
+        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), 2)
+        if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
+            val activeGenerators = utilities.count { it.kind == UtilityKind.BLOCK_GENERATOR }
+            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  ${if (utility.level < 3) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL"}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+        } else {
+            drawCenteredText(canvas, if (utility.level < 3) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+        }
         drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(81, 49, 31) else Color.rgb(31, 40, 34))
         drawCenteredText(canvas, if (utility.kind == UtilityKind.FORGE_WORKSHOP) "OPEN FORGEWORKS" else "PASSIVE UTILITY", storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(255, 187, 116) else Color.rgb(137, 153, 142), true)
         drawRoundedRect(canvas, imbueRect.left, imbueRect.top, imbueRect.right, imbueRect.bottom, dp(7f), Color.rgb(53, 43, 68))
