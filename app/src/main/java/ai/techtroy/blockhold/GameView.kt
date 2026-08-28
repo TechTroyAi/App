@@ -63,6 +63,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun prefBoolean(key: String, fallback: Boolean): Boolean =
         try { preferences.getBoolean(key, fallback) } catch (_: Exception) { fallback }
 
+    /**
+     * Read from the package rather than hard-coded, so the title screen can never disagree with
+     * the manifest again. The 1.4 content shipped under a hard-coded "v1.2" label, which is how
+     * an entire era of work ended up invisible in the build it was in.
+     */
+    private val versionLabel: String = try {
+        val name = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        if (name.isNullOrBlank()) "" else "v$name"
+    } catch (_: Exception) {
+        ""
+    }
+
     @Volatile private var running = false
     @Volatile private var activityPaused = false
     private var renderThread: Thread? = null
@@ -3695,7 +3707,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, if (savedRunAvailable) "CONTINUE RUN" else "NO SAVED RUN", titleContinueRect.centerX(), titleContinueRect.centerY(), dp(15f), continueText, true, true)
         drawRoundedRect(canvas, titleChallengeRect.left, titleChallengeRect.top, titleChallengeRect.right, titleChallengeRect.bottom, dp(12f), Color.rgb(43, 57, 46))
         drawCenteredText(canvas, "SEEDED CHALLENGES", titleChallengeRect.centerX(), titleChallengeRect.centerY(), dp(11f), Color.rgb(224, 232, 226), true)
-        drawCenteredText(canvas, "BEST $bestWave  •  DAILY $bestDailyWave  •  CUSTOM $bestCustomWave  •  v1.2", viewWidth * 0.5f, viewHeight - dp(12f), dp(9f), Color.rgb(113, 130, 119), true)
+        drawCenteredText(canvas, "BEST $bestWave  •  DAILY $bestDailyWave  •  CUSTOM $bestCustomWave  •  $versionLabel", viewWidth * 0.5f, viewHeight - dp(12f), dp(9f), Color.rgb(113, 130, 119), true)
     }
 
     private fun drawChallengeMenu(canvas: Canvas) {

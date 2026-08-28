@@ -20,8 +20,8 @@ android {
         applicationId = "ai.techtroy.blockhold"
         minSdk = 24
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.2.0"
+        versionCode = 14
+        versionName = "1.4.0"
     }
 
     signingConfigs {

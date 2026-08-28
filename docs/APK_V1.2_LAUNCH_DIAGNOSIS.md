@@ -14,6 +14,18 @@ python3 scripts/verify-apk.py artifacts/Blockhold-Defense-v1.2-installable.apk
 
 ## 0. Try this first (30 seconds, no tools)
 
+> **"Is there a v1.4 build that would fix this?" — No. v1.4 is the file you already have.**
+>
+> `docs/MERGE_1_4_READINESS.md` records the 1.4 Overgrowth installable as SHA-256
+> `7e43587c…0340d4`. That is byte-for-byte `artifacts/Blockhold-Defense-v1.2-installable.apk` —
+> the same file already on the phone. The 1.4 content was merged in PR #2 (commit `81ef1625`,
+> from `arena/01a0429d-app`) and shipped under the label `1.2.0`. Its dex contains every
+> 1.4-only tower and enemy (`AEGIS_LOOM`, `GRAVEBOLT`, `VITRIOL`, `HOWL`, `LODESTONE`,
+> `SUNFORGE`, `ASHEN_CHOIR`, `SPORE_SOVEREIGN`), which confirms it.
+>
+> So building "v1.4" rebuilds exactly the code that crashes. The crash fixes in section 1 are
+> what change the outcome. The version is now correctly stamped `1.4.0` / `versionCode 14`.
+
 **Settings → Apps → Blockhold Defense → Storage → Clear data**, then open the app.
 
 The reporter upgraded from v1.1, which left its saved run and best-score keys behind in

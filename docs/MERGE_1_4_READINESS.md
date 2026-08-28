@@ -1,5 +1,17 @@
 # 1.4 Overgrowth — merge readiness
 
+> **Naming correction (2026-08-28).** The "1.4" content described here shipped inside the file
+> named `Blockhold-Defense-v1.2-installable.apk`, under `versionName 1.2.0` / `versionCode 12`.
+> There is no separate v1.4 APK and there never was — the SHA-256 recorded below is byte-for-byte
+> the v1.2 file. This caused real confusion, so `app/build.gradle.kts` is now `versionName 1.4.0`
+> / `versionCode 14`, and the title screen reads its label from the package instead of a
+> hard-coded string. The next build will correctly identify itself as 1.4.0.
+>
+> Note also the line below under "Remaining": *"current ship path is apktool smali"*. That is the
+> documented origin of the packaging defects in
+> [`APK_V1.2_LAUNCH_DIAGNOSIS.md`](APK_V1.2_LAUNCH_DIAGNOSIS.md) — the artifact was never produced
+> by the Kotlin/Gradle toolchain, and was never zipaligned or launched.
+
 **Branch:** `arena/01a0429d-app`  
 **Installable:** `artifacts/Blockhold-Defense-v1.2-installable.apk`  
 **SHA-256:** `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4`  
