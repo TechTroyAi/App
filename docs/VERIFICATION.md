@@ -68,3 +68,51 @@ Static source assertions and compilation confirm:
 ## Runtime limitation
 
 No Android emulator or physical Android device is available in the build environment. Installation, actual landscape rendering, touch ergonomics, lifecycle transitions, long-session balance, and vendor-specific behavior remain device-QA items. Static compilation and package checks do not replace a playtest. Production update testing also remains blocked until the permanent v1.0 signing backup is restored.
+
+---
+
+## Sideload installable (1.3 + C1 + F0 + F1)
+
+Artifact: `artifacts/Blockhold-Defense-v1.2-installable.apk`
+
+- Content: v1.2 Forgeworks + Batches 15–19 / 1.3 Phases A (impacts+SFX), B (death dissolve), D (UI moments), C (board ambient)
+- APK SHA-256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
+- Size: ~2.52 MB
+- Signing: APK Signature Scheme v2 + v3 (sideload/debug key)
+- Certificate SHA-256: `dbcf288d01f8114d8e38a63c6c6fa059521bb49c4ad30a664a9625d0371da55a`
+- Unsigned rebuild input SHA-256: `1c014dd5a900ce5b4f3200c09bd0864ebdc816f30bc35c3eb057b4daa94ee069`
+
+The historical baseline unsigned Forgeworks hash above (`a429a231…`) records the pre–1.3 content payload. Prefer the installable SHA for phone installs.
+
+### E1 — evolution confirm beat
+
+- On evolution pick: lime→gold rim flash, emblem scale-pop, dual particle burst, gold floating title, forge SFX
+- Tower field `evolveFlash` decays ~0.4s
+- APK SHA-256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
+
+### E2 — board acknowledgment
+
+- Path sheen boost near evolved towers (`evolveAura` ~2.4s)
+- Hotter projectile trail/impact while `evolveProof` ~2.2s
+- APK SHA-256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
+
+### E3 — per-family evolution flavor
+
+- Confirm rim lerps family accent → gold
+- Family secondary bursts + tower SFX (`bolt`/`frost`/`cannon`/`ember`/`beacon`)
+- APK SHA-256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
+
+## 1.4 F0 Wide Hold
+
+- Board **16x9**, gate/core on row **4**
+- Pinch zoom + drag pan; top/bottom chrome fixed
+- Starting blocks **420**, max path **64**
+- Installable SHA-256: `c7c05ff6037f49d4b99b892fca5e4cc393c96a7452739b91814dbe5dfb1da216`
+- Notes: `artwork/style-production/batch-22-wide-hold-f0/`
+
+## 1.4 F1 New blood
+
+Normals: Sapper, Mycelial, Needlefly, Gloomkin, Carrion Hulk
+Elite: Thornback
+Installable SHA-256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
+Notes: `artwork/style-production/batch-23-new-blood-f1/`

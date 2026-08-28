@@ -1,24 +1,57 @@
+
+## Current (F3 Toolkit — 1.4)
+- **Installable:** `Blockhold-Defense-v1.2-installable.apk`
+- **SHA-256:** `058f8a7da7e08e565e340467ecc866248850b367b1d19b18258f85b8d8a938db`
+- **Contents:** F0 board + F1 blood + F2 named threats + **F3 toolkit** (Ward Beacon, Battle Banner, Essence Still, Trap Lattice; Overcharge Cell, Focus Lens, Snap Spring; Ward/Leech/Surge imbuements)
+- Signing: APK Signature Scheme **v2 + v3**
+
 # Build artifacts
 
-## v1.2 Forgeworks signing input
+## Download this one (installable v1.2)
 
-`Blockhold-Defense-v1.2-unsigned.apk` is the verified v1.2 Forgeworks build.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload with 1.3 + C1 + F0 Wide Hold + F1 New blood + **F2 Named threats**.
 
 - Package: `ai.techtroy.blockhold`
-- Version: `1.2.0` (`12`)
+- Version: `1.2.0` (`12`) — 1.3 + C1 + F0 + F1 + F2 Named threats
 - Minimum Android: 7.0 / API 24
 - Target Android API: 35
 - Orientation: landscape
 - Permissions requested: none
 - Offline: yes
-- APK SHA-256: `a429a231b0194f3630f96736178dcbe80ddeecba2f28670f54f995af368ba8e3`
-- Signing state: **unsigned**
+- Size: ~2.5 MB
+- APK SHA-256: `c7c05ff6037f49d4b99b892fca5e4cc393c96a7452739b91814dbe5dfb1da216`
+- Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
+- Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
+- Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
+- Certificate SHA-256: `dbcf288d01f8114d8e38a63c6c6fa059521bb49c4ad30a664a9625d0371da55a`
 
-This APK cannot be installed until it is signed. It must be signed with the permanent v1.0 Blockhold Defense key before distribution as an update. Do not generate a replacement production key; Android would reject it over an existing installation. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.
+### Install on Android
+
+1. Copy `Blockhold-Defense-v1.2-installable.apk` to the phone (download, USB, Drive, etc.).
+2. Open the file and allow **Install unknown apps** for your file manager/browser if prompted.
+3. Tap Install.
+
+**Note:** This uses a **sideload/debug key**, not the permanent v1.0 production release key (which is not present in this workspace). If you already have production `ai.techtroy.blockhold` installed from the v1.0 release APK, uninstall that first — Android will reject an update signed with a different key.
+
+## F2 Named threats (this build)
+
+- Elites: **Grave Mender**, **Pyre Wight**
+- Bosses: **Iron Monarch**, **Spore Sovereign** (plus Overgrowth)
+- Wind-up tells + banner stings on ability charge / spawn
+- Alias also at `Blockhold-Defense-v1.2-f2-installable.apk`
+
+## v1.2 Forgeworks signing input
+
+`Blockhold-Defense-v1.2-unsigned.apk` is the rebuilt v1.2 Forgeworks + 1.3 content payload before signing (from the latest apktool rebuild).
+
+- APK SHA-256: `ca4356610999b284103674c166ed65d3bcf2981684cc7a17bb0650c11c399b47`
+- Signing state: **unsigned** (cannot install until signed)
+
+For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.
 
 ## Last signed production build
 
-`Blockhold-Defense-v1.0-release.apk` remains the last directly installable artifact in this checkout.
+`Blockhold-Defense-v1.0-release.apk` remains the last production-key-signed artifact in this checkout.
 
 - Package: `ai.techtroy.blockhold`
 - Version: `1.0.0` (`10`)

@@ -28,12 +28,15 @@ import kotlin.math.sqrt
 internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
     companion object {
-        private const val COLS = 12
-        private const val ROWS = 7
-        private const val START_ROW = 3
-        private const val MAX_PATH_LENGTH = 46
-        private const val STARTING_BLOCKS = 360
+        /** 1.4 F0 Wide Hold — larger forge grid. */
+        private const val COLS = 16
+        private const val ROWS = 9
+        private const val START_ROW = 4
+        private const val MAX_PATH_LENGTH = 64
+        private const val STARTING_BLOCKS = 420
         private const val STARTING_CORE = 12
+        private const val MIN_CAMERA_ZOOM = 0.72f
+        private const val MAX_CAMERA_ZOOM = 2.15f
     }
 
     private val stateLock = Any()
@@ -67,6 +70,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var imbuementUtility: Utility? = null
     private var buildPage = BuildPage.TOWERS
     private var utilityPageIndex = 0
+    private var towerPageIndex = 0
     private var cachePageIndex = 0
     private var workshopTab = WorkshopTab.CRAFT
     private var workshopPageIndex = 0
@@ -85,6 +89,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val pendingSpawns = ArrayList<Enemy>()
     private val projectiles = ArrayList<Projectile>()
     private val particles = ArrayList<Particle>()
+    private val impactEffects = ArrayList<ImpactFx>()
     private val floatingLabels = ArrayList<FloatingLabel>()
     private val waveQueue = ArrayList<SpawnSpec>()
 
@@ -110,6 +115,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var growthEssence = 0
     private var surveyLensWaves = 0
     private var phaseBarrierReady = false
+    /** Crafts C1: next multi-damage core hit loses 1 damage. */
+    private var splinterBraceReady = false
+    private var routeOilWaves = 0
+    private var scrapMagnetKills = 0
+
+    /** Crafts C1: brief Hex immunity per tower cell key. */
+    private var coolingImmunity = HashMap<Int, Float>()
     private var reforgeCost = 0
     private var gameMode = GameMode.ENDLESS
     private var challengeModifier = ChallengeModifier.NONE
@@ -119,9 +131,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var ambientTime = 0f
     private var bannerText = ""
     private var bannerTimer = 0f
+    private var bannerDuration = 2.4f
     private var screenShake = 0f
     private var diggingGesture = false
     private var waveTheme = "FORGE THE FIRST ROUTE"
+    private var goldPulse = 0f
+    private var forgePulse = 0f
+    private var lastDisplayedGold = -1
+    private var lastDisplayedForge = -1
     private var savedRunAvailable = preferences.getBoolean("has_saved_run", false)
 
     private var viewWidth = 1f
@@ -132,6 +149,26 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var boardLeft = 0f
     private var boardTop = 0f
     private var tileSize = 1f
+    /** Fit-to-viewport tile size before camera zoom (F0). */
+    private var baseTileSize = 1f
+    private var viewportLeft = 0f
+    private var viewportTop = 0f
+    private var viewportRight = 1f
+    private var viewportBottom = 1f
+    private var cameraZoom = 1f
+    private var cameraPanX = 0f
+    private var cameraPanY = 0f
+    private var cameraGesture = false
+    private var panLastX = 0f
+    private var panLastY = 0f
+    private var pinchActive = false
+    private var pinchStartDistance = 1f
+    private var pinchStartZoom = 1f
+    private var pinchFocusX = 0f
+    private var pinchFocusY = 0f
+    private var pinchStartPanX = 0f
+    private var pinchStartPanY = 0f
+    private var suppressGridTap = false
 
     private val primaryActionRect = RectF()
     private val resetPathRect = RectF()
@@ -282,11 +319,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
         topBarHeight = min(viewHeight * 0.145f, dp(68f))
         bottomBarHeight = min(viewHeight * 0.235f, dp(112f))
-        val verticalSpace = viewHeight - topBarHeight - bottomBarHeight - dp(14f)
-        tileSize = min((viewWidth - dp(28f)) / COLS, verticalSpace / ROWS)
-        tileSize = max(20f, tileSize)
-        boardLeft = (viewWidth - tileSize * COLS) * 0.5f
-        boardTop = topBarHeight + (verticalSpace - tileSize * ROWS) * 0.5f + dp(5f)
+        viewportLeft = dp(10f)
+        viewportRight = viewWidth - dp(10f)
+        viewportTop = topBarHeight + dp(4f)
+        viewportBottom = viewHeight - bottomBarHeight - dp(6f)
+        val verticalSpace = max(40f, viewportBottom - viewportTop)
+        val horizontalSpace = max(40f, viewportRight - viewportLeft)
+        baseTileSize = min(horizontalSpace / COLS, verticalSpace / ROWS)
+        baseTileSize = max(14f, baseTileSize)
+        applyCameraTransform()
 
         val smallButton = min(dp(44f), topBarHeight - dp(14f))
         val top = dp(7f)
@@ -437,7 +478,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun visibleTools(): Array<BuildTool> {
         return when (buildPage) {
-            BuildPage.TOWERS -> arrayOf(BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON, BuildTool.EMBER, BuildTool.BEACON)
+            BuildPage.TOWERS -> {
+                val all = arrayOf(
+                    BuildTool.BOLT, BuildTool.FROST, BuildTool.CANNON, BuildTool.EMBER,
+                    BuildTool.BEACON, BuildTool.THORN, BuildTool.LANCE, BuildTool.MIRE,
+                    BuildTool.GALE, BuildTool.SUNFORGE, BuildTool.LODESTONE,
+                    BuildTool.HOWL, BuildTool.VITRIOL,
+                    BuildTool.GRAVEBOLT, BuildTool.AEGIS_LOOM
+                )
+                all.drop(towerPageIndex * 4).take(4).toTypedArray()
+            }
             BuildPage.TRAPS -> arrayOf(BuildTool.SPIKES, BuildTool.ROOT, BuildTool.RUNE, BuildTool.ARC, BuildTool.CRUSHER)
             else -> emptyArray()
         }
@@ -446,6 +496,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun update(delta: Float) {
         ambientTime += delta
         if (bannerTimer > 0f) bannerTimer -= delta
+        goldPulse = max(0f, goldPulse - delta * 2.8f)
+        forgePulse = max(0f, forgePulse - delta * 2.8f)
+        if (lastDisplayedGold >= 0 && gold > lastDisplayedGold) goldPulse = 1f
+        if (lastDisplayedForge >= 0 && forgeCharges > lastDisplayedForge) forgePulse = 1f
+        lastDisplayedGold = gold
+        lastDisplayedForge = forgeCharges
         if (screenShake > 0f) screenShake -= delta
         if (phase == GamePhase.WAVE) updateWave(delta)
         updateEffects(delta)
@@ -466,12 +522,37 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
         for (enemy in enemies) {
             if (!enemy.alive) continue
+            if (enemy.dying) {
+                enemy.deathTimer -= delta
+                enemy.flashTimer = max(0f, enemy.flashTimer - delta)
+                enemy.animation += delta * 6f
+                if (enemy.deathTimer <= 0f) {
+                    enemy.deathTimer = 0f
+                    enemy.alive = false
+                }
+                continue
+            }
             enemy.animation += delta * (4f + enemy.moveSpeed * 2f)
             enemy.flashTimer = max(0f, enemy.flashTimer - delta)
             enemy.slowTimer = max(0f, enemy.slowTimer - delta)
+            enemy.markTimer = max(0f, enemy.markTimer - delta)
+            enemy.graveMarkTimer = max(0f, enemy.graveMarkTimer - delta)
+            if (enemy.graveMarkTimer <= 0f) enemy.graveMarkDamage = 0f
+            enemy.armorShredTimer = max(0f, enemy.armorShredTimer - delta)
+            if (enemy.armorShredTimer <= 0f) enemy.armorShred = 0f
             enemy.rootTimer = max(0f, enemy.rootTimer - delta)
             enemy.stunTimer = max(0f, enemy.stunTimer - delta)
             enemy.armoredTimer = max(0f, enemy.armoredTimer - delta)
+            enemy.gloomTimer = max(0f, enemy.gloomTimer - delta)
+            enemy.wispTimer = max(0f, enemy.wispTimer - delta)
+            enemy.thornArmorTimer = max(0f, enemy.thornArmorTimer - delta)
+            enemy.pyreTrailTimer = max(0f, enemy.pyreTrailTimer - delta)
+            if (enemy.windupTimer > 0f) {
+                enemy.windupTimer -= delta
+                if (enemy.windupTimer <= 0f) {
+                    resolveEnemyWindup(enemy)
+                }
+            }
             enemy.abilityTimer -= delta
 
             if (enemy.burnTimer > 0f) {
@@ -479,19 +560,33 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 damageEnemy(enemy, enemy.burnDamagePerSecond * delta, Color.rgb(255, 104, 55), 0.45f, false)
                 if (perkCount(ForgePerk.SPREADING_EMBERS) > 0) {
                     val spread = enemy.burnDamagePerSecond * (0.10f + perkCount(ForgePerk.SPREADING_EMBERS) * 0.04f) * delta
-                    enemies.filter { it.alive && it !== enemy && abs(it.progress - enemy.progress) < 0.85f }.take(1 + perkCount(ForgePerk.SPREADING_EMBERS)).forEach {
+                    enemies.filter { it.targetable && it !== enemy && abs(it.progress - enemy.progress) < 0.85f }.take(1 + perkCount(ForgePerk.SPREADING_EMBERS)).forEach {
                         damageEnemy(it, spread, Color.rgb(255, 104, 55), 0.4f, false)
                         it.burnTimer = max(it.burnTimer, 0.35f)
                     }
                 }
             }
+            // F2 Pyre Wight: scorched trail burns nearby path enemies
+            if (enemy.pyreTrailTimer > 0f && enemy.kind == EnemyKind.PYRE_WIGHT) {
+                enemies.filter { it.targetable && it !== enemy && abs(it.progress - enemy.progress) < 0.55f }.take(2).forEach {
+                    ignite(it, it.maxHealth * 0.012f, 0.8f)
+                }
+            }
             val regeneration = enemy.kind.regeneration + if (waveNumber % 8 == 4) 0.006f else 0f
             if (regeneration > 0f && enemy.health > 0f && enemy.health < enemy.maxHealth) enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * regeneration * delta)
-            if (!enemy.alive) continue
+            if (!enemy.alive || enemy.dying) continue
             updateEnemyAbility(enemy)
 
-            val slowMultiplier = if (enemy.slowTimer > 0f) 0.56f else 1f
-            if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * delta
+            val slowMultiplier = when {
+                enemy.slowTimer <= 0f -> 1f
+                enemy.kind == EnemyKind.NEEDLEFLY -> 0.82f  // F1: resists most slow
+                enemy.kind == EnemyKind.DRIFT_SEED -> 0.90f // F5: almost ignores slow (floats)
+                else -> 0.56f
+            }
+            var gateSlow = 1f
+            if (routeOilWaves > 0 && enemy.progress < 4.5f) gateSlow = 0.55f
+            val wardenSlow = pathWardenSlow(enemy.x, enemy.y)
+            if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * gateSlow * wardenSlow * delta
             updateEnemyPosition(enemy)
             applyCorruptionToEnemy(enemy, delta)
             triggerTrapIfNeeded(enemy)
@@ -501,10 +596,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 enemy.alive = false
                 if (phaseBarrierReady) {
                     phaseBarrierReady = false
+                    splinterBraceReady = false
+                    coolingImmunity.clear()
                     floatingLabels.add(FloatingLabel("BARRIER", enemy.x, enemy.y, Color.rgb(93, 220, 255)))
                     burst(enemy.x, enemy.y, Color.rgb(93, 220, 255), 22, 1.3f)
                 } else {
-                    val coreDamage = enemy.kind.baseDamage + if (enemy.bossTier >= 3) 1 else 0
+                    var coreDamage = enemy.kind.baseDamage + if (enemy.bossTier >= 3) 1 else 0
+                    if (splinterBraceReady && coreDamage >= 2) {
+                        coreDamage -= 1
+                        splinterBraceReady = false
+                        floatingLabels.add(FloatingLabel("BRACED", enemy.x, enemy.y - 0.35f, Color.rgb(190, 244, 78), pop = 1.35f))
+                        burst(enemy.x, enemy.y, Color.rgb(190, 244, 78), 14, 0.9f)
+                    }
                     lives = max(0, lives - coreDamage)
                     floatingLabels.add(FloatingLabel("-$coreDamage CORE", enemy.x, enemy.y, Color.rgb(255, 107, 96)))
                 }
@@ -521,7 +624,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (tower in towers) {
             tower.cooldown -= delta
             tower.recoil = max(0f, tower.recoil - delta * 4.2f)
-            tower.disabledTimer = max(0f, tower.disabledTimer - delta)
+            tower.evolveFlash = max(0f, tower.evolveFlash - delta * 2.4f)
+            tower.evolveAura = max(0f, tower.evolveAura - delta)
+            tower.evolveProof = max(0f, tower.evolveProof - delta)
+            tower.damageBoostTimer = max(0f, tower.damageBoostTimer - delta)
+            tower.focusBoostTimer = max(0f, tower.focusBoostTimer - delta)
+            val hexDecay = if (tower.imbuement == Imbuement.WARD) delta * 1.75f else delta
+            tower.disabledTimer = max(0f, tower.disabledTimer - hexDecay)
+            val immKey = tower.col * 100 + tower.row
+            val imm = coolingImmunity[immKey] ?: 0f
+            if (imm > 0f) {
+                val left = imm - delta
+                if (left <= 0f) coolingImmunity.remove(immKey) else coolingImmunity[immKey] = left
+            }
             if (tower.disabledTimer > 0f) continue
             val target = findTarget(tower)
             if (target != null) {
@@ -530,7 +645,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     fireTower(tower, target)
                     var interval = tower.currentInterval()
                     if (hasHarmonyNear(tower)) interval *= 0.80f
-                    if (perkCount(ForgePerk.LAST_BASTION) > 0 && distanceSquared(tower.col + 0.5f, tower.row + 0.5f, COLS - 0.5f, START_ROW + 0.5f) <= 10f) interval *= max(0.55f, 1f - perkCount(ForgePerk.LAST_BASTION) * 0.10f)
+                    interval *= sparkRelayIntervalMul(tower.col, tower.row)
+                    if (perkCount(ForgePerk.LAST_BASTION) > 0 && distanceSquared(tower.col + 0.5f, tower.row + 0.5f, COLS - 0.5f, START_ROW + 0.5f) <= 14f) interval *= max(0.55f, 1f - perkCount(ForgePerk.LAST_BASTION) * 0.10f)
                     tower.cooldown = interval
                     tower.recoil = 1f
                 }
@@ -558,7 +674,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (min(towerDistance, utilityDistance) <= 12f) {
                 if (towerDistance <= utilityDistance && towerTarget != null) {
                     val clarity = if (towerTarget.imbuement == Imbuement.CLARITY) 0.25f else 1f
-                    towerTarget.disabledTimer = max(towerTarget.disabledTimer, (if (hasHarmonyNear(towerTarget)) 0.8f else 1.8f) * clarity)
+                    applyTowerHex(towerTarget, (if (hasHarmonyNear(towerTarget)) 0.8f else 1.8f) * clarity)
                     floatingLabels.add(FloatingLabel("HEX BLOOM", towerTarget.col + 0.5f, towerTarget.row + 0.3f, corruption.kind.accent))
                 } else if (utilityTarget != null) {
                     utilityTarget.disabledTimer = max(utilityTarget.disabledTimer, 1.8f * if (utilityTarget.imbuement == Imbuement.CLARITY) 0.25f else 1f)
@@ -587,7 +703,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun updateEnemyAbility(enemy: Enemy) {
-        if (enemy.abilityTimer > 0f) return
+        if (enemy.abilityTimer > 0f || enemy.windupTimer > 0f) return
         when (enemy.kind) {
             EnemyKind.BLINK_STALKER -> {
                 enemy.progress = min(pathCells.size - 1.05f, enemy.progress + 0.85f)
@@ -605,12 +721,103 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             EnemyKind.HEX_WEAVER -> {
                 val target = towers.filter { it.disabledTimer <= 0f }.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
                 if (target != null && distanceSquared(target.col + 0.5f, target.row + 0.5f, enemy.x, enemy.y) <= 10f) {
-                    target.disabledTimer = (if (hasHarmonyNear(target)) 1.2f else 2.8f) * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f
+                    applyTowerHex(target, (if (hasHarmonyNear(target)) 1.2f else 2.8f) * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f)
                     floatingLabels.add(FloatingLabel("HEXED", target.col + 0.5f, target.row + 0.35f, enemy.kind.color))
                 }
                 enemy.abilityTimer = 5.7f
             }
+            EnemyKind.GLOOMKIN -> {
+                enemy.gloomTimer = max(enemy.gloomTimer, 2.4f)
+                enemy.abilityTimer = 5.2f
+                floatingLabels.add(FloatingLabel("GLOOM", enemy.x, enemy.y - 0.3f, enemy.kind.color, 0.6f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 8, 0.55f)
+            }
+            EnemyKind.WISP_DRIFTER -> {
+                enemy.wispTimer = max(enemy.wispTimer, 2.0f)
+                enemy.abilityTimer = 4.6f
+                floatingLabels.add(FloatingLabel("WISP", enemy.x, enemy.y - 0.3f, enemy.kind.color, 0.55f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 7, 0.5f)
+            }
+            EnemyKind.GRAVE_MENDER -> {
+                beginEnemyWindup(enemy, 1, 1.15f, "MENDING…")
+                enemy.abilityTimer = 6.2f
+            }
+            EnemyKind.PYRE_WIGHT -> {
+                beginEnemyWindup(enemy, 2, 0.95f, "PYRE…")
+                enemy.abilityTimer = 5.4f
+            }
             EnemyKind.OVERGROWTH -> {
+                beginEnemyWindup(enemy, 3, 1.25f, "OVERGROWTH SURGE")
+                enemy.abilityTimer = max(3.4f, 6.8f - enemy.bossTier * 0.25f)
+            }
+            EnemyKind.IRON_MONARCH -> {
+                beginEnemyWindup(enemy, 4, 1.45f, "MONARCH SLAM")
+                enemy.abilityTimer = max(3.8f, 7.2f - enemy.bossTier * 0.2f)
+            }
+            EnemyKind.SPORE_SOVEREIGN -> {
+                beginEnemyWindup(enemy, 5, 1.35f, "SPORE BLOOM")
+                enemy.abilityTimer = max(3.6f, 6.5f - enemy.bossTier * 0.22f)
+            }
+            EnemyKind.VEIN_LURKER -> {
+                beginEnemyWindup(enemy, 6, 1.05f, "DRAIN…")
+                enemy.abilityTimer = 5.8f
+            }
+            EnemyKind.MIRROR_MOTH -> {
+                enemy.mirrorCharges = max(enemy.mirrorCharges, 2)
+                enemy.abilityTimer = 6.5f
+                floatingLabels.add(FloatingLabel("MIRROR", enemy.x, enemy.y - 0.3f, enemy.kind.color, 0.6f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 10, 0.7f)
+            }
+            EnemyKind.TIDAL_ROOT -> {
+                beginEnemyWindup(enemy, 7, 1.50f, "TIDAL SURGE")
+                enemy.abilityTimer = max(4.0f, 7.4f - enemy.bossTier * 0.2f)
+            }
+            EnemyKind.ASHEN_CHOIR -> {
+                beginEnemyWindup(enemy, 8, 1.40f, "ASHEN HYMN")
+                enemy.abilityTimer = max(3.8f, 7.0f - enemy.bossTier * 0.22f)
+            }
+            else -> enemy.abilityTimer = 8f
+        }
+    }
+
+    private fun beginEnemyWindup(enemy: Enemy, kind: Int, duration: Float, tell: String) {
+        enemy.windupKind = kind
+        enemy.windupTimer = duration
+        floatingLabels.add(FloatingLabel(tell, enemy.x, enemy.y - 0.45f, enemy.kind.color, pop = 1.25f))
+        burst(enemy.x, enemy.y, enemy.kind.color, if (enemy.kind.boss) 14 else 8, if (enemy.kind.boss) 1.0f else 0.65f)
+        if (enemy.kind.boss || enemy.kind.elite) {
+            setBanner(tell, if (enemy.kind.boss) 1.8f else 1.2f)
+            audio.play("wave", 0.35f, if (enemy.kind.boss) 0.7f else 1.15f)
+        }
+    }
+
+    private fun resolveEnemyWindup(enemy: Enemy) {
+        if (!enemy.alive || enemy.dying) {
+            enemy.windupKind = 0
+            return
+        }
+        when (enemy.windupKind) {
+            1 -> { // Grave Mender
+                for (ally in enemies) {
+                    if (!ally.targetable) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 6.5f) {
+                        ally.health = min(ally.maxHealth, ally.health + ally.maxHealth * 0.12f)
+                    }
+                }
+                floatingLabels.add(FloatingLabel("MENDED", enemy.x, enemy.y - 0.25f, enemy.kind.color, 0.7f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 16, 1.0f)
+            }
+            2 -> { // Pyre Wight
+                enemy.pyreTrailTimer = 3.2f
+                enemy.burnTimer = max(enemy.burnTimer, 2.5f)
+                enemy.burnDamagePerSecond = max(enemy.burnDamagePerSecond, enemy.maxHealth * 0.02f)
+                towers.filter { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 3.5f }.forEach {
+                    applyTowerHex(it, (if (hasHarmonyNear(it)) 0.6f else 1.4f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                }
+                floatingLabels.add(FloatingLabel("IGNITED", enemy.x, enemy.y - 0.25f, enemy.kind.color, 0.75f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 18, 1.1f)
+            }
+            3 -> { // Overgrowth
                 enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * (0.025f + min(0.025f, enemy.bossTier * 0.003f)))
                 if (enemy.bossTier >= 2) {
                     repeat(min(3, 1 + enemy.bossTier / 3)) {
@@ -622,22 +829,102 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 if (enemy.bossTier >= 3) {
                     towers.sortedBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }.take(min(3, enemy.bossTier - 1)).forEach {
-                        it.disabledTimer = (if (hasHarmonyNear(it)) 0.9f else 2.2f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f
+                        applyTowerHex(it, (if (hasHarmonyNear(it)) 0.9f else 2.2f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
                     }
                 }
-                enemy.abilityTimer = max(3.4f, 6.8f - enemy.bossTier * 0.25f)
                 burst(enemy.x, enemy.y, Color.rgb(103, 220, 94), 18, 1.1f)
             }
-            else -> enemy.abilityTimer = 8f
+            4 -> { // Iron Monarch slam
+                val radius = 5.5f + enemy.bossTier * 0.4f
+                towers.filter { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= radius * radius }.forEach {
+                    applyTowerHex(it, (if (hasHarmonyNear(it)) 1.1f else 2.6f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                }
+                enemies.filter { it.targetable && it !== enemy && distanceSquared(it.x, it.y, enemy.x, enemy.y) <= 4f }.forEach {
+                    it.progress = min(pathCells.size - 1.05f, it.progress + 0.15f)
+                }
+                screenShake = max(screenShake, 0.45f)
+                floatingLabels.add(FloatingLabel("SLAM", enemy.x, enemy.y - 0.3f, enemy.kind.color, pop = 1.4f))
+                burst(enemy.x, enemy.y, Color.rgb(255, 180, 80), 28, 1.5f)
+                audio.play("cannon", 0.45f, 0.75f)
+            }
+            5 -> { // Spore Sovereign bloom
+                enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * 0.04f)
+                repeat(min(4, 2 + enemy.bossTier / 2)) {
+                    val minion = Enemy(nextEnemyId++, EnemyKind.MYCELIAL, enemy.healthScale * 0.14f, min(1.4f, enemy.speedScale * 1.1f), 0.4f, splitDepth = 1)
+                    minion.progress = max(0f, enemy.progress - it * 0.22f)
+                    updateEnemyPosition(minion)
+                    pendingSpawns.add(minion)
+                }
+                enemies.filter { it.targetable && it !== enemy && distanceSquared(it.x, it.y, enemy.x, enemy.y) <= 5.5f }.forEach {
+                    it.health = min(it.maxHealth, it.health + it.maxHealth * 0.06f)
+                }
+                floatingLabels.add(FloatingLabel("BLOOM", enemy.x, enemy.y - 0.3f, enemy.kind.color, pop = 1.35f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 26, 1.4f)
+                audio.play("build", 0.4f, 0.65f)
+            }
+            6 -> { // Vein Lurker drain
+                for (ally in enemies) {
+                    if (!ally.targetable || ally === enemy) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 5.0f) {
+                        val siphon = ally.maxHealth * 0.04f
+                        ally.health = max(1f, ally.health - siphon)
+                        enemy.health = min(enemy.maxHealth, enemy.health + siphon * 1.5f)
+                    }
+                }
+                floatingLabels.add(FloatingLabel("DRAINED", enemy.x, enemy.y - 0.25f, enemy.kind.color, 0.75f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 14, 0.95f)
+            }
+            7 -> { // Tidal Root flood
+                for (ally in enemies) {
+                    if (!ally.targetable) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 7.5f) {
+                        ally.slowTimer = 0f // wash slows? no - enemies get speed pulse
+                        ally.progress = min(pathCells.size - 1.05f, ally.progress + 0.35f)
+                    }
+                }
+                towers.filter { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 5.5f }.forEach {
+                    applyTowerHex(it, (if (hasHarmonyNear(it)) 0.8f else 1.8f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                }
+                floatingLabels.add(FloatingLabel("FLOOD", enemy.x, enemy.y - 0.35f, enemy.kind.color, pop = 1.4f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 28, 1.5f)
+                audio.play("frost", 0.5f, 0.55f)
+            }
+            8 -> { // Ashen Choir hymn
+                towers.sortedBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }.take(min(4, 2 + enemy.bossTier)).forEach {
+                    applyTowerHex(it, (if (hasHarmonyNear(it)) 1.0f else 2.4f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                    if (it.imbuement != Imbuement.WARD) it.disabledTimer = max(it.disabledTimer, 0.9f)
+                }
+                floatingLabels.add(FloatingLabel("HYMN", enemy.x, enemy.y - 0.35f, enemy.kind.color, pop = 1.4f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 24, 1.35f)
+                audio.play("beacon", 0.45f, 0.7f)
+            }
         }
+        enemy.windupKind = 0
+        enemy.windupTimer = 0f
     }
 
     private fun spawnEnemy(spec: SpawnSpec) {
         if (pathCells.size < 2) return
         val challengeSpeed = if (challengeModifier == ChallengeModifier.RUSH_HOUR) 1.18f else 1f
         val enemy = Enemy(nextEnemyId++, spec.kind, spec.healthScale, spec.speedScale * challengeSpeed, spec.rewardScale, spec.bossTier, spec.splitDepth)
+        // F5 Hollow Shell: temporary armor shell absorbs first hits
+        if (spec.kind == EnemyKind.HOLLOW_SHELL) {
+            enemy.shellBuffer = enemy.maxHealth * 0.45f
+        }
+        if (spec.kind == EnemyKind.MIRROR_MOTH) {
+            enemy.mirrorCharges = 3
+        }
         updateEnemyPosition(enemy)
         enemies.add(enemy)
+        // F2 banner sting on named elite/boss spawn
+        if (spec.kind.boss) {
+            setBanner(spec.kind.title.toUpperCase() + "  TIER ${max(1, spec.bossTier)}", 2.6f)
+            audio.play("wave", 0.55f, 0.72f)
+            burst(enemy.x, enemy.y, spec.kind.color, 16, 1.1f)
+        } else if (spec.kind.elite && (spec.kind == EnemyKind.GRAVE_MENDER || spec.kind == EnemyKind.PYRE_WIGHT || spec.kind == EnemyKind.THORNBACK || spec.kind == EnemyKind.VEIN_LURKER || spec.kind == EnemyKind.MIRROR_MOTH)) {
+            setBanner("ELITE  ${spec.kind.title.toUpperCase()}", 1.6f)
+            burst(enemy.x, enemy.y, spec.kind.color, 10, 0.8f)
+        }
     }
 
     private fun updateEnemyPosition(enemy: Enemy) {
@@ -657,19 +944,29 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val cell = pathCells[pathIndex]
         for (trap in traps) {
             if (trap.col != cell.col || trap.row != cell.row) continue
+            if (trap.jamTimer > 0f) continue
             val beaconRelay = isNearTowerKind(trap.col, trap.row, TowerKind.BEACON)
             val maxTriggers = 1 + perkCount(ForgePerk.DOUBLE_TRIGGER) + if (beaconRelay) 1 else 0
             val triggers = enemy.trapTriggerCounts[trap.id] ?: 0
             if (triggers >= maxTriggers) continue
+            // F1 Sapper: after 2 trap hits this life, skip further traps
+            if (enemy.kind == EnemyKind.SAPPER && enemy.sapperTraps >= 2) continue
             enemy.trapTriggerCounts[trap.id] = triggers + 1
+            if (enemy.kind == EnemyKind.SAPPER) enemy.sapperTraps += 1
+            // F5 Briar Mite: jams the trap after trigger
+            if (enemy.kind == EnemyKind.BRIAR_MITE) {
+                trap.jamTimer = max(trap.jamTimer, 3.2f)
+                floatingLabels.add(FloatingLabel("JAMMED", trap.col + 0.5f, trap.row + 0.2f, enemy.kind.color, 0.55f))
+            }
             trap.activationCount += 1
+            if (trap.surgeCharges > 0) trap.surgeCharges -= 1
             trap.pulse = 1f
             var damage = effectiveTrapDamage(trap)
             val tempoStatus = if (trap.imbuement == Imbuement.TEMPO) 1.22f else 1f
             when (trap.kind) {
                 TrapKind.SPIKE -> {
                     damageEnemy(enemy, damage, trap.kind.accent)
-                    if (perkCount(ForgePerk.CONDUCTIVE_SPIKES) > 0) enemies.filter { it.alive && it !== enemy }.minBy { abs(it.progress - enemy.progress) }?.let { damageEnemy(it, damage * 0.38f, TrapKind.ARC.accent, 0.5f) }
+                    if (perkCount(ForgePerk.CONDUCTIVE_SPIKES) > 0) enemies.filter { it.targetable && it !== enemy }.minBy { abs(it.progress - enemy.progress) }?.let { damageEnemy(it, damage * 0.38f, TrapKind.ARC.accent, 0.5f) }
                     if (isNearTowerKind(trap.col, trap.row, TowerKind.EMBER)) ignite(enemy, damage * 0.16f, 2.4f)
                 }
                 TrapKind.ROOT -> {
@@ -687,7 +984,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     enemy.stunTimer = max(enemy.stunTimer, (0.55f + trap.level * 0.10f) * tempoStatus)
                     val stormNetwork = isNearTowerKind(trap.col, trap.row, TowerKind.BEACON)
                     val targets = 2 + perkCount(ForgePerk.EXPANDED_ARC) + if (stormNetwork) 2 else 0
-                    enemies.filter { it.alive && it !== enemy && abs(it.progress - enemy.progress) < (if (stormNetwork) 2.2f else 1.4f) + if (trap.imbuement == Imbuement.REACH) 0.8f else 0f }.take(targets).forEach {
+                    enemies.filter { it.targetable && it !== enemy && abs(it.progress - enemy.progress) < (if (stormNetwork) 2.2f else 1.4f) + if (trap.imbuement == Imbuement.REACH) 0.8f else 0f }.take(targets).forEach {
                         damageEnemy(it, damage * if (stormNetwork) 0.70f else 0.55f, trap.kind.accent, 0.65f)
                     }
                 }
@@ -711,41 +1008,64 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (trap.kind == TrapKind.CRUSHER) damage *= 1f + perkCount(ForgePerk.REINFORCED_CRUSHERS) * 0.50f
         if (perkCount(ForgePerk.PATHFINDER_TRAPS) > 0) damage *= 1f + min(0.75f, max(0, pathCells.size - 12) * 0.012f * perkCount(ForgePerk.PATHFINDER_TRAPS))
         if (hasCinderReactorNear(trap.col, trap.row)) damage *= 1.30f
+        damage *= trapLatticeBonus(trap.col, trap.row)
         return damage
     }
 
     private fun findTarget(tower: Tower): Enemy? {
+        // targetable excludes dying corpses (1.3 Phase B)
+        // F1 Gloomkin: prefer non-stealthed targets when any exist in range
         var best: Enemy? = null
         var bestProgress = -1f
+        var bestStealthed: Enemy? = null
+        var bestStealthedProgress = -1f
         val centerX = tower.col + 0.5f
         val centerY = tower.row + 0.5f
         val rangeSquared = tower.currentRange() * tower.currentRange()
         for (enemy in enemies) {
-            if (!enemy.alive) continue
-            if (distanceSquared(enemy.x, enemy.y, centerX, centerY) <= rangeSquared && enemy.progress > bestProgress) {
+            if (!enemy.targetable) continue
+            if (distanceSquared(enemy.x, enemy.y, centerX, centerY) > rangeSquared) continue
+            if (enemy.stealthed) {
+                if (enemy.progress > bestStealthedProgress) {
+                    bestStealthed = enemy
+                    bestStealthedProgress = enemy.progress
+                }
+            } else if (enemy.progress > bestProgress) {
                 best = enemy
                 bestProgress = enemy.progress
             }
         }
-        return best
+        return best ?: bestStealthed
     }
 
     private fun fireTower(tower: Tower, target: Enemy) {
         var damage = tower.currentDamage()
         if (perkCount(ForgePerk.CORNER_AMBUSH) > 0 && enemyOnCorner(target)) damage *= 1f + perkCount(ForgePerk.CORNER_AMBUSH) * 0.22f
+        damage *= battleBannerDamageBonus(tower.col, tower.row)
+        if (tower.imbuement == Imbuement.SIEGE && (target.kind.elite || target.kind.boss)) damage *= 1.22f
+        if (tower.imbuement == Imbuement.RIME && target.slowTimer > 0.05f) damage *= 1.18f
         tower.activationCount += 1
-        projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage, tower.kind.projectileSpeed, tower))
+        if (tower.surgeCharges > 0) tower.surgeCharges -= 1
+        val evolveHot = tower.evolveProof > 0.02f || tower.focusBoostTimer > 0f
+        projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage, tower.kind.projectileSpeed, tower, evolveHot = evolveHot))
         if (tower.imbuement == Imbuement.ECHOES && tower.activationCount % 5 == 0) {
-            projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.65f, tower.kind.projectileSpeed * 1.12f, tower))
+            projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.65f, tower.kind.projectileSpeed * 1.12f, tower, evolveHot = evolveHot))
             floatingLabels.add(FloatingLabel("ECHO", tower.col + 0.5f, tower.row + 0.2f, Imbuement.ECHOES.accent))
         }
+        if (tower.imbuement == Imbuement.VOLLEY && tower.activationCount % 4 == 0) {
+            val second = enemies.filter { it.targetable && it !== target }.maxByOrNull { it.progress }
+            if (second != null) {
+                projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, second, tower.kind, damage * 0.45f, tower.kind.projectileSpeed * 1.05f, tower, evolveHot = evolveHot))
+                floatingLabels.add(FloatingLabel("VOLLEY", tower.col + 0.5f, tower.row + 0.2f, Imbuement.VOLLEY.accent))
+            }
+        }
         if (tower.kind == TowerKind.BOLT && isNearTowerKind(tower.col, tower.row, TowerKind.BEACON, exclude = tower) && random.nextFloat() < 0.22f) {
-            enemies.filter { it.alive && it !== target }.sortedByDescending { it.progress }.firstOrNull()?.let {
-                projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, it, tower.kind, damage * 0.65f, tower.kind.projectileSpeed, tower))
+            enemies.filter { it.targetable && it !== target }.sortedByDescending { it.progress }.firstOrNull()?.let {
+                projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, it, tower.kind, damage * 0.65f, tower.kind.projectileSpeed, tower, evolveHot = evolveHot))
             }
         }
         if (tower.kind == TowerKind.BEACON && perkCount(ForgePerk.RESONANCE_FEEDBACK) > 0 && random.nextFloat() < min(0.60f, perkCount(ForgePerk.RESONANCE_FEEDBACK) * 0.18f)) {
-            projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.55f, tower.kind.projectileSpeed * 1.15f, tower))
+            projectiles.add(Projectile(tower.col + 0.5f, tower.row + 0.5f, target, tower.kind, damage * 0.55f, tower.kind.projectileSpeed * 1.15f, tower, evolveHot = evolveHot))
         }
         when (tower.kind) {
             TowerKind.BOLT -> audio.play("bolt", 0.22f, 0.94f + random.nextFloat() * 0.12f)
@@ -754,8 +1074,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 audio.play("cannon", 0.42f, 0.92f + random.nextFloat() * 0.08f)
                 screenShake = max(screenShake, 0.09f)
             }
-            TowerKind.EMBER -> audio.play("bolt", 0.27f, 0.72f + random.nextFloat() * 0.08f)
-            TowerKind.BEACON -> audio.play("frost", 0.26f, 1.25f + random.nextFloat() * 0.08f)
+            TowerKind.EMBER -> audio.play("ember", 0.28f, 0.94f + random.nextFloat() * 0.10f)
+            TowerKind.BEACON -> audio.play("beacon", 0.26f, 0.96f + random.nextFloat() * 0.10f)
+            TowerKind.THORN -> audio.play("bolt", 0.20f, 1.12f + random.nextFloat() * 0.10f)
+            TowerKind.LANCE -> audio.play("bolt", 0.28f, 0.78f + random.nextFloat() * 0.08f)
+            TowerKind.MIRE -> audio.play("frost", 0.24f, 0.70f + random.nextFloat() * 0.10f)
         }
     }
 
@@ -763,7 +1086,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (projectile in projectiles) {
             if (!projectile.alive) continue
             projectile.age += delta
-            if (!projectile.target.alive) {
+            if (!projectile.target.alive || projectile.target.dying) {
                 projectile.alive = false
                 continue
             }
@@ -786,13 +1109,28 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun impactProjectile(projectile: Projectile) {
         val tower = projectile.source
+        spawnImpact(projectile.x, projectile.y, projectile.kind)
+        applyBindingFrom(tower, projectile.target)
+        if (tower?.imbuement == Imbuement.RIME) {
+            projectile.target.slowTimer = max(projectile.target.slowTimer, 1.35f)
+        }
+        if (projectile.evolveHot) {
+            burst(projectile.x, projectile.y, Color.rgb(255, 215, 104), 10, 0.85f)
+            burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
+        }
         when (projectile.kind) {
             TowerKind.BOLT -> {
                 val pierce = if (tower.evolution == TowerEvolution.RAIL_SPIRE) 0.82f else 0f
                 damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, pierce)
                 val chainCount = (if (tower.evolution == TowerEvolution.CHAIN_CONDUCTOR) 3 else 0) + perkCount(ForgePerk.FORKED_BOLTS)
-                if (chainCount > 0) enemies.filter { it.alive && it !== projectile.target && abs(it.progress - projectile.target.progress) < 2.0f }.take(chainCount).forEachIndexed { index, enemy -> damageEnemy(enemy, projectile.damage * max(0.35f, 0.68f - index * 0.10f), projectile.kind.accent, 0.45f) }
-                if (tower.evolution == TowerEvolution.RAIL_SPIRE) enemies.filter { it.alive && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.3f }.take(2).forEach { damageEnemy(it, projectile.damage * 0.62f, projectile.kind.accent, 0.82f) }
+                if (chainCount > 0) enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 2.0f }.take(chainCount).forEachIndexed { index, enemy ->
+                    damageEnemy(enemy, projectile.damage * max(0.35f, 0.68f - index * 0.10f), projectile.kind.accent, 0.45f)
+                    spawnImpact(enemy.x, enemy.y, projectile.kind)
+                }
+                if (tower.evolution == TowerEvolution.RAIL_SPIRE) enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.3f }.take(2).forEach {
+                    damageEnemy(it, projectile.damage * 0.62f, projectile.kind.accent, 0.82f)
+                    spawnImpact(it.x, it.y, projectile.kind)
+                }
                 if (projectile.target.rootTimer > 0f && isNearTrapKind(tower.col, tower.row, TrapKind.ROOT)) damageEnemy(projectile.target, projectile.damage * 0.35f, Color.rgb(91, 196, 99), 0.4f)
                 burst(projectile.x, projectile.y, projectile.kind.accent, 5, 0.55f)
             }
@@ -801,7 +1139,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 damageEnemy(projectile.target, projectile.damage * if (wasFrozen && tower.evolution == TowerEvolution.SHATTER_CRYSTAL) 2.15f else 1f, projectile.kind.accent, 0.75f)
                 val frostTime = (1.9f + perkCount(ForgePerk.LINGERING_FROST) * 0.75f)
                 projectile.target.slowTimer = max(projectile.target.slowTimer, frostTime)
-                if (tower.evolution == TowerEvolution.BLIZZARD_LENS) enemies.filter { it.alive && abs(it.progress - projectile.target.progress) < 1.25f }.forEach { it.slowTimer = max(it.slowTimer, frostTime * 0.8f) }
+                if (tower.evolution == TowerEvolution.BLIZZARD_LENS) enemies.filter { it.targetable && abs(it.progress - projectile.target.progress) < 1.25f }.forEach { it.slowTimer = max(it.slowTimer, frostTime * 0.8f) }
                 if (projectile.target.burnTimer > 0f && isNearTowerKind(tower.col, tower.row, TowerKind.EMBER)) thermalShock(projectile.target, projectile.damage)
                 burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
             }
@@ -810,7 +1148,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 if (projectile.kind == TowerKind.CANNON) radius += perkCount(ForgePerk.CANNON_SHRAPNEL) * 0.14f
                 if (tower.evolution == TowerEvolution.SIEGE_MORTAR) radius += 0.55f
                 for (enemy in enemies) {
-                    if (!enemy.alive) continue
+                    if (!enemy.targetable) continue
                     val distance = sqrt(distanceSquared(enemy.x, enemy.y, projectile.x, projectile.y))
                     if (distance <= radius) {
                         val multiplier = (1f - distance * 0.24f) * if (projectile.kind == TowerKind.CANNON) (1f + perkCount(ForgePerk.CANNON_SHRAPNEL) * 0.18f) else 1f
@@ -823,7 +1161,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         }
                     }
                 }
-                if (projectile.kind == TowerKind.CANNON && isNearTrapKind(tower.col, tower.row, TrapKind.ARC)) enemies.filter { it.alive }.sortedBy { abs(it.progress - projectile.target.progress) }.take(2).forEach { damageEnemy(it, projectile.damage * 0.28f, TrapKind.ARC.accent, 0.65f) }
+                if (projectile.kind == TowerKind.CANNON && isNearTrapKind(tower.col, tower.row, TrapKind.ARC)) enemies.filter { it.targetable }.sortedBy { abs(it.progress - projectile.target.progress) }.take(2).forEach { damageEnemy(it, projectile.damage * 0.28f, TrapKind.ARC.accent, 0.65f) }
                 if (projectile.kind == TowerKind.CANNON && isNearTrapKind(tower.col, tower.row, TrapKind.CRUSHER)) resetCrushersNear(tower.col + 0.5f, tower.row + 0.5f)
                 burst(projectile.x, projectile.y, projectile.kind.accent, if (projectile.kind == TowerKind.CANNON) 18 else 13, 1.4f)
                 screenShake = max(screenShake, if (projectile.kind == TowerKind.CANNON) 0.18f else 0.08f)
@@ -831,17 +1169,222 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.BEACON -> {
                 val count = if (tower.evolution == TowerEvolution.STORM_CHOIR) 7 else 4
                 val range = if (tower.evolution == TowerEvolution.STORM_CHOIR) 3.2f else 2.1f
-                val chain = enemies.filter { it.alive && abs(it.progress - projectile.target.progress) < range }.sortedBy { abs(it.progress - projectile.target.progress) }.take(count)
+                val chain = enemies.filter { it.targetable && abs(it.progress - projectile.target.progress) < range }.sortedBy { abs(it.progress - projectile.target.progress) }.take(count)
                 chain.forEachIndexed { index, enemy ->
                     damageEnemy(enemy, projectile.damage * max(0.32f, 1f - index * if (tower.evolution == TowerEvolution.STORM_CHOIR) 0.08f else 0.14f), projectile.kind.accent, 0.70f)
                     burst(enemy.x, enemy.y, projectile.kind.accent, 5, 0.55f)
+                    if (index > 0) spawnImpact(enemy.x, enemy.y, projectile.kind)
                 }
+            }
+            TowerKind.THORN -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.15f)
+                val markDur = if (tower.evolution == TowerEvolution.BRAMBLE_CROWN) 4.2f else 2.8f
+                projectile.target.markTimer = max(projectile.target.markTimer, markDur)
+                if (tower.evolution == TowerEvolution.VENOM_QUILL) ignite(projectile.target, projectile.damage * 0.12f, 2.0f)
+                burst(projectile.x, projectile.y, projectile.kind.accent, 6, 0.55f)
+            }
+            TowerKind.LANCE -> {
+                val pierce = if (tower.evolution == TowerEvolution.PRISM_RAIL) 0.95f else 0.80f
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, pierce)
+                val rail = if (tower.evolution == TowerEvolution.PRISM_RAIL) 2.4f else 1.6f
+                enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < rail }
+                    .sortedBy { abs(it.progress - projectile.target.progress) }
+                    .take(if (tower.evolution == TowerEvolution.PRISM_RAIL) 3 else 2)
+                    .forEach {
+                        damageEnemy(it, projectile.damage * 0.72f, projectile.kind.accent, pierce * 0.9f)
+                        spawnImpact(it.x, it.y, projectile.kind)
+                    }
+                if (tower.evolution == TowerEvolution.SKEWER_ARRAY) {
+                    enemies.filter { it.targetable && it !== projectile.target }.sortedByDescending { it.progress }.firstOrNull()?.let {
+                        damageEnemy(it, projectile.damage * 0.55f, projectile.kind.accent, 0.75f)
+                        spawnImpact(it.x, it.y, projectile.kind)
+                    }
+                }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.75f)
+            }
+            TowerKind.MIRE -> {
+                var radius = if (tower.evolution == TowerEvolution.BOG_KING) 1.25f else 0.85f
+                for (enemy in enemies) {
+                    if (!enemy.targetable) continue
+                    val distance = sqrt(distanceSquared(enemy.x, enemy.y, projectile.x, projectile.y))
+                    if (distance <= radius) {
+                        val mult = 1f - distance * 0.28f
+                        damageEnemy(enemy, projectile.damage * mult, projectile.kind.accent, 0.20f)
+                        val slow = if (tower.evolution == TowerEvolution.BOG_KING) 2.8f else 1.9f
+                        enemy.slowTimer = max(enemy.slowTimer, slow * mult)
+                    }
+                }
+                if (tower.evolution == TowerEvolution.TAR_FONT) {
+                    projectile.target.stunTimer = max(projectile.target.stunTimer, 0.55f)
+                }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 12, 0.95f)
+            }
+            TowerKind.GALE -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.55f)
+                val shove = if (tower.evolution == TowerEvolution.CYCLONE_CROWN) 0.55f else 0.32f
+                projectile.target.progress = max(0f, projectile.target.progress - shove)
+                updateEnemyPosition(projectile.target)
+                if (tower.evolution == TowerEvolution.SHEAR_BLADE) {
+                    enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.1f }
+                        .minByOrNull { abs(it.progress - projectile.target.progress) }
+                        ?.let { secondary ->
+                            damageEnemy(secondary, projectile.damage * 0.72f, projectile.kind.accent, 0.45f)
+                            secondary.progress = max(0f, secondary.progress - shove * 0.55f)
+                            updateEnemyPosition(secondary)
+                            spawnImpact(secondary.x, secondary.y, projectile.kind)
+                        }
+                }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 7, 0.65f)
+            }
+            TowerKind.SUNFORGE -> {
+                var dmg = projectile.damage
+                if (tower.evolution == TowerEvolution.HEARTH_CORE) {
+                    val dist = sqrt(distanceSquared(projectile.target.x, projectile.target.y, tower.col + 0.5f, tower.row + 0.5f))
+                    if (dist < 2.4f) dmg *= 1.35f
+                }
+                damageEnemy(projectile.target, dmg, projectile.kind.accent, 0.40f)
+                ignite(projectile.target, dmg * 0.28f, 2.6f)
+                if (tower.evolution == TowerEvolution.SOLAR_FLARE) {
+                    enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.15f }
+                        .take(2).forEach { near ->
+                            damageEnemy(near, dmg * 0.45f, projectile.kind.accent, 0.25f)
+                            ignite(near, dmg * 0.18f, 2.0f)
+                            spawnImpact(near.x, near.y, projectile.kind)
+                        }
+                }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
+            }
+            TowerKind.LODESTONE -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.50f)
+                val yank = if (tower.evolution == TowerEvolution.PULL_WELL) 0.70f else 0.40f
+                projectile.target.progress = max(0f, projectile.target.progress - yank)
+                updateEnemyPosition(projectile.target)
+                if (tower.evolution == TowerEvolution.REPULSOR) {
+                    projectile.target.stunTimer = max(projectile.target.stunTimer, 0.65f)
+                }
+                enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.0f }
+                    .take(2).forEach { near ->
+                        near.progress = max(0f, near.progress - yank * 0.35f)
+                        updateEnemyPosition(near)
+                    }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 6, 0.6f)
+            }
+            TowerKind.HOWL -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.35f)
+                // Reveal stealth + soft slow
+                val reveal = if (tower.evolution == TowerEvolution.ECHO_VAULT) 3.2f else 1.8f
+                projectile.target.gloomTimer = 0f
+                projectile.target.wispTimer = 0f
+                projectile.target.slowTimer = max(projectile.target.slowTimer, if (tower.evolution == TowerEvolution.PACK_CALL) 1.6f else 1.1f)
+                if (tower.evolution == TowerEvolution.PACK_CALL) {
+                    enemies.filter { it.targetable && it !== projectile.target && abs(it.progress - projectile.target.progress) < 1.2f }
+                        .minByOrNull { abs(it.progress - projectile.target.progress) }
+                        ?.let { secondary ->
+                            damageEnemy(secondary, projectile.damage * 0.55f, projectile.kind.accent, 0.25f)
+                            secondary.gloomTimer = 0f
+                            secondary.wispTimer = 0f
+                            secondary.slowTimer = max(secondary.slowTimer, 1.0f)
+                            spawnImpact(secondary.x, secondary.y, projectile.kind)
+                        }
+                }
+                // Keep reveal window via slow-ish flash label
+                floatingLabels.add(FloatingLabel("HOWL", projectile.target.x, projectile.target.y - 0.35f, projectile.kind.accent, 0.5f))
+                // Echo vault: brief stun pulse as "longer reveal lock"
+                if (tower.evolution == TowerEvolution.ECHO_VAULT) {
+                    projectile.target.stunTimer = max(projectile.target.stunTimer, 0.35f)
+                }
+                burst(projectile.x, projectile.y, projectile.kind.accent, 8, 0.7f)
+            }
+            TowerKind.VITRIOL -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.45f)
+                val shred = if (tower.evolution == TowerEvolution.ACID_VEIN) 0.42f else 0.28f
+                val shredTime = if (tower.evolution == TowerEvolution.ACID_VEIN) 3.4f else 2.4f
+                projectile.target.armorShred = max(projectile.target.armorShred, shred)
+                projectile.target.armorShredTimer = max(projectile.target.armorShredTimer, shredTime)
+                if (tower.evolution == TowerEvolution.RUST_SCOUR) {
+                    ignite(projectile.target, projectile.damage * 0.16f, 1.8f)
+                }
+                floatingLabels.add(FloatingLabel("ACID", projectile.target.x, projectile.target.y - 0.3f, projectile.kind.accent, 0.45f))
+                burst(projectile.x, projectile.y, projectile.kind.accent, 7, 0.65f)
+            }
+            TowerKind.GRAVEBOLT -> {
+                var dmg = projectile.damage
+                damageEnemy(projectile.target, dmg, projectile.kind.accent, 0.40f)
+                val markT = if (tower.evolution == TowerEvolution.DEATH_KNELL) 4.2f else 2.8f
+                val markD = dmg * (if (tower.evolution == TowerEvolution.DEATH_KNELL) 0.95f else 0.70f)
+                // Always brand; Soul Brand guarantees detonate path (same field)
+                projectile.target.graveMarkTimer = max(projectile.target.graveMarkTimer, markT)
+                projectile.target.graveMarkDamage = max(projectile.target.graveMarkDamage, markD)
+                if (tower.evolution == TowerEvolution.SOUL_BRAND) {
+                    projectile.target.graveMarkDamage = max(projectile.target.graveMarkDamage, markD * 1.15f)
+                }
+                floatingLabels.add(FloatingLabel("BRAND", projectile.target.x, projectile.target.y - 0.3f, projectile.kind.accent, 0.45f))
+                burst(projectile.x, projectile.y, projectile.kind.accent, 7, 0.65f)
+            }
+            TowerKind.AEGIS_LOOM -> {
+                damageEnemy(projectile.target, projectile.damage, projectile.kind.accent, 0.30f)
+                // Shield pulse: cleanse hex on nearby towers
+                val cleanse = if (tower.evolution == TowerEvolution.BULWARK_WEAVE) 1.35f else 0.75f
+                for (ally in towers) {
+                    if (ally.disabledTimer <= 0f) continue
+                    val dist = distanceSquared(ally.col + 0.5f, ally.row + 0.5f, tower.col + 0.5f, tower.row + 0.5f)
+                    if (dist <= 6.25f) {
+                        ally.disabledTimer = max(0f, ally.disabledTimer - cleanse)
+                        burst(ally.col + 0.5f, ally.row + 0.5f, projectile.kind.accent, 4, 0.4f)
+                    }
+                }
+                if (tower.evolution == TowerEvolution.WARD_PULSE) {
+                    for (ally in towers) {
+                        val dist = distanceSquared(ally.col + 0.5f, ally.row + 0.5f, tower.col + 0.5f, tower.row + 0.5f)
+                        if (dist <= 6.25f) {
+                            ally.focusBoostTimer = max(ally.focusBoostTimer, 1.6f)
+                        }
+                    }
+                }
+                floatingLabels.add(FloatingLabel("AEGIS", tower.col + 0.5f, tower.row + 0.2f, projectile.kind.accent, 0.5f))
+                burst(projectile.x, projectile.y, projectile.kind.accent, 6, 0.55f)
             }
         }
     }
 
+    private fun spawnImpact(x: Float, y: Float, kind: TowerKind) {
+        impactEffects.add(ImpactFx(x, y, kind))
+        val pitch = when (kind) {
+            TowerKind.BOLT -> 1.08f + random.nextFloat() * 0.10f
+            TowerKind.FROST -> 1.18f + random.nextFloat() * 0.10f
+            TowerKind.CANNON -> 0.82f + random.nextFloat() * 0.08f
+            TowerKind.EMBER -> 0.90f + random.nextFloat() * 0.10f
+            TowerKind.BEACON -> 1.22f + random.nextFloat() * 0.10f
+            TowerKind.THORN -> 1.15f + random.nextFloat() * 0.10f
+            TowerKind.LANCE -> 0.95f + random.nextFloat() * 0.08f
+            TowerKind.MIRE -> 0.75f + random.nextFloat() * 0.10f
+            TowerKind.GALE -> 0.95f + random.nextFloat() * 0.10f
+            TowerKind.SUNFORGE -> 0.88f + random.nextFloat() * 0.10f
+            TowerKind.LODESTONE -> 0.70f + random.nextFloat() * 0.10f
+            TowerKind.HOWL -> 0.92f + random.nextFloat() * 0.10f
+            TowerKind.VITRIOL -> 0.78f + random.nextFloat() * 0.10f
+            TowerKind.GRAVEBOLT -> 0.72f + random.nextFloat() * 0.10f
+            TowerKind.AEGIS_LOOM -> 0.90f + random.nextFloat() * 0.08f
+        }
+        val volume = when (kind) {
+            TowerKind.CANNON -> 0.38f
+            TowerKind.EMBER -> 0.30f
+            TowerKind.LANCE -> 0.32f
+            TowerKind.MIRE -> 0.28f
+            TowerKind.GALE -> 0.30f
+            TowerKind.SUNFORGE -> 0.32f
+            TowerKind.LODESTONE -> 0.30f
+            TowerKind.HOWL -> 0.31f
+            TowerKind.VITRIOL -> 0.29f
+            TowerKind.GRAVEBOLT -> 0.33f
+            TowerKind.AEGIS_LOOM -> 0.28f
+            else -> 0.24f
+        }
+        audio.play("impact", volume, pitch)
+    }
+
     private fun thermalShock(target: Enemy, sourceDamage: Float) {
-        enemies.filter { it.alive && abs(it.progress - target.progress) < 0.8f }.forEach { damageEnemy(it, sourceDamage * 0.45f, Color.rgb(255, 232, 180), 0.7f) }
+        enemies.filter { it.targetable && abs(it.progress - target.progress) < 0.8f }.forEach { damageEnemy(it, sourceDamage * 0.45f, Color.rgb(255, 232, 180), 0.7f) }
         target.burnTimer = 0f
         burst(target.x, target.y, Color.rgb(255, 232, 180), 12, 0.9f)
     }
@@ -852,36 +1395,155 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (enemy in enemies) for (crusher in crushers) enemy.trapTriggerCounts.remove(crusher.id)
     }
 
-    private fun ignite(enemy: Enemy, damagePerSecond: Float, duration: Float) {
+    private fun ignite(enemy: Enemy, damagePerSecond: Float, duration: Float, sourceCol: Int = -1, sourceRow: Int = -1) {
+        var dps = damagePerSecond
+        if (sourceCol >= 0) dps *= cinderKilnBurnMul(sourceCol, sourceRow)
         enemy.burnTimer = max(enemy.burnTimer, duration)
-        enemy.burnDamagePerSecond = max(enemy.burnDamagePerSecond, damagePerSecond)
+        enemy.burnDamagePerSecond = max(enemy.burnDamagePerSecond, dps)
+    }
+
+    private fun applyBindingFrom(tower: Tower?, enemy: Enemy) {
+        if (tower?.imbuement != Imbuement.BINDING) return
+        enemy.rootTimer = max(enemy.rootTimer, 0.55f)
     }
 
     private fun damageEnemy(enemy: Enemy, amount: Float, effectColor: Int, armorPierce: Float = 0f, showLabel: Boolean = true) {
-        if (!enemy.alive) return
+        if (!enemy.alive || enemy.dying) return
         var armor = enemy.kind.armor
         if (enemy.armoredTimer > 0f) armor += 0.24f
+        if (enemy.armorShredTimer > 0f) armor = max(0f, armor - enemy.armorShred)
         if (challengeModifier == ChallengeModifier.ARMORED_HORDE) armor += 0.15f
-        armor = min(0.82f, armor) * (1f - armorPierce)
-        val actual = max(0.5f, amount * (1f - armor))
+        // F1 Thornback: extra armor while pulse is active
+        if (enemy.kind == EnemyKind.THORNBACK && enemy.thornArmorTimer > 0f) armor += 0.22f
+        armor = min(0.88f, armor) * (1f - armorPierce)
+        var incoming = amount
+        if (enemy.markTimer > 0f) incoming *= 1.22f
+        var actual = max(0.5f, incoming * (1f - armor))
+        // F5 Hollow Shell: shell buffer eats damage first
+        if (enemy.shellBuffer > 0f) {
+            val absorbed = min(enemy.shellBuffer, actual)
+            enemy.shellBuffer -= absorbed
+            actual -= absorbed
+            if (enemy.shellBuffer <= 0f) {
+                enemy.shellBuffer = 0f
+                floatingLabels.add(FloatingLabel("SHELL BREAK", enemy.x, enemy.y - 0.25f, enemy.kind.color, 0.7f))
+                burst(enemy.x, enemy.y, Color.rgb(230, 220, 200), 12, 0.75f)
+            }
+            if (actual <= 0.05f) {
+                enemy.flashTimer = if (enemy.kind.boss) 0.18f else 0.14f
+                return
+            }
+        }
         enemy.health -= actual
-        enemy.flashTimer = 0.11f
+        enemy.flashTimer = if (enemy.kind.boss) 0.18f else 0.14f
+        if (enemy.kind == EnemyKind.THORNBACK && enemy.health > 0f) enemy.thornArmorTimer = max(enemy.thornArmorTimer, 1.1f)
+        // F6 Mirror Moth: spend reflect charge to shrug a hit
+        if (enemy.kind == EnemyKind.MIRROR_MOTH && enemy.mirrorCharges > 0 && enemy.health > 0f) {
+            enemy.mirrorCharges -= 1
+            enemy.health = min(enemy.maxHealth, enemy.health + actual * 0.85f)
+            floatingLabels.add(FloatingLabel("REFLECT", enemy.x, enemy.y - 0.2f, enemy.kind.color, 0.55f))
+            burst(enemy.x, enemy.y, Color.rgb(200, 230, 255), 8, 0.55f)
+        }
+        // F5 Rust Tick: on hit, briefly rust (hex) nearest tower in range
+        if (enemy.kind == EnemyKind.RUST_TICK && enemy.health > 0f && enemy.abilityTimer <= 0f) {
+            val target = towers.filter { it.disabledTimer <= 0f }.minByOrNull {
+                distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y)
+            }
+            if (target != null && distanceSquared(target.col + 0.5f, target.row + 0.5f, enemy.x, enemy.y) <= 6.5f) {
+                applyTowerHex(target, 1.1f * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                floatingLabels.add(FloatingLabel("RUST", target.col + 0.5f, target.row + 0.35f, enemy.kind.color, 0.55f))
+                enemy.abilityTimer = 3.2f
+            }
+        }
         if (showLabel && random.nextFloat() < 0.22f) floatingLabels.add(FloatingLabel(actual.toInt().toString(), enemy.x, enemy.y - 0.25f, effectColor, 0.7f))
         if (enemy.health > 0f) return
-        enemy.alive = false
+        beginEnemyDeath(enemy)
+    }
+
+    private fun beginEnemyDeath(enemy: Enemy) {
+        if (enemy.dying || !enemy.alive) return
+        enemy.health = 0f
+        // F8c Gravebolt death detonate
+        if (enemy.graveMarkTimer > 0.02f && enemy.graveMarkDamage > 0.5f) {
+            val splash = enemy.graveMarkDamage
+            val accent = TowerKind.GRAVEBOLT.accent
+            burst(enemy.x, enemy.y, accent, 12, 0.9f)
+            for (other in enemies) {
+                if (!other.targetable || other === enemy) continue
+                if (abs(other.progress - enemy.progress) < 1.35f) {
+                    damageEnemy(other, splash * 0.85f, accent, 0.35f)
+                }
+            }
+            floatingLabels.add(FloatingLabel("KNELL", enemy.x, enemy.y - 0.4f, accent, 0.55f))
+            enemy.graveMarkTimer = 0f
+            enemy.graveMarkDamage = 0f
+        }
+        enemy.deathTimer = if (enemy.kind.boss) 0.55f else if (enemy.kind.elite) 0.38f else 0.28f
+        enemy.flashTimer = enemy.deathTimer
+        enemy.burnTimer = 0f
+        enemy.slowTimer = 0f
+        enemy.markTimer = 0f
+        enemy.wispTimer = 0f
+        enemy.shellBuffer = 0f
+        enemy.stunTimer = 0f
         if (!enemy.rewarded) {
             enemy.rewarded = true
             var bounty = enemy.bounty
             if ((enemy.kind.elite || enemy.kind.boss) && perkCount(ForgePerk.ELITE_BOUNTIES) > 0) bounty = (bounty * (1f + perkCount(ForgePerk.ELITE_BOUNTIES) * 0.50f)).toInt()
             gold = safeAdd(gold, bounty)
             score = safeAdd(score, bounty * 10)
+            if (scrapMagnetKills > 0) {
+                scrapMagnetKills -= 1
+                salvageParts = safeAdd(salvageParts, 1)
+                floatingLabels.add(FloatingLabel("+1 PART", enemy.x, enemy.y - 0.15f, Color.rgb(255, 200, 100), 0.5f))
+            }
+            // F6 Harvest imbuement: blocks trickle near imbued structures
+            var harvest = 0
+            for (tower in towers) {
+                if (tower.imbuement != Imbuement.HARVEST) continue
+                if (distanceSquared(tower.col + 0.5f, tower.row + 0.5f, enemy.x, enemy.y) <= 4.5f) harvest += 1
+            }
+            for (trap in traps) {
+                if (trap.imbuement != Imbuement.HARVEST) continue
+                if (distanceSquared(trap.col + 0.5f, trap.row + 0.5f, enemy.x, enemy.y) <= 4.5f) harvest += 1
+            }
+            if (harvest > 0) {
+                gold = safeAdd(gold, harvest)
+                if (random.nextFloat() < 0.35f) floatingLabels.add(FloatingLabel("+$harvest", enemy.x, enemy.y + 0.1f, Color.rgb(210, 180, 70), 0.45f))
+            }
+
+            // F7 Bounty Board + Fortune
+            var bountyBonus = 0
+            for (u in utilities) {
+                if (u.kind != UtilityKind.BOUNTY_BOARD || u.disabledTimer > 0f) continue
+                if (distanceSquared(u.col + 0.5f, u.row + 0.5f, enemy.x, enemy.y) <= 5.5f) {
+                    bountyBonus += 1 + utilityPowerLevel(u) / 2
+                }
+            }
+            for (tower in towers) {
+                if (tower.imbuement == Imbuement.FORTUNE && distanceSquared(tower.col + 0.5f, tower.row + 0.5f, enemy.x, enemy.y) <= 4.5f) {
+                    if (random.nextFloat() < 0.28f) bountyBonus += 2
+                }
+            }
+            if (bountyBonus > 0) {
+                gold = safeAdd(gold, bountyBonus)
+                floatingLabels.add(FloatingLabel("+$bountyBonus", enemy.x, enemy.y + 0.2f, Color.rgb(255, 210, 90), 0.5f))
+            }
             if (enemy.kind.elite || enemy.kind.boss) {
                 val parts = if (enemy.kind.boss) 3 else 1
                 salvageParts = safeAdd(salvageParts, parts)
-                floatingLabels.add(FloatingLabel("+$parts PARTS", enemy.x, enemy.y - 0.25f, Color.rgb(202, 177, 137)))
+                floatingLabels.add(FloatingLabel("+$parts PARTS", enemy.x, enemy.y - 0.25f, Color.rgb(202, 177, 137), life = 1.25f, pop = 1.35f))
             }
             if (enemy.kind.boss) growthEssence = safeAdd(growthEssence, 2)
-            floatingLabels.add(FloatingLabel("+$bounty", enemy.x, enemy.y, Color.rgb(190, 244, 78)))
+            floatingLabels.add(FloatingLabel("+$bounty", enemy.x, enemy.y, Color.rgb(190, 244, 78), life = 1.2f, pop = 1.28f))
+            if (lives < maxCore) {
+                val leechNear = towers.any { it.imbuement == Imbuement.LEECH && distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 9f } ||
+                    traps.any { it.imbuement == Imbuement.LEECH && distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 9f }
+                if (leechNear && random.nextFloat() < (if (enemy.kind.elite || enemy.kind.boss) 0.55f else 0.18f)) {
+                    lives = min(maxCore, lives + 1)
+                    floatingLabels.add(FloatingLabel("+1 CORE", enemy.x, enemy.y - 0.4f, Color.rgb(255, 110, 130), life = 1.1f, pop = 1.35f))
+                }
+            }
             burst(enemy.x, enemy.y, enemy.kind.color, if (enemy.kind.boss) 34 else if (enemy.kind.elite) 20 else 12, 1.2f)
             audio.play("enemy_down", if (enemy.kind.boss) 0.65f else 0.22f, if (enemy.kind.boss) 0.65f else 1.05f)
             if (enemy.kind == EnemyKind.SPLITLING && enemy.splitDepth < 1) {
@@ -892,6 +1554,36 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     pendingSpawns.add(child)
                 }
             }
+            // F1 Mycelial: death heal nearby allies
+            if (enemy.kind == EnemyKind.MYCELIAL) {
+                for (ally in enemies) {
+                    if (!ally.targetable || ally === enemy) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 4.0f) {
+                        ally.health = min(ally.maxHealth, ally.health + ally.maxHealth * 0.08f)
+                    }
+                }
+                burst(enemy.x, enemy.y, enemy.kind.color, 14, 0.9f)
+            }
+            // F5 Hollow Shell: death armor gift to nearby allies
+            if (enemy.kind == EnemyKind.HOLLOW_SHELL) {
+                for (ally in enemies) {
+                    if (!ally.targetable || ally === enemy) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 3.6f) {
+                        ally.armoredTimer = max(ally.armoredTimer, 2.2f)
+                    }
+                }
+                burst(enemy.x, enemy.y, enemy.kind.color, 16, 0.95f)
+            }
+            // F5 Drift Seed: death burst marks nearby foes? No - seed scatter slows tower fire? 
+            // death: short disable nearest trap or nothing - seed scatter as minor heal to core? skip
+            // F1 Carrion Hulk: death hex nearest tower
+            if (enemy.kind == EnemyKind.CARRION_HULK) {
+                val target = towers.filter { it.disabledTimer <= 0f }.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
+                if (target != null && distanceSquared(target.col + 0.5f, target.row + 0.5f, enemy.x, enemy.y) <= 9f) {
+                    applyTowerHex(target, (if (hasHarmonyNear(target)) 0.9f else 2.0f) * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                    floatingLabels.add(FloatingLabel("HEXED", target.col + 0.5f, target.row + 0.35f, enemy.kind.color))
+                }
+            }
         }
     }
 
@@ -900,7 +1592,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun updateEffects(delta: Float) {
-        for (trap in traps) trap.pulse = max(0f, trap.pulse - delta * 3.2f)
+        for (trap in traps) {
+            trap.pulse = max(0f, trap.pulse - delta * 3.2f)
+            trap.jamTimer = max(0f, trap.jamTimer - delta)
+        }
         for (particle in particles) {
             particle.life -= delta
             particle.x += particle.velocityX * delta
@@ -909,9 +1604,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             particle.velocityX *= 0.985f
         }
         particles.removeAll { it.life <= 0f }
+        for (fx in impactEffects) fx.age += delta
+        impactEffects.removeAll { !it.alive }
         for (label in floatingLabels) {
             label.life -= delta
-            label.y -= delta * 0.38f
+            val boost = if (label.pop > 1.05f) 1.25f else 1f
+            label.y -= delta * 0.38f * boost
         }
         floatingLabels.removeAll { it.life <= 0f }
     }
@@ -935,6 +1633,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("BOSS BROKEN  +${safeAdd(reward, utilityIncome)} BLOCKS  +${6 + tier * 2} FORGE", 3.0f)
         } else {
             setBanner("WAVE $waveNumber CLEARED  +${safeAdd(reward, utilityIncome)} BLOCKS", 2.4f)
+        if (routeOilWaves > 0) routeOilWaves -= 1
         }
         selectedTower = null
         selectedTrap = null
@@ -965,7 +1664,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     utility.activationCount += 1
                     if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) produced += produced / 2
                     income = safeAdd(income, produced)
-                    floatingLabels.add(FloatingLabel("+$produced", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent))
+                    floatingLabels.add(FloatingLabel("+$produced", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.15f, pop = 1.32f))
                 }
                 UtilityKind.FORGE_WORKSHOP -> {
                     utility.productionProgress += 1
@@ -976,6 +1675,31 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         var produced = if (utility.imbuement == Imbuement.MIGHT) 2 else 1
                         if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) produced += 1
                         if (current < CraftedItem.CORE_PATCH.maxStack) supplies[CraftedItem.CORE_PATCH] = min(CraftedItem.CORE_PATCH.maxStack, current + produced)
+                    }
+                }
+                UtilityKind.ESSENCE_STILL -> {
+                    utility.activationCount += 1
+                    var essence = when (utilityPowerLevel(utility)) { 1 -> 1; 2 -> 1; 3 -> 2; else -> 2 }
+                    if (utility.imbuement == Imbuement.MIGHT) essence += 1
+                    if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) essence += 1
+                    growthEssence = safeAdd(growthEssence, essence)
+                    floatingLabels.add(FloatingLabel("+$essence E", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.15f, pop = 1.32f))
+                }
+                UtilityKind.GROWTH_NURSERY -> {
+                    utility.activationCount += 1
+                    var essenceN = 1 + utilityPowerLevel(utility) / 2
+                    if (utility.imbuement == Imbuement.MIGHT) essenceN += 1
+                    growthEssence = safeAdd(growthEssence, essenceN)
+                    floatingLabels.add(FloatingLabel("+$essenceN E", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.1f, pop = 1.25f))
+                }
+                UtilityKind.WARD_BEACON -> {
+                    utility.activationCount += 1
+                    val radius = 2.2f + utilityPowerLevel(utility) * 0.25f
+                    for (tower in towers) {
+                        if (distanceSquared(tower.col.toFloat(), tower.row.toFloat(), utility.col.toFloat(), utility.row.toFloat()) <= radius * radius) {
+                            val key = towerKey(tower.col, tower.row)
+                            coolingImmunity[key] = max(coolingImmunity[key] ?: 0f, 2.5f)
+                        }
                     }
                 }
                 else -> Unit
@@ -1089,8 +1813,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedCorruption = null
         phase = GamePhase.WAVE
+        for (tower in towers) if (tower.imbuement == Imbuement.SURGE) tower.surgeCharges = 3
+        for (trap in traps) if (trap.imbuement == Imbuement.SURGE) trap.surgeCharges = 3
         val message = when {
-            waveNumber % 10 == 0 -> "MUTATED OVERGROWTH  TIER ${waveNumber / 10}"
+            waveNumber % 10 == 0 -> {
+                val tier = waveNumber / 10
+                val bossName = when {
+                    waveNumber % 30 == 0 -> "MUTATED OVERGROWTH"
+                    tier % 3 == 1 -> "IRON MONARCH"
+                    tier % 3 == 2 -> "SPORE SOVEREIGN"
+                    else -> "MUTATED OVERGROWTH"
+                }
+                "$bossName  TIER $tier"
+            }
             waveNumber % 5 == 0 -> "ELITE SIGNAL  $waveTheme"
             else -> "WAVE $waveNumber  $waveTheme"
         }
@@ -1102,8 +1837,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val healthScale = waveHealthScale(wave)
         val speedScale = min(1.42f, 1f + wave * 0.006f)
         val rewardScale = min(16f, 1f + wave * 0.075f)
-        val regularCount = min(34, 6 + wave / 2)
-        val regulars = arrayOf(EnemyKind.MOSSER, EnemyKind.RUNNER, EnemyKind.BRUTE, EnemyKind.SHELLBACK, EnemyKind.SPLITLING)
+        val regularCount = min(36, 6 + wave / 2)
+        val regulars = arrayOf(
+            EnemyKind.MOSSER, EnemyKind.RUNNER, EnemyKind.BRUTE, EnemyKind.SHELLBACK, EnemyKind.SPLITLING,
+            EnemyKind.SAPPER, EnemyKind.MYCELIAL, EnemyKind.NEEDLEFLY, EnemyKind.GLOOMKIN, EnemyKind.CARRION_HULK
+        )
         val seedOffset = ((runSeed xor wave.toLong()) and Long.MAX_VALUE).rem(regulars.size.toLong()).toInt()
         waveTheme = when (wave % 8) {
             1 -> "SWARM FRONT"
@@ -1115,23 +1853,65 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             7 -> "SPLIT SWARM"
             else -> "MIXED ASSAULT"
         }
-        val count = if (wave % 8 == 1) min(40, regularCount + 8) else regularCount
+        val count = if (wave % 8 == 1) min(42, regularCount + 8) else regularCount
         repeat(count) { index ->
             val kind = when (wave % 8) {
-                1 -> if (index % 3 == 0) EnemyKind.SPLITLING else EnemyKind.MOSSER
-                2 -> if (index % 4 == 0) EnemyKind.MOSSER else EnemyKind.RUNNER
-                3 -> if (index % 3 == 0) EnemyKind.BRUTE else EnemyKind.SHELLBACK
-                4 -> if (index % 4 == 0) EnemyKind.SHELLBACK else EnemyKind.MOSSER
-                5 -> regulars[(index + wave + seedOffset) % regulars.size]
-                6 -> if (index % 3 == 0) EnemyKind.BRUTE else EnemyKind.SHELLBACK
-                7 -> if (index % 3 == 0) EnemyKind.RUNNER else EnemyKind.SPLITLING
+                1 -> when (index % 5) {
+                    0 -> EnemyKind.SPLITLING
+                    1 -> EnemyKind.MYCELIAL
+                    else -> EnemyKind.MOSSER
+                }
+                2 -> when (index % 5) {
+                    0 -> EnemyKind.NEEDLEFLY
+                    1 -> EnemyKind.MOSSER
+                    else -> EnemyKind.RUNNER
+                }
+                3 -> when (index % 5) {
+                    0 -> EnemyKind.BRUTE
+                    1 -> EnemyKind.CARRION_HULK
+                    2 -> EnemyKind.HOLLOW_SHELL
+                    else -> EnemyKind.SHELLBACK
+                }
+                4 -> when (index % 6) {
+                    0 -> EnemyKind.MYCELIAL
+                    1 -> EnemyKind.SHELLBACK
+                    2 -> EnemyKind.RUST_TICK
+                    else -> EnemyKind.MOSSER
+                }
+                5 -> when (index % 7) {
+                    0 -> EnemyKind.SAPPER
+                    1 -> EnemyKind.GLOOMKIN
+                    2 -> EnemyKind.WISP_DRIFTER
+                    3 -> EnemyKind.RUST_TICK
+                    else -> regulars[(index + wave + seedOffset) % regulars.size]
+                }
+                6 -> when (index % 5) {
+                    0 -> EnemyKind.BRUTE
+                    1 -> EnemyKind.CARRION_HULK
+                    2 -> EnemyKind.HOLLOW_SHELL
+                    else -> EnemyKind.SHELLBACK
+                }
+                7 -> when (index % 6) {
+                    0 -> EnemyKind.NEEDLEFLY
+                    1 -> EnemyKind.SPLITLING
+                    2 -> EnemyKind.DRIFT_SEED
+                    3 -> EnemyKind.BRIAR_MITE
+                    else -> EnemyKind.RUNNER
+                }
                 else -> regulars[(index * 3 + wave + seedOffset) % regulars.size]
             }
-            waveQueue.add(SpawnSpec(kind, healthScale, speedScale * if (kind == EnemyKind.RUNNER) 1.03f else 1f, rewardScale))
+            val speedMul = when (kind) {
+                EnemyKind.RUNNER, EnemyKind.NEEDLEFLY, EnemyKind.BRIAR_MITE, EnemyKind.DRIFT_SEED -> 1.03f
+                else -> 1f
+            }
+            waveQueue.add(SpawnSpec(kind, healthScale, speedScale * speedMul, rewardScale))
         }
         if (wave % 8 == 5 && wave % 5 != 0) waveQueue.add(min(waveQueue.size, waveQueue.size * 2 / 3), SpawnSpec(EnemyKind.HEX_WEAVER, healthScale * 0.34f, speedScale, rewardScale * 0.55f))
         if (wave % 5 == 0) {
-            val elites = arrayOf(EnemyKind.IRONHIDE, EnemyKind.BLINK_STALKER, EnemyKind.ROOTCALLER, EnemyKind.HEX_WEAVER, EnemyKind.SIEGE_COLOSSUS)
+            val elites = arrayOf(
+                EnemyKind.IRONHIDE, EnemyKind.BLINK_STALKER, EnemyKind.ROOTCALLER, EnemyKind.HEX_WEAVER,
+                EnemyKind.SIEGE_COLOSSUS, EnemyKind.THORNBACK, EnemyKind.GRAVE_MENDER, EnemyKind.PYRE_WIGHT, EnemyKind.VEIN_LURKER, EnemyKind.MIRROR_MOTH
+            )
             val eliteKind = elites[((wave / 5) - 1 + seedOffset) % elites.size]
             val insertAt = min(waveQueue.size, waveQueue.size * 2 / 3)
             waveQueue.add(insertAt, SpawnSpec(eliteKind, healthScale * 0.72f, speedScale, rewardScale * 1.1f))
@@ -1139,7 +1919,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         if (wave % 10 == 0) {
             val tier = wave / 10
-            waveQueue.add(SpawnSpec(EnemyKind.OVERGROWTH, healthScale * (0.78f + min(1.2f, tier * 0.05f)), min(1.28f, speedScale), rewardScale * 1.3f, tier))
+            // F2: rotate named bosses; Overgrowth remains the signature every 30
+            val bossKind = when {
+                wave % 30 == 0 -> EnemyKind.OVERGROWTH
+                tier % 5 == 1 -> EnemyKind.IRON_MONARCH
+                tier % 5 == 2 -> EnemyKind.SPORE_SOVEREIGN
+                tier % 5 == 3 -> EnemyKind.TIDAL_ROOT
+                tier % 5 == 4 -> EnemyKind.ASHEN_CHOIR
+                else -> EnemyKind.OVERGROWTH
+            }
+            waveQueue.add(SpawnSpec(bossKind, healthScale * (0.78f + min(1.2f, tier * 0.05f)), min(1.28f, speedScale), rewardScale * 1.3f, tier))
         }
         val broodCount = corruptions.count { it.kind == CorruptionKind.BROOD_NEST }
         repeat(min(18, broodCount)) { waveQueue.add(min(waveQueue.size, 2 + it), SpawnSpec(EnemyKind.SPLITLING, healthScale * 0.28f, speedScale * 1.12f, rewardScale * 0.25f, splitDepth = 1)) }
@@ -1152,7 +1941,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val level = surveyor?.let { utilityPowerLevel(it) } ?: if (surveyLensWaves > 0) 2 else 0
         val theme = when (wave % 8) { 1 -> "SWARM"; 2 -> "RUSH"; 3 -> "ARMORED"; 4 -> "REGEN"; 5 -> "SABOTAGE"; 6 -> "SIEGE"; 7 -> "SPLIT"; else -> "MIXED" }
         val count = min(34, 6 + wave / 2) + if (wave % 8 == 1) 8 else 0
-        val threat = when { wave % 10 == 0 -> "OVERGROWTH T${wave / 10}"; wave % 5 == 0 -> "ELITE SIGNAL"; else -> "NO ELITE" }
+        val threat = when {
+            wave % 10 == 0 -> {
+                val tier = wave / 10
+                when {
+                    wave % 30 == 0 -> "OVERGROWTH T$tier"
+                    tier % 3 == 1 -> "IRON MONARCH T$tier"
+                    tier % 3 == 2 -> "SPORE SOVEREIGN T$tier"
+                    else -> "OVERGROWTH T$tier"
+                }
+            }
+            wave % 5 == 0 -> "ELITE SIGNAL"
+            else -> "NO ELITE"
+        }
         return when (level) { 1 -> "SURVEY • WAVE $wave $theme"; 2 -> "SURVEY • WAVE $wave $theme • ~$count HOSTILES"; else -> "SURVEY • WAVE $wave $theme • ~$count • $threat" }
     }
 
@@ -1237,6 +2038,78 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun supplyCount(item: CraftedItem): Int = supplies[item] ?: 0
 
+    private fun towerKey(col: Int, row: Int) = col * 100 + row
+
+    private fun hasCoolingImmunity(col: Int, row: Int) = (coolingImmunity[towerKey(col, row)] ?: 0f) > 0.02f
+
+    private fun applyTowerHex(tower: Tower, duration: Float) {
+        if (hasCoolingImmunity(tower.col, tower.row)) {
+            floatingLabels.add(FloatingLabel("COOLED", tower.col + 0.5f, tower.row + 0.2f, Color.rgb(93, 220, 255), pop = 1.3f))
+            return
+        }
+        var d = duration
+        if (tower.imbuement == Imbuement.WARD) d *= 0.55f
+        if (tower.imbuement == Imbuement.BULWARK) d *= 0.65f
+        if (hasWardBeaconNear(tower.col, tower.row)) d *= 0.70f
+        d *= aegisHexMul(tower.col, tower.row)
+        tower.disabledTimer = max(tower.disabledTimer, d)
+    }
+
+    private fun hasWardBeaconNear(col: Int, row: Int): Boolean {
+        return utilities.any {
+            it.kind == UtilityKind.WARD_BEACON && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }
+    }
+
+    private fun battleBannerDamageBonus(col: Int, row: Int): Float {
+        val banner = utilities.filter {
+            it.kind == UtilityKind.BATTLE_BANNER && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return 1f + 0.08f * utilityPowerLevel(banner) + if (banner.imbuement == Imbuement.MIGHT) 0.05f else 0f
+    }
+
+    private fun trapLatticeBonus(col: Int, row: Int): Float {
+        val lattice = utilities.filter {
+            it.kind == UtilityKind.TRAP_LATTICE && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return 1f + 0.10f * utilityPowerLevel(lattice) + if (lattice.imbuement == Imbuement.MIGHT) 0.06f else 0f
+    }
+
+    private fun sparkRelayIntervalMul(col: Int, row: Int): Float {
+        val relay = utilities.filter {
+            it.kind == UtilityKind.SPARK_RELAY && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return max(0.72f, 1f - 0.05f * utilityPowerLevel(relay) - if (relay.imbuement == Imbuement.TEMPO) 0.04f else 0f)
+    }
+
+    private fun pathWardenSlow(x: Float, y: Float): Float {
+        val warden = utilities.filter {
+            it.kind == UtilityKind.PATH_WARDEN && it.disabledTimer <= 0f &&
+                distanceSquared(it.col + 0.5f, it.row + 0.5f, x, y) <= 5.5f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return max(0.70f, 1f - 0.06f * utilityPowerLevel(warden))
+    }
+
+    private fun cinderKilnBurnMul(col: Int, row: Int): Float {
+        val kiln = utilities.filter {
+            it.kind == UtilityKind.CINDER_KILN && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return 1f + 0.10f * utilityPowerLevel(kiln)
+    }
+
+    private fun aegisHexMul(col: Int, row: Int): Float {
+        val pylon = utilities.filter {
+            it.kind == UtilityKind.AEGIS_PYLON && it.disabledTimer <= 0f &&
+                distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
+        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        return max(0.55f, 1f - 0.08f * utilityPowerLevel(pylon))
+    }
+
     private fun consumeSupply(item: CraftedItem): Boolean {
         val count = supplyCount(item)
         if (count <= 0) return false
@@ -1282,6 +2155,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             .putInt("run_growth_essence", growthEssence)
             .putInt("run_survey_lens_waves", surveyLensWaves)
             .putBoolean("run_phase_barrier", phaseBarrierReady)
+            .putBoolean("run_splinter_brace", splinterBraceReady)
             .putString("run_mode", gameMode.name)
             .putString("run_modifier", challengeModifier.name)
             .putLong("run_seed", runSeed)
@@ -1384,6 +2258,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             growthEssence = preferences.getInt("run_growth_essence", 0).coerceIn(0, 2_000_000_000)
             surveyLensWaves = preferences.getInt("run_survey_lens_waves", 0).coerceIn(0, 3)
             phaseBarrierReady = preferences.getBoolean("run_phase_barrier", false)
+            splinterBraceReady = preferences.getBoolean("run_splinter_brace", false)
             nextTrapId = (traps.maxBy { it.id }?.id ?: 0) + 1
             nextCorruptionId = (corruptions.maxBy { it.id }?.id ?: 0) + 1
             nextEnemyId = 1
@@ -1391,6 +2266,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             pendingSpawns.clear()
             projectiles.clear()
             particles.clear()
+            impactEffects.clear()
             floatingLabels.clear()
             waveQueue.clear()
             pathComplete = true
@@ -1461,6 +2337,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         pendingSpawns.clear()
         projectiles.clear()
         particles.clear()
+        impactEffects.clear()
         floatingLabels.clear()
         waveQueue.clear()
         gold = STARTING_BLOCKS
@@ -1477,12 +2354,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         growthEssence = 0
         surveyLensWaves = 0
         phaseBarrierReady = false
+        splinterBraceReady = false
+        coolingImmunity.clear()
+        resetCamera()
         reforgeCost = 0
         pathComplete = false
         diggingGesture = false
         waveTheme = "FORGE THE FIRST ROUTE"
-        bannerText = if (mode == GameMode.ENDLESS) "DRAG FROM THE GATE TO THE CORE" else "${challengeModifier.title.toUpperCase()}  SEED $runSeed"
+        bannerText = if (mode == GameMode.ENDLESS) "WIDE HOLD  DRAG GATE TO CORE  PINCH TO ZOOM" else "${challengeModifier.title.toUpperCase()}  SEED $runSeed"
+        bannerDuration = 3.4f
         bannerTimer = 3.4f
+        goldPulse = 0f
+        forgePulse = 0f
+        lastDisplayedGold = gold
+        lastDisplayedForge = forgeCharges
         audio.play("ui_click", 0.5f, 1.04f)
     }
 
@@ -1586,7 +2471,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun setBanner(message: String, duration: Float) {
         bannerText = message
-        bannerTimer = duration
+        bannerDuration = max(0.35f, duration)
+        bannerTimer = bannerDuration
     }
 
     private fun burst(x: Float, y: Float, color: Int, count: Int, force: Float) {
@@ -1602,6 +2488,25 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         synchronized(stateLock) {
             val x = event.x
             val y = event.y
+
+            // F0 camera: pinch-zoom + drag-pan on the board viewport (chrome stays fixed)
+            val playPhases = phase == GamePhase.BUILD || phase == GamePhase.DIG || phase == GamePhase.WAVE ||
+                phase == GamePhase.REFORGE
+            if (playPhases) {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN && inBoardViewport(x, y) && event.pointerCount == 1) {
+                    panLastX = x
+                    panLastY = y
+                    // Allow pan when zoomed; still start dig/build on tap if no drag
+                    cameraGesture = cameraZoom > 1.02f
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) suppressGridTap = false
+                }
+                if (handleCameraTouch(event)) {
+                    if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        // keep suppress one frame; cleared below on non-camera path
+                    }
+                    return true
+                }
+            }
 
             if (phase == GamePhase.TITLE) {
                 if (event.action == MotionEvent.ACTION_UP) {
@@ -1728,7 +2633,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         setBanner("TRAPS ONLY CHALLENGE", 1.4f)
                         return true
                     }
-                    buildPage = BuildPage.TOWERS
+                    if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 4 else buildPage = BuildPage.TOWERS
                     if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
                     clearBuildSelections()
                     rebuildToolRects()
@@ -1748,7 +2653,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     return true
                 }
                 if (utilityPageRect.contains(x, y)) {
-                    if (buildPage == BuildPage.UTILITIES) utilityPageIndex = (utilityPageIndex + 1) % 2 else buildPage = BuildPage.UTILITIES
+                    if (buildPage == BuildPage.UTILITIES) utilityPageIndex = (utilityPageIndex + 1) % 5 else buildPage = BuildPage.UTILITIES
                     clearBuildSelections()
                     rebuildToolRects()
                     audio.play("ui_click", 0.28f, 1.08f)
@@ -1780,9 +2685,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
 
             val cell = screenToCell(x, y)
-            if (cell != null) {
+            if (cell != null && !suppressGridTap) {
                 if ((phase == GamePhase.DIG || phase == GamePhase.REFORGE) && event.action == MotionEvent.ACTION_DOWN) {
                     diggingGesture = true
+                    cameraGesture = false
                     if (phase == GamePhase.REFORGE) extendReforgePath(cell) else extendPath(cell)
                     return true
                 }
@@ -1792,8 +2698,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 if (event.action == MotionEvent.ACTION_UP) {
                     handleGridTap(cell)
+                    suppressGridTap = false
                     return true
                 }
+            }
+            if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+                suppressGridTap = false
             }
             return true
         }
@@ -1923,6 +2833,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.CANNON -> placeTower(cell, TowerKind.CANNON)
             BuildTool.EMBER -> placeTower(cell, TowerKind.EMBER)
             BuildTool.BEACON -> placeTower(cell, TowerKind.BEACON)
+            BuildTool.THORN -> placeTower(cell, TowerKind.THORN)
+            BuildTool.LANCE -> placeTower(cell, TowerKind.LANCE)
+            BuildTool.MIRE -> placeTower(cell, TowerKind.MIRE)
+            BuildTool.GALE -> placeTower(cell, TowerKind.GALE)
+            BuildTool.SUNFORGE -> placeTower(cell, TowerKind.SUNFORGE)
+            BuildTool.LODESTONE -> placeTower(cell, TowerKind.LODESTONE)
+            BuildTool.HOWL -> placeTower(cell, TowerKind.HOWL)
+            BuildTool.VITRIOL -> placeTower(cell, TowerKind.VITRIOL)
+            BuildTool.GRAVEBOLT -> placeTower(cell, TowerKind.GRAVEBOLT)
+            BuildTool.AEGIS_LOOM -> placeTower(cell, TowerKind.AEGIS_LOOM)
             BuildTool.SPIKES -> placeTrap(cell, TrapKind.SPIKE)
             BuildTool.ROOT -> placeTrap(cell, TrapKind.ROOT)
             BuildTool.RUNE -> placeTrap(cell, TrapKind.EMBER)
@@ -2219,6 +3139,98 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 rebuildToolRects()
                 setBanner("${storedTraps[index].kind.title.toUpperCase()} REFIT  LEVEL ${storedTraps[index].level}", 1.7f)
             }
+            CraftedItem.SPLINTER_BRACE -> {
+                if (splinterBraceReady) { setBanner("SPLINTER BRACE ALREADY ARMED", 1.4f); return }
+                splinterBraceReady = true
+                consumeSupply(item)
+                setBanner("SPLINTER BRACE ARMED", 1.6f)
+                audio.play("build", 0.45f, 1.1f)
+            }
+            CraftedItem.RESIN_SEAL -> {
+                if (phaseBarrierReady) { setBanner("CORE BARRIER ALREADY ARMED", 1.4f); return }
+                phaseBarrierReady = true
+                consumeSupply(item)
+                setBanner("RESIN SEAL ARMED  NEXT LEAK BLOCKED", 1.8f)
+                audio.play("build", 0.5f, 0.9f)
+            }
+            CraftedItem.COOLING_FLASK -> {
+                val tower = selectedTower
+                if (tower == null) { setBanner("SELECT A TOWER TO COOL", 1.5f); return }
+                tower.disabledTimer = 0f
+                coolingImmunity[towerKey(tower.col, tower.row)] = 6f
+                consumeSupply(item)
+                setBanner("TOWER COOLED  HEX WARD 6s", 1.7f)
+                floatingLabels.add(FloatingLabel("COOLED", tower.col + 0.5f, tower.row + 0.15f, Color.rgb(93, 220, 255), pop = 1.4f))
+                burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(93, 220, 255), 18, 1.0f)
+                audio.play("frost", 0.4f, 1.2f)
+            }
+            CraftedItem.OVERCHARGE_CELL -> {
+                val tower = selectedTower
+                if (tower == null) { setBanner("SELECT A TOWER TO OVERCHARGE", 1.5f); return }
+                tower.damageBoostTimer = max(tower.damageBoostTimer, 18f)
+                consumeSupply(item)
+                setBanner("OVERCHARGE ARMED  18s", 1.7f)
+                floatingLabels.add(FloatingLabel("OVERCHARGE", tower.col + 0.5f, tower.row + 0.15f, Color.rgb(255, 186, 70), pop = 1.4f))
+                burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 186, 70), 20, 1.1f)
+                audio.play("ember", 0.4f, 1.15f)
+            }
+            CraftedItem.FOCUS_LENS -> {
+                val tower = selectedTower
+                if (tower == null) { setBanner("SELECT A TOWER TO FOCUS", 1.5f); return }
+                tower.focusBoostTimer = max(tower.focusBoostTimer, 16f)
+                consumeSupply(item)
+                setBanner("FOCUS LENS  16s RANGE", 1.7f)
+                floatingLabels.add(FloatingLabel("FOCUS", tower.col + 0.5f, tower.row + 0.15f, Color.rgb(100, 200, 255), pop = 1.4f))
+                burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(100, 200, 255), 18, 1.0f)
+                audio.play("frost", 0.4f, 1.2f)
+            }
+            CraftedItem.SNAP_SPRING -> {
+                val trap = selectedTrap
+                if (trap == null) { setBanner("SELECT A TRAP TO SNAP", 1.5f); return }
+                for (enemy in enemies) enemy.trapTriggerCounts.remove(trap.id)
+                trap.pulse = 1f
+                trap.activationCount += 1
+                enemies.filter { it.targetable && abs(it.x - (trap.col + 0.5f)) < 0.55f && abs(it.y - (trap.row + 0.5f)) < 0.55f }
+                    .forEach { damageEnemy(it, effectiveTrapDamage(trap) * 0.85f, trap.kind.accent) }
+                consumeSupply(item)
+                setBanner("SNAP SPRING  TRAP RESET", 1.6f)
+                burst(trap.col + 0.5f, trap.row + 0.5f, trap.kind.accent, 16, 1.0f)
+                audio.play("dig", 0.4f, 1.3f)
+            }
+            CraftedItem.SURVEY_SPIKE -> {
+                surveyLensWaves = max(surveyLensWaves, 1)
+                gold = safeAdd(gold, 25)
+                consumeSupply(item)
+                setBanner("SURVEY SPIKE  NEXT THEME PINNED  +25", 1.7f)
+                audio.play("build", 0.4f, 1.15f)
+            }
+            CraftedItem.ROUTE_OIL -> {
+                routeOilWaves = max(routeOilWaves, 1)
+                consumeSupply(item)
+                setBanner("ROUTE OIL  GATE PATH SLOWED NEXT WAVE", 1.8f)
+                audio.play("frost", 0.4f, 0.9f)
+            }
+            CraftedItem.SALT_BUNDLE -> {
+                val target = corruptions.minByOrNull {
+                    distanceSquared(it.cell.col + 0.5f, it.cell.row + 0.5f, 8f, 4.5f)
+                }
+                if (target != null) {
+                    corruptions.remove(target)
+                    floatingLabels.add(FloatingLabel("CLEANSED", target.cell.col + 0.5f, target.cell.row + 0.2f, Color.rgb(240, 240, 255), 0.7f))
+                }
+                for (tower in towers) {
+                    if (tower.disabledTimer > 0f) tower.disabledTimer = max(0f, tower.disabledTimer - 1.5f)
+                }
+                consumeSupply(item)
+                setBanner(if (target != null) "SALT BUNDLE  CORRUPTION CLEANSED" else "SALT BUNDLE  HEX EASED", 1.7f)
+                audio.play("build", 0.45f, 1.05f)
+            }
+            CraftedItem.SCRAP_MAGNET -> {
+                scrapMagnetKills = max(scrapMagnetKills, 3)
+                consumeSupply(item)
+                setBanner("SCRAP MAGNET  +1 PART ON NEXT 3 KILLS", 1.7f)
+                audio.play("dig", 0.4f, 1.1f)
+            }
             CraftedItem.RECOVERY_WRAP, CraftedItem.PURIFIER_VIAL, CraftedItem.REFORGE_COUPLER, CraftedItem.UTILITY_GEARSET -> setBanner("THIS SUPPLY ACTIVATES AUTOMATICALLY", 1.5f)
             CraftedItem.BLANK_SIGIL -> setBanner("SELECT A LEVEL 3 STRUCTURE AND CHOOSE IMBUE", 1.8f)
         }
@@ -2244,15 +3256,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun imbuementCompatible(imbuement: Imbuement): Boolean {
         if (imbuementTower != null) return true
         val trap = imbuementTrap
-        if (trap != null) return imbuement != Imbuement.CLARITY && (imbuement != Imbuement.REACH || trap.kind == TrapKind.ARC)
+        if (trap != null) {
+            return when (imbuement) {
+                Imbuement.CLARITY, Imbuement.WARD, Imbuement.BULWARK -> false
+                Imbuement.REACH -> trap.kind == TrapKind.ARC
+                else -> true
+            }
+        }
         val utility = imbuementUtility ?: return false
         return when (imbuement) {
             Imbuement.MIGHT -> true
-            Imbuement.TEMPO -> utility.kind == UtilityKind.BLOCK_GENERATOR || utility.kind == UtilityKind.FORGE_WORKSHOP
-            Imbuement.REACH -> utility.kind == UtilityKind.PURIFIER_TOTEM || utility.kind == UtilityKind.REFORGE_ANCHOR
+            Imbuement.TEMPO -> utility.kind == UtilityKind.BLOCK_GENERATOR || utility.kind == UtilityKind.FORGE_WORKSHOP || utility.kind == UtilityKind.ESSENCE_STILL
+            Imbuement.REACH -> utility.kind == UtilityKind.PURIFIER_TOTEM || utility.kind == UtilityKind.REFORGE_ANCHOR || utility.kind == UtilityKind.WARD_BEACON || utility.kind == UtilityKind.BATTLE_BANNER || utility.kind == UtilityKind.TRAP_LATTICE
             Imbuement.CLARITY -> true
-            Imbuement.ECHOES -> utility.kind == UtilityKind.BLOCK_GENERATOR || utility.kind == UtilityKind.FORGE_WORKSHOP || utility.kind == UtilityKind.PURIFIER_TOTEM
+            Imbuement.ECHOES -> utility.kind == UtilityKind.BLOCK_GENERATOR || utility.kind == UtilityKind.FORGE_WORKSHOP || utility.kind == UtilityKind.PURIFIER_TOTEM || utility.kind == UtilityKind.ESSENCE_STILL
             Imbuement.CONSERVATION -> utility.kind == UtilityKind.CACHE_DEPOT || utility.kind == UtilityKind.FORGE_WORKSHOP || utility.kind == UtilityKind.PURIFIER_TOTEM || utility.kind == UtilityKind.REFORGE_ANCHOR
+            Imbuement.WARD -> utility.kind == UtilityKind.WARD_BEACON || utility.kind == UtilityKind.PURIFIER_TOTEM
+            Imbuement.LEECH -> false
+            Imbuement.SURGE -> utility.kind == UtilityKind.BATTLE_BANNER || utility.kind == UtilityKind.TRAP_LATTICE
         }
     }
 
@@ -2269,6 +3290,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         imbuementTower?.imbuement = imbuement
         imbuementTrap?.imbuement = imbuement
         imbuementUtility?.imbuement = imbuement
+        if (imbuement == Imbuement.SURGE) {
+            imbuementTower?.surgeCharges = 3
+            imbuementTrap?.surgeCharges = 3
+        }
         val x = imbuementTower?.col ?: imbuementTrap?.col ?: imbuementUtility?.col ?: 0
         val y = imbuementTower?.row ?: imbuementTrap?.row ?: imbuementUtility?.row ?: 0
         burst(x + 0.5f, y + 0.5f, imbuement.accent, 26, 1.4f)
@@ -2496,12 +3521,83 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         evolutionTower = null
         selectedTower = tower
         phase = GamePhase.BUILD
-        setBanner("EVOLVED  ${tower.evolution!!.title.toUpperCase()}", 2.4f)
-        burst(tower.col + 0.5f, tower.row + 0.5f, tower.kind.accent, 28, 1.5f)
+        tower.evolveFlash = 1f
+        tower.evolveAura = 2.4f
+        tower.evolveProof = 2.2f
+        val evoTitle = tower.evolution!!.title.toUpperCase()
+        setBanner("EVOLVED  $evoTitle", 2.6f)
+        val cx = tower.col + 0.5f
+        val cy = tower.row + 0.5f
+        // E3: per-family confirm flavor (burst shape + SFX)
+        when (tower.kind) {
+            TowerKind.BOLT -> {
+                burst(cx, cy, tower.kind.accent, 42, 2.0f)
+                burst(cx, cy, Color.rgb(255, 255, 200), 16, 1.4f)
+                audio.play("bolt", 0.55f, 1.25f)
+                audio.play("build", 0.50f, 0.70f)
+            }
+            TowerKind.FROST -> {
+                burst(cx, cy, tower.kind.accent, 28, 1.2f)
+                burst(cx, cy, Color.rgb(200, 245, 255), 24, 0.9f)
+                burst(cx, cy, Color.rgb(255, 255, 255), 12, 0.7f)
+                audio.play("frost", 0.55f, 1.10f)
+                audio.play("build", 0.45f, 0.85f)
+            }
+            TowerKind.CANNON -> {
+                burst(cx, cy, tower.kind.accent, 48, 2.2f)
+                burst(cx, cy, Color.rgb(255, 180, 90), 22, 1.5f)
+                audio.play("cannon", 0.50f, 0.92f)
+                audio.play("build", 0.60f, 0.55f)
+            }
+            TowerKind.EMBER -> {
+                burst(cx, cy, tower.kind.accent, 40, 1.8f)
+                burst(cx, cy, Color.rgb(255, 120, 40), 28, 1.3f)
+                burst(cx, cy, Color.rgb(255, 220, 100), 14, 1.0f)
+                audio.play("ember", 0.52f, 0.95f)
+                audio.play("build", 0.55f, 0.60f)
+            }
+            TowerKind.BEACON -> {
+                burst(cx, cy, tower.kind.accent, 32, 1.4f)
+                burst(cx, cy, Color.rgb(230, 180, 255), 26, 1.1f)
+                burst(cx, cy, Color.rgb(255, 215, 104), 14, 0.95f)
+                audio.play("beacon", 0.55f, 1.15f)
+                audio.play("build", 0.48f, 0.75f)
+            }
+            TowerKind.THORN -> {
+                burst(cx, cy, tower.kind.accent, 36, 1.6f)
+                burst(cx, cy, Color.rgb(180, 255, 120), 18, 1.1f)
+                audio.play("bolt", 0.50f, 1.20f)
+                audio.play("build", 0.50f, 0.72f)
+            }
+            TowerKind.LANCE -> {
+                burst(cx, cy, tower.kind.accent, 40, 1.9f)
+                burst(cx, cy, Color.rgb(200, 240, 255), 20, 1.2f)
+                audio.play("bolt", 0.55f, 0.85f)
+                audio.play("build", 0.55f, 0.65f)
+            }
+            TowerKind.MIRE -> {
+                burst(cx, cy, tower.kind.accent, 34, 1.5f)
+                burst(cx, cy, Color.rgb(60, 160, 130), 22, 1.0f)
+                audio.play("frost", 0.50f, 0.75f)
+                audio.play("build", 0.50f, 0.68f)
+            }
+        }
+        floatingLabels.add(
+            FloatingLabel(
+                evoTitle,
+                tower.col + 0.5f,
+                tower.row + 0.15f,
+                Color.rgb(255, 215, 104),
+                life = 1.35f,
+                pop = 1.55f
+            )
+        )
+        audio.play("ui_click", 0.35f, 1.35f)
         saveRun()
     }
 
     private fun screenToCell(x: Float, y: Float): GridCell? {
+        if (!inBoardViewport(x, y)) return null
         if (x < boardLeft || y < boardTop || x >= boardLeft + COLS * tileSize || y >= boardTop + ROWS * tileSize) return null
         val col = ((x - boardLeft) / tileSize).toInt()
         val row = ((y - boardTop) / tileSize).toInt()
@@ -2778,18 +3874,45 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawBoard(canvas: Canvas) {
         paint.style = Paint.Style.FILL
         paint.color = Color.rgb(5, 9, 7)
+        // F0: clip world draw to board viewport so chrome stays screen-fixed
+        canvas.save()
+        canvas.clipRect(viewportLeft, viewportTop, viewportRight, viewportBottom)
         canvas.drawRoundRect(boardLeft - dp(6f), boardTop - dp(6f), boardLeft + COLS * tileSize + dp(6f), boardTop + ROWS * tileSize + dp(6f), dp(12f), dp(12f), paint)
-        for (row in 0 until ROWS) for (col in 0 until COLS) drawTerrainTile(canvas, col, row)
+        val col0 = max(0, ((viewportLeft - boardLeft) / tileSize).toInt() - 1)
+        val row0 = max(0, ((viewportTop - boardTop) / tileSize).toInt() - 1)
+        val col1 = min(COLS - 1, ((viewportRight - boardLeft) / tileSize).toInt() + 1)
+        val row1 = min(ROWS - 1, ((viewportBottom - boardTop) / tileSize).toInt() + 1)
+        for (row in row0..row1) for (col in col0..col1) drawTerrainTile(canvas, col, row)
 
         if (pathCells.size > 1) {
             strokePaint.style = Paint.Style.STROKE
-            strokePaint.strokeWidth = max(2f, tileSize * 0.055f)
             strokePaint.strokeCap = Paint.Cap.ROUND
-            strokePaint.color = Color.argb(125, 255, 241, 195)
+            // Soft base route
+            strokePaint.strokeWidth = max(2f, tileSize * 0.055f)
+            strokePaint.color = Color.argb(110, 255, 241, 195)
             val route = Path()
             route.moveTo(cellCenterX(pathCells[0].col), cellCenterY(pathCells[0].row))
             for (i in 1 until pathCells.size) route.lineTo(cellCenterX(pathCells[i].col), cellCenterY(pathCells[i].row))
             canvas.drawPath(route, strokePaint)
+            // Traveling shimmer dashes along the path (1.3 Phase C — quiet ambient)
+            val shimmerPhase = ambientTime * 0.55f
+            val segmentCount = pathCells.size - 1
+            for (i in 0 until segmentCount) {
+                val local = ((shimmerPhase + i * 0.17f) % 1.4f)
+                if (local > 1f) continue
+                val t = local
+                val a = pathCells[i]
+                val b = pathCells[i + 1]
+                val x1 = cellCenterX(a.col)
+                val y1 = cellCenterY(a.row)
+                val x2 = cellCenterX(b.col)
+                val y2 = cellCenterY(b.row)
+                val sx = x1 + (x2 - x1) * t
+                val sy = y1 + (y2 - y1) * t
+                val fade = if (t < 0.15f) t / 0.15f else if (t > 0.85f) (1f - t) / 0.15f else 1f
+                paint.color = Color.argb((28 * fade).toInt().coerceIn(0, 255), 255, 250, 210)
+                canvas.drawCircle(sx, sy, tileSize * 0.07f, paint)
+            }
         }
 
         drawDefenseSynergies(canvas)
@@ -2817,11 +3940,25 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for (utility in utilities) drawUtility(canvas, utility, utility === chosenUtility)
         for (enemy in enemies) drawEnemy(canvas, enemy)
         for (projectile in projectiles) drawProjectile(canvas, projectile)
+        for (fx in impactEffects) drawImpact(canvas, fx)
         for (particle in particles) drawParticle(canvas, particle)
         for (label in floatingLabels) {
-            val alpha = (min(1f, label.life * 2f) * 255f).toInt()
+            val lifeRatio = (label.life / max(0.05f, label.maxLife)).coerceIn(0f, 1f)
+            val alpha = (min(1f, label.life * 2.2f) * 255f).toInt().coerceIn(0, 255)
             val labelColor = Color.argb(alpha, Color.red(label.color), Color.green(label.color), Color.blue(label.color))
-            drawCenteredText(canvas, label.message, gridX(label.x), gridY(label.y), max(dp(9f), tileSize * 0.20f), labelColor, true)
+            // Pop scale: overshoot at spawn, settle, then slight shrink on fade
+            val spawnT = 1f - lifeRatio
+            val popScale = when {
+                spawnT < 0.18f -> 0.72f + (spawnT / 0.18f) * (label.pop * 1.18f - 0.72f)
+                spawnT < 0.32f -> label.pop * (1.18f - (spawnT - 0.18f) / 0.14f * 0.18f)
+                else -> label.pop * (1f - (1f - lifeRatio) * 0.12f)
+            }
+            val textSize = max(dp(9f), tileSize * 0.20f) * popScale
+            if (label.pop > 1.05f) {
+                paint.color = Color.argb((alpha * 0.22f).toInt().coerceIn(0, 255), Color.red(label.color), Color.green(label.color), Color.blue(label.color))
+                canvas.drawCircle(gridX(label.x), gridY(label.y), textSize * 0.85f, paint)
+            }
+            drawCenteredText(canvas, label.message, gridX(label.x), gridY(label.y), textSize, labelColor, true)
         }
     }
 
@@ -2888,11 +4025,47 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val top = boardTop + row * tileSize
         val destination = RectF(left, top, left + tileSize, top + tileSize)
         val pathTile = isPathCell(GridCell(col, row))
-        spritePaint.alpha = 255
-        canvas.drawBitmap(if (pathTile) sprites.path else sprites.grass, null, destination, spritePaint)
-        if ((col * 41 + row * 67) % 5 == 0 && !pathTile) {
-            paint.color = Color.argb(45, 20, 83, 35)
-            canvas.drawCircle(left + tileSize * 0.23f, top + tileSize * 0.70f, tileSize * 0.07f, paint)
+        if (pathTile) {
+            spritePaint.alpha = 255
+            canvas.drawBitmap(sprites.path, null, destination, spritePaint)
+            val sheen = 0.5f + 0.5f * sin(ambientTime * 1.6f + col * 0.55f + row * 0.35f)
+            // E2: path cells near a freshly evolved tower glow warmer
+            var auraBoost = 0f
+            for (tower in towers) {
+                if (tower.evolveAura <= 0.02f) continue
+                val d2 = (tower.col - col) * (tower.col - col) + (tower.row - row) * (tower.row - row)
+                if (d2 <= 2) { // self + orthogonal neighbors (and diagonal at d2=2)
+                    auraBoost = max(auraBoost, tower.evolveAura / 2.4f * (1f - d2 * 0.28f))
+                }
+            }
+            val sheenAlpha = (10 + sheen * 14 + auraBoost * 55).toInt().coerceIn(0, 255)
+            paint.color = Color.argb(sheenAlpha, 255, 248, 210)
+            canvas.drawRect(
+                left + tileSize * 0.12f,
+                top + tileSize * 0.18f,
+                left + tileSize * 0.88f,
+                top + tileSize * 0.28f,
+                paint
+            )
+            if (auraBoost > 0.08f) {
+                paint.color = Color.argb((auraBoost * 40).toInt().coerceIn(0, 255), 255, 215, 104)
+                canvas.drawCircle(left + tileSize * 0.5f, top + tileSize * 0.5f, tileSize * (0.12f + auraBoost * 0.08f), paint)
+            }
+        } else {
+            val sway = 0.5f + 0.5f * sin(ambientTime * 1.35f + col * 0.7f + row * 0.9f)
+            spritePaint.alpha = (235 + (sway * 20f).toInt()).coerceIn(220, 255)
+            canvas.drawBitmap(sprites.grass, null, destination, spritePaint)
+            spritePaint.alpha = 255
+            if ((col * 41 + row * 67) % 5 == 0) {
+                val tip = sway * tileSize * 0.02f
+                paint.color = Color.argb((40 + sway * 18).toInt().coerceIn(0, 255), 20, 83, 35)
+                canvas.drawCircle(left + tileSize * 0.23f, top + tileSize * 0.70f - tip, tileSize * 0.07f, paint)
+            }
+            if ((col * 17 + row * 29) % 7 == 0) {
+                val tip = sin(ambientTime * 1.35f + col * 0.7f + row * 0.9f) * tileSize * 0.015f
+                paint.color = Color.argb((8 + sway * 10).toInt().coerceIn(0, 255), 90, 160, 70)
+                canvas.drawCircle(left + tileSize * 0.72f, top + tileSize * 0.28f + tip, tileSize * 0.05f, paint)
+            }
         }
         strokePaint.style = Paint.Style.STROKE
         strokePaint.strokeWidth = max(1f, tileSize * 0.015f)
@@ -2906,6 +4079,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val pulse = 0.88f + sin(ambientTime * 3f) * 0.07f
         val gateStep = floor(ambientTime * 2.0f).toInt() % 4
         val gateFrame = when (gateStep) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+        paint.color = Color.argb((30 + pulse * 25).toInt().coerceIn(0, 255), 190, 244, 78)
+        canvas.drawCircle(x, y, tileSize * (0.42f + pulse * 0.04f), paint)
         drawSpriteFrameCentered(canvas, sprites.gatePart, gateFrame, x, y, tileSize * 0.90f)
         strokePaint.strokeWidth = tileSize * 0.045f
         strokePaint.color = Color.argb(190, 190, 244, 78)
@@ -2916,14 +4091,34 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawCore(canvas: Canvas) {
         val x = cellCenterX(COLS - 1)
         val y = cellCenterY(START_ROW)
-        val pulse = 0.5f + 0.5f * sin(ambientTime * 3.5f)
-        paint.color = Color.argb((45 + pulse * 55).toInt(), 190, 244, 78)
+        val healthRatio = if (maxCore > 0) lives.toFloat() / maxCore.toFloat() else 1f
+        val beatHz = if (healthRatio < 0.35f) 5.2f else if (healthRatio < 0.6f) 4.2f else 3.2f
+        val pulse = 0.5f + 0.5f * sin(ambientTime * beatHz)
+        val secondary = 0.5f + 0.5f * sin(ambientTime * beatHz * 0.5f + 1.1f)
+        val danger = (1f - healthRatio).coerceIn(0f, 1f)
+        val glowR = (190 + danger * 55).toInt().coerceIn(0, 255)
+        val glowG = (244 - danger * 140).toInt().coerceIn(0, 255)
+        val glowB = (78 - danger * 20).toInt().coerceIn(0, 255)
+        paint.color = Color.argb((28 + pulse * 40 + danger * 20).toInt().coerceIn(0, 255), glowR, glowG, glowB)
+        canvas.drawCircle(x, y, tileSize * (0.52f + pulse * 0.07f + secondary * 0.02f), paint)
+        paint.color = Color.argb((45 + pulse * 55).toInt().coerceIn(0, 255), glowR, glowG, glowB)
         canvas.drawCircle(x, y, tileSize * (0.47f + pulse * 0.05f), paint)
         val coreStep = floor(ambientTime * 2.5f).toInt() % 4
         val coreFrame = when (coreStep) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
-        drawSpriteFrameCentered(canvas, sprites.corePart, coreFrame, x, y, tileSize * 0.96f)
-        paint.color = Color.rgb(224, 255, 169)
-        canvas.drawCircle(x, y, tileSize * (0.09f + pulse * 0.015f), paint)
+        drawSpriteFrameCentered(canvas, sprites.corePart, coreFrame, x, y, tileSize * (0.94f + pulse * 0.04f))
+        paint.color = Color.argb(
+            255,
+            (224 + danger * 30).toInt().coerceIn(0, 255),
+            (255 - danger * 80).toInt().coerceIn(0, 255),
+            (169 - danger * 40).toInt().coerceIn(0, 255)
+        )
+        canvas.drawCircle(x, y, tileSize * (0.09f + pulse * 0.02f), paint)
+        if (pulse > 0.92f) {
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeWidth = max(1.5f, tileSize * 0.03f)
+            strokePaint.color = Color.argb((50 + danger * 40).toInt().coerceIn(0, 255), glowR, glowG, glowB)
+            canvas.drawCircle(x, y, tileSize * (0.58f + (pulse - 0.92f) * 1.2f), strokePaint)
+        }
     }
 
     private fun drawTrap(canvas: Canvas, trap: SpikeTrap, selected: Boolean) {
@@ -2962,12 +4157,96 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.WHITE
             canvas.drawCircle(x, y, tileSize * 0.42f, strokePaint)
         }
+        // E1/E3: evolution confirm flash — family-tinted rim expanding from the cell
+        val evoFlash = tower.evolveFlash
+        if (evoFlash > 0.02f) {
+            val flashT = 1f - evoFlash
+            val accent = tower.kind.accent
+            // start color = family accent; end color = warm gold
+            val rimR = (Color.red(accent) + (255 - Color.red(accent)) * flashT).toInt().coerceIn(0, 255)
+            val rimG = (Color.green(accent) + (215 - Color.green(accent)) * flashT).toInt().coerceIn(0, 255)
+            val rimB = (Color.blue(accent) + (104 - Color.blue(accent)) * flashT).toInt().coerceIn(0, 255)
+            val rimThick = when (tower.kind) {
+                TowerKind.BOLT -> 0.06f + evoFlash * 0.05f   // snap thin
+                TowerKind.FROST -> 0.07f + evoFlash * 0.05f  // ice rim
+                TowerKind.CANNON -> 0.10f + evoFlash * 0.08f // heavy
+                TowerKind.EMBER -> 0.09f + evoFlash * 0.07f  // coal bloom
+                TowerKind.BEACON -> 0.07f + evoFlash * 0.06f // resonance
+                TowerKind.THORN -> 0.07f + evoFlash * 0.05f
+                TowerKind.LANCE -> 0.06f + evoFlash * 0.05f
+                TowerKind.MIRE -> 0.08f + evoFlash * 0.06f
+            }
+            val rimExpand = when (tower.kind) {
+                TowerKind.BOLT -> 0.28f
+                TowerKind.FROST -> 0.24f
+                TowerKind.CANNON -> 0.20f
+                TowerKind.EMBER -> 0.26f
+                TowerKind.BEACON -> 0.30f
+                TowerKind.THORN -> 0.27f
+                TowerKind.LANCE -> 0.29f
+                TowerKind.MIRE -> 0.25f
+            }
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeWidth = tileSize * rimThick
+            strokePaint.color = Color.argb((220 * evoFlash).toInt().coerceIn(0, 255), rimR, rimG, rimB)
+            canvas.drawCircle(x, y, tileSize * (0.36f + (1f - evoFlash) * rimExpand), strokePaint)
+            // fill wash
+            val fillA = when (tower.kind) {
+                TowerKind.EMBER -> 70
+                TowerKind.FROST -> 45
+                TowerKind.CANNON -> 60
+                else -> 55
+            }
+            paint.color = Color.argb((fillA * evoFlash).toInt().coerceIn(0, 255), rimR, rimG, rimB)
+            canvas.drawCircle(x, y, tileSize * (0.40f + evoFlash * 0.08f), paint)
+            // E3 secondary ring: frost ice / beacon resonance / bolt snap spark
+            when (tower.kind) {
+                TowerKind.FROST -> {
+                    strokePaint.strokeWidth = tileSize * 0.035f
+                    strokePaint.color = Color.argb((160 * evoFlash).toInt().coerceIn(0, 255), 220, 250, 255)
+                    canvas.drawCircle(x, y, tileSize * (0.30f + (1f - evoFlash) * 0.18f), strokePaint)
+                }
+                TowerKind.BEACON -> {
+                    strokePaint.strokeWidth = tileSize * 0.028f
+                    strokePaint.color = Color.argb((140 * evoFlash).toInt().coerceIn(0, 255), 210, 160, 255)
+                    canvas.drawCircle(x, y, tileSize * (0.50f + (1f - evoFlash) * 0.12f), strokePaint)
+                }
+                TowerKind.BOLT -> {
+                    // snap cross sparks
+                    paint.color = Color.argb((180 * evoFlash).toInt().coerceIn(0, 255), 255, 255, 210)
+                    val s = tileSize * (0.18f + (1f - evoFlash) * 0.15f)
+                    canvas.drawCircle(x + s, y, tileSize * 0.05f, paint)
+                    canvas.drawCircle(x - s, y, tileSize * 0.05f, paint)
+                    canvas.drawCircle(x, y + s, tileSize * 0.05f, paint)
+                    canvas.drawCircle(x, y - s, tileSize * 0.05f, paint)
+                }
+                TowerKind.EMBER -> {
+                    paint.color = Color.argb((90 * evoFlash).toInt().coerceIn(0, 255), 255, 90, 40)
+                    canvas.drawCircle(x, y, tileSize * (0.22f + evoFlash * 0.12f), paint)
+                }
+                TowerKind.CANNON -> {
+                    strokePaint.strokeWidth = tileSize * 0.05f
+                    strokePaint.color = Color.argb((120 * evoFlash).toInt().coerceIn(0, 255), 255, 140, 60)
+                    canvas.drawCircle(x, y, tileSize * (0.28f + evoFlash * 0.06f), strokePaint)
+                }
+            }
+        }
         val base = when (tower.kind) {
             TowerKind.BOLT -> sprites.towerBase
             TowerKind.FROST -> sprites.frostBase
             TowerKind.CANNON -> sprites.cannonBase
             TowerKind.EMBER -> sprites.emberBase
             TowerKind.BEACON -> sprites.beaconBase
+            TowerKind.THORN -> sprites.thornBase
+            TowerKind.LANCE -> sprites.lanceBase
+            TowerKind.MIRE -> sprites.mireBase
+            TowerKind.GALE -> sprites.galeBase
+            TowerKind.SUNFORGE -> sprites.sunforgeBase
+            TowerKind.LODESTONE -> sprites.lodestoneBase
+            TowerKind.HOWL -> sprites.howlBase
+            TowerKind.VITRIOL -> sprites.vitriolBase
+            TowerKind.GRAVEBOLT -> sprites.graveboltBase
+            TowerKind.AEGIS_LOOM -> sprites.aegisLoomBase
         }
         drawBitmapCentered(canvas, base, x, y + tileSize * 0.05f, tileSize * 0.88f)
         val firingFrame = when {
@@ -2985,12 +4264,50 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.CANNON -> drawSpriteFrameCentered(canvas, sprites.cannonTurret, firingFrame, x, y - tileSize * 0.04f, tileSize * 0.82f, tower.angle * 57.29578f)
             TowerKind.EMBER -> drawSpriteFrameCentered(canvas, sprites.emberFlame, firingFrame, x, y - tileSize * 0.10f, tileSize * (0.70f + sin(ambientTime * 6f) * 0.03f))
             TowerKind.BEACON -> drawSpriteFrameCentered(canvas, sprites.beaconPulse, firingFrame, x, y - tileSize * 0.03f, tileSize * (0.70f + sin(ambientTime * 4f) * 0.05f), ambientTime * 30f)
+            TowerKind.THORN -> drawSpriteFrameCentered(canvas, sprites.thornTurret, firingFrame, x, y, tileSize * 0.84f, tower.angle * 57.29578f)
+            TowerKind.LANCE -> drawSpriteFrameCentered(canvas, sprites.lanceTurret, firingFrame, x, y - tileSize * 0.02f, tileSize * 0.88f, tower.angle * 57.29578f)
+            TowerKind.MIRE -> drawSpriteFrameCentered(canvas, sprites.mireTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.GALE -> drawSpriteFrameCentered(canvas, sprites.galeTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.SUNFORGE -> drawSpriteFrameCentered(canvas, sprites.sunforgeTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.LODESTONE -> drawSpriteFrameCentered(canvas, sprites.lodestoneTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.HOWL -> drawSpriteFrameCentered(canvas, sprites.howlTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.VITRIOL -> drawSpriteFrameCentered(canvas, sprites.vitriolTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.GRAVEBOLT -> drawSpriteFrameCentered(canvas, sprites.graveboltTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
+            TowerKind.AEGIS_LOOM -> drawSpriteFrameCentered(canvas, sprites.aegisLoomTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
         }
         if (tower.evolution != null) {
             strokePaint.strokeWidth = tileSize * 0.045f
             strokePaint.color = Color.rgb(255, 215, 104)
             canvas.drawCircle(x, y, tileSize * (0.38f + sin(ambientTime * 3f) * 0.025f), strokePaint)
-            drawBitmapCentered(canvas, sprites.evolution(tower.evolution!!), x - tileSize * 0.27f, y - tileSize * 0.27f, tileSize * 0.34f)
+            if (tower.evolveAura > 0.02f) {
+                val a = (tower.evolveAura / 2.4f).coerceIn(0f, 1f)
+                strokePaint.strokeWidth = tileSize * 0.03f
+                strokePaint.color = Color.argb((90 * a).toInt().coerceIn(0, 255), 255, 230, 150)
+                canvas.drawCircle(x, y, tileSize * (0.48f + (1f - a) * 0.06f), strokePaint)
+            }
+            val emblemPop = if (tower.evolveFlash > 0.02f) 1f + tower.evolveFlash * 0.55f else 1f
+            drawBitmapCentered(
+                canvas,
+                sprites.evolution(tower.evolution!!),
+                x - tileSize * 0.27f,
+                y - tileSize * 0.27f,
+                tileSize * 0.34f * emblemPop
+            )
+        }
+        if (hasCoolingImmunity(tower.col, tower.row)) {
+            strokePaint.strokeWidth = tileSize * 0.04f
+            strokePaint.color = Color.argb(180, 93, 220, 255)
+            canvas.drawCircle(x, y, tileSize * 0.44f, strokePaint)
+        }
+        if (tower.damageBoostTimer > 0.05f) {
+            strokePaint.strokeWidth = tileSize * 0.035f
+            strokePaint.color = Color.argb(200, 255, 186, 70)
+            canvas.drawCircle(x, y, tileSize * 0.46f, strokePaint)
+        }
+        if (tower.focusBoostTimer > 0.05f) {
+            strokePaint.strokeWidth = tileSize * 0.03f
+            strokePaint.color = Color.argb(190, 100, 200, 255)
+            canvas.drawCircle(x, y, tileSize * 0.48f, strokePaint)
         }
         if (tower.disabledTimer > 0f) {
             paint.color = Color.argb(145, 130, 48, 165)
@@ -3020,7 +4337,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.WHITE
             canvas.drawCircle(x, y, tileSize * 0.43f, strokePaint)
         }
-        drawBitmapCentered(canvas, sprites.utility(utility.kind), x, y, tileSize * (0.86f + sin(ambientTime * 2f + utility.kind.ordinal) * 0.015f))
+        val strip = sprites.utility(utility.kind)
+        val phase = ambientTime * 1.6f + utility.kind.ordinal * 0.85f + utility.col * 0.37f + utility.row * 0.21f
+        val step = floor(phase).toInt()
+        val frame = when {
+            strip.frameCount >= 3 -> when (step % 4) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+            strip.frameCount == 2 -> step % 2
+            else -> 0
+        }
+        drawSpriteFrameCentered(
+            canvas,
+            strip,
+            frame,
+            x,
+            y,
+            tileSize * (0.86f + sin(ambientTime * 2f + utility.kind.ordinal) * 0.015f)
+        )
         if (utility.disabledTimer > 0f) {
             paint.color = Color.argb(150, 130, 48, 165)
             canvas.drawCircle(x, y, tileSize * 0.34f, paint)
@@ -3043,37 +4375,87 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun drawEnemy(canvas: Canvas, enemy: Enemy) {
         if (!enemy.alive) return
+        val dying = enemy.dying
+        val deathMax = if (enemy.kind.boss) 0.55f else if (enemy.kind.elite) 0.38f else 0.28f
+        val deathT = if (dying) (1f - (enemy.deathTimer / deathMax).coerceIn(0f, 1f)) else 0f
         val x = gridX(enemy.x)
-        val bob = sin(enemy.animation) * tileSize * 0.025f
-        val y = gridY(enemy.y) + bob
-        val size = tileSize * enemy.kind.scale
+        val bob = if (dying) 0f else sin(enemy.animation) * tileSize * 0.025f
+        val y = gridY(enemy.y) + bob + if (dying) deathT * tileSize * 0.12f else 0f
+        val size = tileSize * enemy.kind.scale * if (dying) (1f - deathT * 0.35f) else 1f
         val healthRatio = max(0f, enemy.health / enemy.maxHealth)
-        paint.color = Color.argb(90, 0, 0, 0)
+        val stealthFade = if (enemy.stealthed) 0.45f else 1f
+        val bodyAlpha = (if (dying) (1f - deathT).coerceIn(0f, 1f) else 1f) * stealthFade
+        paint.color = Color.argb((90 * bodyAlpha).toInt(), 0, 0, 0)
         canvas.drawOval(x - size * 0.34f, y + size * 0.25f, x + size * 0.34f, y + size * 0.42f, paint)
-        paint.color = Color.argb(if (enemy.kind.elite || enemy.kind.boss) 115 else 70, Color.red(enemy.kind.color), Color.green(enemy.kind.color), Color.blue(enemy.kind.color))
+        paint.color = Color.argb(
+            ((if (enemy.kind.elite || enemy.kind.boss) 115 else 70) * bodyAlpha).toInt(),
+            Color.red(enemy.kind.color), Color.green(enemy.kind.color), Color.blue(enemy.kind.color)
+        )
         canvas.drawCircle(x, y, size * 0.46f, paint)
+        if (enemy.thornArmorTimer > 0.05f) {
+            strokePaint.strokeWidth = tileSize * 0.04f
+            strokePaint.color = Color.argb((180 * bodyAlpha).toInt(), 200, 255, 140)
+            canvas.drawCircle(x, y, size * 0.52f, strokePaint)
+        }
         if (enemy.kind.elite || enemy.kind.boss) {
             strokePaint.strokeWidth = tileSize * (if (enemy.kind.boss) 0.055f else 0.035f)
-            strokePaint.color = if (enemy.kind.boss) Color.rgb(255, 207, 90) else enemy.kind.color
+            strokePaint.color = Color.argb(
+                (220 * bodyAlpha).toInt(),
+                Color.red(if (enemy.kind.boss) Color.rgb(255, 207, 90) else enemy.kind.color),
+                Color.green(if (enemy.kind.boss) Color.rgb(255, 207, 90) else enemy.kind.color),
+                Color.blue(if (enemy.kind.boss) Color.rgb(255, 207, 90) else enemy.kind.color)
+            )
             canvas.drawCircle(x, y, size * 0.50f, strokePaint)
         }
-        spritePaint.alpha = if (enemy.flashTimer > 0f) 155 else 255
+        // Hurt flash + death dissolve alpha
+        val flash = enemy.flashTimer > 0f && !dying
+        spritePaint.alpha = when {
+            dying -> (255 * bodyAlpha * (0.55f + 0.45f * sin(enemy.animation * 8f).let { (it + 1f) * 0.5f })).toInt().coerceIn(0, 255)
+            flash -> 130
+            else -> 255
+        }
         val enemySprite = sprites.enemy(enemy.kind)
         val animationStep = floor(enemy.animation * 1.25f).toInt()
         val animationFrame = when {
+            dying && enemySprite.frameCount >= 3 -> 2
             enemySprite.frameCount >= 3 -> when (animationStep % 4) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
             enemySprite.frameCount == 2 -> animationStep % 2
             else -> 0
         }
         drawSpriteFrameCentered(canvas, enemySprite, animationFrame, x, y, size * 1.02f)
+        if (flash) {
+            // brief white hit rim
+            paint.color = Color.argb(90, 255, 255, 255)
+            canvas.drawCircle(x, y, size * 0.48f, paint)
+        }
+        // F2 wind-up tell ring (elites + bosses while charging an ability)
+        if (!dying && enemy.windupTimer > 0f) {
+            val windMax = when (enemy.windupKind) {
+                1 -> 1.15f; 2 -> 0.95f; 3 -> 1.25f; 4 -> 1.45f; 5 -> 1.35f; else -> 1.2f
+            }
+            val wind = 1f - (enemy.windupTimer / windMax).coerceIn(0f, 1f)
+            val tellColor = enemy.kind.color
+            strokePaint.strokeWidth = max(2f, tileSize * (if (enemy.kind.boss) 0.05f else 0.035f))
+            strokePaint.color = Color.argb((90 + wind * 150).toInt(), Color.red(tellColor), Color.green(tellColor), Color.blue(tellColor))
+            canvas.drawCircle(x, y, size * (0.52f + wind * 0.40f), strokePaint)
+            paint.color = Color.argb((35 + wind * 55).toInt(), Color.red(tellColor), Color.green(tellColor), Color.blue(tellColor))
+            canvas.drawCircle(x, y, size * (0.38f + wind * 0.18f), paint)
+            if (enemy.kind.boss) {
+                strokePaint.color = Color.argb((70 + wind * 100).toInt(), 255, 207, 90)
+                canvas.drawCircle(x, y, size * (0.62f + wind * 0.22f), strokePaint)
+            }
+        } else if (!dying && enemy.pyreTrailTimer > 0f) {
+            paint.color = Color.argb((50 + (sin(ambientTime * 8f) * 0.5f + 0.5f) * 40).toInt().coerceIn(0, 255), 255, 100, 40)
+            canvas.drawCircle(x, y, size * 0.48f, paint)
+        }
         spritePaint.alpha = 255
-        if (enemy.slowTimer > 0f || enemy.stunTimer > 0f) {
+        if (!dying && (enemy.slowTimer > 0f || enemy.stunTimer > 0f)) {
             strokePaint.strokeWidth = max(1.5f, tileSize * 0.025f)
             strokePaint.color = if (enemy.stunTimer > 0f) Color.rgb(195, 120, 255) else Color.rgb(93, 220, 255)
             canvas.drawCircle(x, y, size * 0.53f, strokePaint)
         }
-        if (enemy.burnTimer > 0f) drawSpriteFrameCentered(canvas, sprites.trap(TrapKind.EMBER), 0, x + size * 0.25f, y - size * 0.26f, size * 0.35f)
-        if (healthRatio < 0.995f || enemy.kind.elite || enemy.kind.boss) {
+        if (!dying && enemy.burnTimer > 0f) drawSpriteFrameCentered(canvas, sprites.trap(TrapKind.EMBER), 0, x + size * 0.25f, y - size * 0.26f, size * 0.35f)
+        if (!dying && (healthRatio < 0.995f || enemy.kind.elite || enemy.kind.boss)) {
             val barWidth = size * 0.90f
             val barY = y - size * 0.62f
             val barHeight = max(3f, tileSize * 0.06f)
@@ -3082,27 +4464,91 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             paint.color = if (healthRatio > 0.35f) Color.rgb(190, 244, 78) else Color.rgb(255, 91, 84)
             canvas.drawRoundRect(x - barWidth * 0.5f, barY, x - barWidth * 0.5f + barWidth * healthRatio, barY + barHeight, tileSize * 0.03f, tileSize * 0.03f, paint)
         }
-        if (enemy.kind.boss) drawCenteredText(canvas, "T${enemy.bossTier}", x, y + size * 0.58f, max(dp(7f), tileSize * 0.12f), Color.rgb(255, 222, 126), true)
+        if (!dying && enemy.kind.boss) drawCenteredText(canvas, "T${enemy.bossTier}", x, y + size * 0.58f, max(dp(7f), tileSize * 0.12f), Color.rgb(255, 222, 126), true)
     }
 
     private fun drawProjectile(canvas: Canvas, projectile: Projectile) {
         val x = gridX(projectile.x)
         val y = gridY(projectile.y)
-        val radius = when (projectile.kind) {
-            TowerKind.BOLT -> tileSize * 0.07f
-            TowerKind.FROST -> tileSize * 0.09f
-            TowerKind.CANNON -> tileSize * 0.14f
-            TowerKind.EMBER -> tileSize * 0.11f
-            TowerKind.BEACON -> tileSize * 0.085f
+        val strip = sprites.projectile(projectile.kind)
+        val size = when (projectile.kind) {
+            TowerKind.BOLT -> tileSize * 0.42f
+            TowerKind.FROST -> tileSize * 0.48f
+            TowerKind.CANNON -> tileSize * 0.58f
+            TowerKind.EMBER -> tileSize * 0.50f
+            TowerKind.BEACON -> tileSize * 0.52f
+            TowerKind.THORN -> tileSize * 0.40f
+            TowerKind.LANCE -> tileSize * 0.55f
+            TowerKind.MIRE -> tileSize * 0.54f
         }
-        paint.color = Color.argb(55, Color.red(projectile.kind.accent), Color.green(projectile.kind.accent), Color.blue(projectile.kind.accent))
-        canvas.drawCircle(x, y, radius * 2.2f, paint)
-        paint.color = projectile.kind.accent
-        canvas.drawCircle(x, y, radius, paint)
-        if (projectile.kind == TowerKind.FROST || projectile.kind == TowerKind.BEACON) {
-            paint.color = Color.WHITE
-            canvas.drawCircle(x - radius * 0.25f, y - radius * 0.25f, radius * 0.28f, paint)
+        val dx = projectile.target.x - projectile.x
+        val dy = projectile.target.y - projectile.y
+        val angle = if (abs(dx) + abs(dy) < 0.0001f) 0f else atan2(dy, dx) * 57.29578f
+        val step = floor(projectile.age * 14f).toInt()
+        val frame = when {
+            strip.frameCount >= 3 -> when (step % 4) { 0 -> 0; 1 -> 1; 2 -> 2; else -> 1 }
+            strip.frameCount == 2 -> step % 2
+            else -> 0
         }
+        val hot = projectile.evolveHot
+        val glowAlpha = if (hot) 95 else 50
+        val glowSize = if (hot) size * 0.58f else size * 0.42f
+        paint.color = Color.argb(
+            glowAlpha,
+            Color.red(projectile.kind.accent),
+            Color.green(projectile.kind.accent),
+            Color.blue(projectile.kind.accent)
+        )
+        canvas.drawCircle(x, y, glowSize, paint)
+        if (hot) {
+            // gold trail mote
+            paint.color = Color.argb(70, 255, 215, 104)
+            canvas.drawCircle(x, y, size * 0.28f, paint)
+            drawSpriteFrameCentered(canvas, strip, frame, x, y, size * 1.12f, angle)
+        } else {
+            drawSpriteFrameCentered(canvas, strip, frame, x, y, size, angle)
+        }
+    }
+
+    private fun drawImpact(canvas: Canvas, fx: ImpactFx) {
+        val x = gridX(fx.x)
+        val y = gridY(fx.y)
+        val strip = sprites.impact(fx.kind)
+        val size = when (fx.kind) {
+            TowerKind.BOLT -> tileSize * 0.72f
+            TowerKind.FROST -> tileSize * 0.78f
+            TowerKind.CANNON -> tileSize * 0.95f
+            TowerKind.EMBER -> tileSize * 0.85f
+            TowerKind.BEACON -> tileSize * 0.88f
+            TowerKind.THORN -> tileSize * 0.70f
+            TowerKind.LANCE -> tileSize * 0.82f
+            TowerKind.MIRE -> tileSize * 0.90f
+        }
+        val t = (fx.age / fx.duration).coerceIn(0f, 0.999f)
+        val frame = when {
+            strip.frameCount >= 3 -> when {
+                t < 0.28f -> 0
+                t < 0.62f -> 1
+                else -> 2
+            }
+            strip.frameCount == 2 -> if (t < 0.5f) 0 else 1
+            else -> 0
+        }
+        val fade = when {
+            t < 0.15f -> t / 0.15f
+            t > 0.72f -> ((1f - t) / 0.28f).coerceIn(0f, 1f)
+            else -> 1f
+        }
+        paint.color = Color.argb(
+            (42 * fade).toInt().coerceIn(0, 255),
+            Color.red(fx.kind.accent),
+            Color.green(fx.kind.accent),
+            Color.blue(fx.kind.accent)
+        )
+        canvas.drawCircle(x, y, size * 0.38f, paint)
+        spritePaint.alpha = (255 * fade).toInt().coerceIn(0, 255)
+        drawSpriteFrameCentered(canvas, strip, frame, x, y, size * (0.88f + 0.18f * t), 0f)
+        spritePaint.alpha = 255
     }
 
     private fun drawParticle(canvas: Canvas, particle: Particle) {
@@ -3112,6 +4558,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val y = gridY(particle.y)
         val size = max(2f, particle.size * tileSize * alphaRatio)
         if (particle.square) canvas.drawRect(x - size, y - size, x + size, y + size, paint) else canvas.drawCircle(x, y, size, paint)
+        canvas.restore() // F0 viewport clip
     }
 
     private fun drawTopBar(canvas: Canvas) {
@@ -3128,9 +4575,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
         val statStart = min(viewWidth * 0.27f, dp(265f))
         val statGap = min(dp(102f), viewWidth * 0.115f)
-        drawStat(canvas, statStart, "BLOCKS", formatNumber(gold), Color.rgb(190, 244, 78))
+        drawStat(canvas, statStart, "BLOCKS", formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
         drawStat(canvas, statStart + statGap, "CORE", "$lives/$maxCore", Color.rgb(255, 111, 100))
         drawStat(canvas, statStart + statGap * 2f, "WAVE", waveNumber.toString(), Color.rgb(93, 220, 255))
+        // Forge charge pulse on the resource strip under the title
+        if (forgePulse > 0.02f) {
+            paint.color = Color.argb((forgePulse * 90f).toInt().coerceIn(0, 255), 255, 187, 116)
+            canvas.drawCircle(dp(72f), topBarHeight * 0.72f, dp(14f) * forgePulse, paint)
+        }
 
         when {
             phase == GamePhase.REFORGE -> drawTopButton(canvas, resetPathRect, "CANCEL", Color.rgb(67, 42, 37), Color.rgb(255, 188, 126), true)
@@ -3150,9 +4602,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawTopButton(canvas, pauseRect, "II", Color.rgb(31, 44, 35), Color.WHITE, true)
     }
 
-    private fun drawStat(canvas: Canvas, x: Float, label: String, value: String, accent: Int) {
+    private fun drawStat(canvas: Canvas, x: Float, label: String, value: String, accent: Int, pulse: Float = 0f) {
         drawText(canvas, label, x, topBarHeight * 0.37f, min(dp(8f), topBarHeight * 0.16f), Color.rgb(115, 135, 121), Paint.Align.LEFT, true)
-        drawText(canvas, value, x, topBarHeight * 0.70f, min(dp(15f), topBarHeight * 0.30f), accent, Paint.Align.LEFT, true, true)
+        val valueSize = min(dp(15f), topBarHeight * 0.30f) * (1f + pulse * 0.18f)
+        if (pulse > 0.02f) {
+            paint.color = Color.argb((pulse * 70f).toInt().coerceIn(0, 255), Color.red(accent), Color.green(accent), Color.blue(accent))
+            canvas.drawCircle(x + dp(22f), topBarHeight * 0.62f, dp(16f) * pulse, paint)
+        }
+        drawText(canvas, value, x, topBarHeight * 0.70f, valueSize, accent, Paint.Align.LEFT, true, true)
     }
 
     private fun drawTopButton(canvas: Canvas, rect: RectF, label: String, background: Int, foreground: Int, active: Boolean) {
@@ -3208,9 +4665,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawToolBar(canvas: Canvas) {
-        drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
+        drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR ${towerPageIndex + 1}/4", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
         drawPageTab(canvas, trapPageRect, if (challengeModifier == ChallengeModifier.TOWERS_ONLY) "LOCK" else "TRAP", buildPage == BuildPage.TRAPS, Color.rgb(93, 220, 255))
-        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/2", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
+        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/5", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
         drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, Color.rgb(195, 120, 255))
         for ((tool, rect) in toolRects) {
             val selected = selectedTool == tool && ((buildPage == BuildPage.TOWERS && tool.ordinal < BuildTool.SPIKES.ordinal) || (buildPage == BuildPage.TRAPS && tool.ordinal >= BuildTool.SPIKES.ordinal))
@@ -3233,7 +4690,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) kind.accent else Color.rgb(25, 38, 30))
             if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
             spritePaint.alpha = if (unlocked) 255 else 95
-            drawBitmapCentered(canvas, sprites.utility(kind), rect.centerX(), rect.top + rect.height() * 0.35f, min(rect.width(), rect.height()) * 0.54f)
+            drawSpriteFrameCentered(
+                canvas,
+                sprites.utility(kind),
+                1,
+                rect.centerX(),
+                rect.top + rect.height() * 0.35f,
+                min(rect.width(), rect.height()) * 0.54f
+            )
             spritePaint.alpha = 255
             drawCenteredText(canvas, kind.title.toUpperCase(), rect.centerX(), rect.top + rect.height() * 0.70f, min(dp(8f), rect.width() * 0.09f), if (unlocked) Color.WHITE else Color.rgb(105, 116, 108), true)
             drawCenteredText(canvas, if (unlocked) kind.cost.toString() else "WAVE 10", rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (unlocked && gold >= kind.cost) Color.rgb(190, 244, 78) else Color.rgb(255, 111, 100), true)
@@ -3262,6 +4726,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.CANNON -> TowerKind.CANNON.accent
             BuildTool.EMBER -> TowerKind.EMBER.accent
             BuildTool.BEACON -> TowerKind.BEACON.accent
+            BuildTool.THORN -> TowerKind.THORN.accent
+            BuildTool.LANCE -> TowerKind.LANCE.accent
+            BuildTool.MIRE -> TowerKind.MIRE.accent
+            BuildTool.GALE -> TowerKind.GALE.accent
+            BuildTool.SUNFORGE -> TowerKind.SUNFORGE.accent
+            BuildTool.LODESTONE -> TowerKind.LODESTONE.accent
+            BuildTool.HOWL -> TowerKind.HOWL.accent
+            BuildTool.VITRIOL -> TowerKind.VITRIOL.accent
+            BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT.accent
+            BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM.accent
             BuildTool.SPIKES -> TrapKind.SPIKE.accent
             BuildTool.ROOT -> TrapKind.ROOT.accent
             BuildTool.RUNE -> TrapKind.EMBER.accent
@@ -3287,6 +4761,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             BuildTool.BOLT -> Pair(sprites.towerBase, sprites.greenTurret)
             BuildTool.FROST -> Pair(sprites.frostBase, sprites.paleTurret)
             BuildTool.CANNON -> Pair(sprites.cannonBase, sprites.cannonTurret)
+            BuildTool.EMBER -> Pair(sprites.emberBase, sprites.emberFlame)
+            BuildTool.BEACON -> Pair(sprites.beaconBase, sprites.beaconPulse)
+            BuildTool.THORN -> Pair(sprites.thornBase, sprites.thornTurret)
+            BuildTool.LANCE -> Pair(sprites.lanceBase, sprites.lanceTurret)
+            BuildTool.MIRE -> Pair(sprites.mireBase, sprites.mireTurret)
+            BuildTool.GALE -> Pair(sprites.galeBase, sprites.galeTurret)
+            BuildTool.SUNFORGE -> Pair(sprites.sunforgeBase, sprites.sunforgeTurret)
+            BuildTool.LODESTONE -> Pair(sprites.lodestoneBase, sprites.lodestoneTurret)
+            BuildTool.HOWL -> Pair(sprites.howlBase, sprites.howlTurret)
+            BuildTool.VITRIOL -> Pair(sprites.vitriolBase, sprites.vitriolTurret)
+            BuildTool.GRAVEBOLT -> Pair(sprites.graveboltBase, sprites.graveboltTurret)
+            BuildTool.AEGIS_LOOM -> Pair(sprites.aegisLoomBase, sprites.aegisLoomTurret)
             else -> null
         }
         if (towerLayers != null) {
@@ -3374,8 +4860,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawBanner(canvas: Canvas) {
+        val timed = bannerTimer > 0f
         val instruction = when {
-            bannerTimer > 0f -> bannerText
+            timed -> bannerText
             phase == GamePhase.DIG -> "DRAG ONE BLOCK AT A TIME  •  BACKTRACK TO UNDO  •  MAX ${currentPathLimit()}"
             phase == GamePhase.REFORGE -> "PREVIEW • CONFIRM/CANCEL • F${effectiveReforgeCost()}/$forgeCharges • RECOVERY ${reforgeRecoveryCost()} B • CACHE ${storedTraps.size + displacedReforgeTraps().size}/${cacheCapacity()}"
             phase == GamePhase.BUILD && waveNumber == 0 && towers.isEmpty() -> "CHOOSE A DEFENSE BELOW  •  TAP A FREE BLOCK TO BUILD"
@@ -3385,13 +4872,45 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             else -> ""
         }
         if (instruction.isEmpty()) return
-        val alpha = if (bannerTimer in 0f..0.35f) (bannerTimer / 0.35f * 220f).toInt() else 220
-        val width = min(viewWidth * 0.69f, dp(610f))
-        val height = min(dp(28f), tileSize * 0.48f)
+        val elapsed = if (timed) (bannerDuration - bannerTimer).coerceAtLeast(0f) else 0f
+        val enter = if (timed) (elapsed / 0.22f).coerceIn(0f, 1f) else 1f
+        // Ease-out entrance
+        val enterEase = 1f - (1f - enter) * (1f - enter)
+        val fadeOut = if (timed && bannerTimer in 0f..0.38f) (bannerTimer / 0.38f) else 1f
+        val alpha = (if (timed) 235f * fadeOut else 200f).toInt().coerceIn(0, 255)
+        val baseWidth = min(viewWidth * 0.69f, dp(610f))
+        val baseHeight = min(dp(28f), tileSize * 0.48f)
+        val widthScale = if (timed) 0.82f + 0.18f * enterEase else 1f
+        val heightScale = if (timed) 0.88f + 0.20f * enterEase else 1f
+        val width = baseWidth * widthScale
+        val height = baseHeight * heightScale
         val left = (viewWidth - width) * 0.5f
-        val top = boardTop + dp(7f)
+        val top = boardTop + dp(7f) - (1f - enterEase) * dp(10f)
+        // Accent rim on timed banners (wave / forge / boss)
+        if (timed) {
+            val rim = Color.argb((alpha * 0.55f).toInt().coerceIn(0, 255), 190, 244, 78)
+            drawRoundedRect(canvas, left - dp(2f), top - dp(2f), left + width + dp(2f), top + height + dp(2f), height * 0.5f, rim)
+            // Soft glow under bar
+            paint.color = Color.argb((alpha * 0.18f).toInt().coerceIn(0, 255), 190, 244, 78)
+            canvas.drawRoundRect(left, top + height * 0.35f, left + width, top + height + dp(6f), height * 0.45f, height * 0.45f, paint)
+        }
         drawRoundedRect(canvas, left, top, left + width, top + height, height * 0.45f, Color.argb(alpha, 14, 23, 18))
-        drawCenteredText(canvas, instruction, viewWidth * 0.5f, top + height * 0.52f, min(dp(9f), height * 0.34f), Color.argb(min(255, alpha + 25), 224, 232, 226), true)
+        val textSize = min(dp(9f), height * 0.34f) * (if (timed) 0.92f + 0.12f * enterEase else 1f)
+        drawCenteredText(
+            canvas,
+            instruction,
+            viewWidth * 0.5f,
+            top + height * 0.52f,
+            textSize,
+            Color.argb(min(255, alpha + 25), 224, 232, 226),
+            true
+        )
+        // Thin progress tick for timed announcements
+        if (timed && bannerDuration > 0.01f) {
+            val progress = (bannerTimer / bannerDuration).coerceIn(0f, 1f)
+            paint.color = Color.argb((alpha * 0.85f).toInt().coerceIn(0, 255), 190, 244, 78)
+            canvas.drawRect(left + dp(8f), top + height - dp(3f), left + dp(8f) + (width - dp(16f)) * progress, top + height - dp(1f), paint)
+        }
     }
 
     private fun drawPauseOverlay(canvas: Canvas) {
@@ -3542,6 +5061,130 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun gridY(value: Float): Float {
         return boardTop + value * tileSize
+    }
+
+    private fun applyCameraTransform() {
+        tileSize = max(12f, baseTileSize * cameraZoom)
+        val boardW = tileSize * COLS
+        val boardH = tileSize * ROWS
+        clampCamera()
+        boardLeft = viewportLeft + (viewportRight - viewportLeft - boardW) * 0.5f + cameraPanX
+        boardTop = viewportTop + (viewportBottom - viewportTop - boardH) * 0.5f + cameraPanY
+    }
+
+    private fun clampCamera() {
+        val boardW = tileSize * COLS
+        val boardH = tileSize * ROWS
+        val viewW = viewportRight - viewportLeft
+        val viewH = viewportBottom - viewportTop
+        if (boardW <= viewW + 0.5f) {
+            cameraPanX = 0f
+        } else {
+            val maxPan = (boardW - viewW) * 0.5f + dp(8f)
+            cameraPanX = cameraPanX.coerceIn(-maxPan, maxPan)
+        }
+        if (boardH <= viewH + 0.5f) {
+            cameraPanY = 0f
+        } else {
+            val maxPan = (boardH - viewH) * 0.5f + dp(8f)
+            cameraPanY = cameraPanY.coerceIn(-maxPan, maxPan)
+        }
+    }
+
+    private fun resetCamera() {
+        cameraZoom = 1f
+        cameraPanX = 0f
+        cameraPanY = 0f
+        cameraGesture = false
+        pinchActive = false
+        suppressGridTap = false
+        if (baseTileSize > 0f) applyCameraTransform()
+    }
+
+    private fun pointerDistance(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 1f
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return max(1f, sqrt(dx * dx + dy * dy))
+    }
+
+    private fun inBoardViewport(x: Float, y: Float): Boolean {
+        return x >= viewportLeft && x <= viewportRight && y >= viewportTop && y <= viewportBottom
+    }
+
+    private fun handleCameraTouch(event: MotionEvent): Boolean {
+        val action = event.actionMasked
+        when (action) {
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount >= 2 && inBoardViewport(
+                        (event.getX(0) + event.getX(1)) * 0.5f,
+                        (event.getY(0) + event.getY(1)) * 0.5f
+                    )
+                ) {
+                    diggingGesture = false
+                    pinchActive = true
+                    cameraGesture = true
+                    suppressGridTap = true
+                    pinchStartDistance = pointerDistance(event)
+                    pinchStartZoom = cameraZoom
+                    pinchFocusX = (event.getX(0) + event.getX(1)) * 0.5f
+                    pinchFocusY = (event.getY(0) + event.getY(1)) * 0.5f
+                    pinchStartPanX = cameraPanX
+                    pinchStartPanY = cameraPanY
+                    return true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (pinchActive && event.pointerCount >= 2) {
+                    val dist = pointerDistance(event)
+                    val factor = dist / max(1f, pinchStartDistance)
+                    val focusX = (event.getX(0) + event.getX(1)) * 0.5f
+                    val focusY = (event.getY(0) + event.getY(1)) * 0.5f
+                    cameraZoom = (pinchStartZoom * factor).coerceIn(MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM)
+                    val zoomRatio = cameraZoom / max(0.01f, pinchStartZoom)
+                    cameraPanX = pinchStartPanX * zoomRatio + (focusX - pinchFocusX)
+                    cameraPanY = pinchStartPanY * zoomRatio + (focusY - pinchFocusY)
+                    applyCameraTransform()
+                    suppressGridTap = true
+                    return true
+                }
+                if (cameraGesture && event.pointerCount == 1 && !diggingGesture) {
+                    val dx = event.x - panLastX
+                    val dy = event.y - panLastY
+                    panLastX = event.x
+                    panLastY = event.y
+                    if (cameraZoom > 1.02f || abs(dx) + abs(dy) > dp(2f)) {
+                        cameraPanX += dx
+                        cameraPanY += dy
+                        applyCameraTransform()
+                        if (abs(dx) + abs(dy) > dp(4f)) suppressGridTap = true
+                    }
+                    return true
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (pinchActive) {
+                    pinchActive = false
+                    if (event.pointerCount >= 2) {
+                        val idx = if (event.actionIndex == 0) 1 else 0
+                        if (idx < event.pointerCount) {
+                            panLastX = event.getX(idx)
+                            panLastY = event.getY(idx)
+                        }
+                        cameraGesture = true
+                    }
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val consumed = (cameraGesture || pinchActive) && suppressGridTap
+                pinchActive = false
+                cameraGesture = false
+                if (action == MotionEvent.ACTION_CANCEL) suppressGridTap = false
+                if (consumed) return true
+            }
+        }
+        return false
     }
 
     private fun dp(value: Float): Float {

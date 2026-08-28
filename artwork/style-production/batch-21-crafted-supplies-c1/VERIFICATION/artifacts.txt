@@ -1,0 +1,4 @@
+installable: artifacts/Blockhold-Defense-v1.2-installable.apk
+sha256: b0718dddc5d18837615d7a9de90ea3576ef72dd40c15851b283b8a19935b910e
+items: SPLINTER_BRACE, RESIN_SEAL, COOLING_FLASK (CraftedItem ordinals 8-10)
+useSupply WhenMappings $11: 9=brace, 10=seal, 11=cool

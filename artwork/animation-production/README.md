@@ -18,4 +18,5 @@ Completed animation batches:
 - Batch 03: Hex Weaver, Siege Colossus, and The Overgrowth; completes the enemy roster
 - Batch 04: Enemy Gate, Player Core, Spike Bed, and Root Snare
 - Batch 05: Ember Rune, Arc Plate, and Crusher Block; completes the trap roster
-- Batch 06: Bolt, Frost, and Cannon mechanical tower top layers
+- Batch 06: Bolt, Frost, Cannon, Ember Forge, and Resonance Beacon mechanical tower top layers (complete five-tower top family)
+- Batch 07: all seven Utilities ambient idle glow strips

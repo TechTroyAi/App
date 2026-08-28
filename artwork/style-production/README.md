@@ -66,6 +66,61 @@ The complete six-imbuement sigil family is retained in `batch-13/`. Their shared
 
 The final Salvage Parts, Growth Essence, and Forge Cache icons are retained in `batch-14/`. This batch completes the essential original-sprite roster. Obsolete unreferenced third-party drawables were removed from Android resources after integration.
 
+
+## Batch 15 — tower projectiles
+
+Runtime projectile flight strips for the five tower families (Option B). See `batch-15-projectiles/`.
+
+## Batch 16 — impact bursts (1.3 Phase A)
+
+Dedicated impact burst strips + hit SFX wiring. See `batch-16-impacts/`.
+
+## Batch 17 — enemy death & hurt (1.3 Phase B)
+
+Death dissolve timing by tier and stronger hurt flash (runtime FX). See `batch-17-enemy-fx/`.
+
+## Batch 18 — UI moments (1.3 Phase D)
+
+Timed banner entrance/fade, floating label pop, gold/forge resource pulses. See `batch-18-ui-moments/`.
+
+## Batch 19 — board life (1.3 Phase C)
+
+Quiet path shimmer, grass sway, gate intake glow, health-linked core heartbeat. See `batch-19-board-life/`.
+
+## Batch 20 — evolution moments (E1)
+
+E1–E3 evolve moments: confirm beat, path aura/hot trail, per-family flavor. See `batch-20-evolution-moments/`.
+
+## Batch 22 — Wide Hold F0 (1.4)
+
+Larger 16×9 forge grid + pinch-zoom / drag-pan camera. See `batch-22-wide-hold-f0/`.
+
+## Batch 23+ — Era 1.4 content
+
+| Batch | Phase | Notes |
+|-------|-------|-------|
+| 23 | F1 New blood | enemy strips |
+| 24 | F2 Named threats | elite/boss strips |
+| 25 | F3 Toolkit | utils / crafts / sigils |
+| 26 | F4 New guns | tower layers + proj/impact |
+| 27 | F5 Field pests | enemy strips |
+| 28 | F6 + C3 | threats + crafts + sigils |
+| 29 | F7 Utils/imbues | 6 utils + 4 sigils |
+
+### Pipeline (required)
+
+Process with **`tools/process_style_batch.py`** (wraps classic `isolate` + strip assemble):
+
+- Sources: `*_source.png` under `batch-NN/sources/` on **light cream / neutral** studio bg (not pure black)
+- Icons (item/sigil/tower_base/evo): **64×64** transparent
+- Strips (enemy/utility/turret/projectile/impact): **192×64** A/B/C
+- Outputs: `processed/` + `app/src/main/res/drawable-nodpi/`
+- Review: `fN-family-review.png`
+
+## Batch 21 — crafted supplies C1 (1.4)
+
+Panic forge kit: Splinter Brace, Resin Seal, Cooling Flask. See `batch-21-crafted-supplies-c1/`.
+
 ## Production rules
 
 - Work in batches of six to eight concepts.
@@ -74,3 +129,9 @@ The final Salvage Parts, Growth Essence, and Forge Cache icons are retained in `
 - Keep terrain opaque at 128×128 and verify opposite edges pixel-for-pixel.
 - Towers with directional targeting require separate centered base and rotating top layers.
 - Inspect every batch at enlarged nearest-neighbor scale and approximately actual gameplay scale before proceeding.
+
+- **batch-30-towers-f8a** — Gale / Sunforge / Lodestone kits + 6 evo emblems (F8a).
+
+- **batch-31-towers-f8b** — Howl Spire / Vitriol Spout + 4 evo emblems (F8b).
+
+- **batch-32-towers-f8c** — Gravebolt / Aegis Loom + Rime + 4 evo (F8c; closes tower/imbue quota).
