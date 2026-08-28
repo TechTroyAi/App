@@ -4013,6 +4013,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             drawCenteredText(canvas, label.message, gridX(label.x), gridY(label.y), textSize, labelColor, true)
         }
+        // Balance the single F0 viewport-clip save taken at the top of drawBoard: exactly one
+        // restore per frame. Keep this the last statement and keep drawBoard free of early
+        // returns so the save stack can never drift.
+        canvas.restore() // F0 viewport clip
     }
 
     private fun drawCorruption(canvas: Canvas, corruption: CorruptedCell, selected: Boolean) {
@@ -4622,7 +4626,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val y = gridY(particle.y)
         val size = max(2f, particle.size * tileSize * alphaRatio)
         if (particle.square) canvas.drawRect(x - size, y - size, x + size, y + size, paint) else canvas.drawCircle(x, y, size, paint)
-        canvas.restore() // F0 viewport clip
+        // No canvas.restore() here: drawBoard saves the F0 viewport clip exactly once per
+        // frame, so restoring per particle underflows the canvas save stack ("Underflow in
+        // restore - more restores than saves") as soon as two particles draw in one frame.
+        // The matching restore lives at the end of drawBoard.
     }
 
     private fun drawTopBar(canvas: Canvas) {
