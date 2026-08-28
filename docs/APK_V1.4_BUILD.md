@@ -115,13 +115,19 @@ CI are still being established.
 
 ---
 
-# v1.4.1 — canvas save/restore balance fix
+# v1.4.1 — canvas save/restore balance fix + launch fix (class-based lambdas)
 
 Date: 2026-08-28
 Artifact: `artifacts/Blockhold-Defense-v1.4.1-installable.apk`
-SHA-256: `6c3807aca6fb593962a627ab78e4b9b99c832f305c898f26e569dd9e53619063`
+SHA-256: `789c964ad702a28531386e2e75f610a87c260275a47c53bfb4caf42fba6c7c96`
 Version: `1.4.1` / `versionCode 15`
 Signed with: APK Signature Scheme **v2 + v3**, `--min-sdk-version 24`
+
+> **⚠️ A previous v1.4.1 APK must be discarded.** The build committed in PR #5 had SHA-256
+> `6c3807aca6fb593962a627ab78e4b9b99c832f305c898f26e569dd9e53619063`. It passes every
+> structural check in `scripts/verify-apk.py` and **does not open at all** — the launcher
+> activity died in `onCreate`. If you downloaded that file, delete it. Root cause and fix:
+> [Rebuild: v1.4.1 would not launch](#rebuild-v141-would-not-launch-invoke-dynamic-lambdas).
 
 ## The crash (Android 10 / API 29, HUVPING P60Pro)
 
@@ -189,16 +195,78 @@ Confirmed at the bytecode level in the shipped dex: `drawParticle` contains no
 `Canvas.restore` invoke at all, and `drawBoard`, `drawFrame`, `drawSpriteFrameCentered`
 and `drawBitmapCentered` each contain exactly one `save` and one `restore`.
 
+## Rebuild: v1.4.1 would not launch (invoke-dynamic lambdas)
+
+The canvas fix above was correct and is unchanged in this build. Separately, the APK that
+first carried it (`6c3807ac…`) **never opened**: tapping the icon produced no window at all.
+That was a *toolchain* bug, not a code bug.
+
+### Symptom
+
+- No crash dialog, no recovery screen, no logcat from game code — the process died before
+  anything rendered.
+- `scripts/verify-apk.py` passed all six checks, including "`MainActivity` is present in
+  classes.dex".
+
+### Root cause
+
+Kotlin 1.9 compiles lambdas and SAM conversions to **`invokedynamic`** by default (the
+`indy` codegen added in Kotlin 1.5). The offline pipeline dexes with `dx`, which predates
+Java 8 and **cannot desugar `invokedynamic`**. Two classes were silently dropped from
+`classes.dex`:
+
+| Missing class | What it is | Consequence |
+|---|---|---|
+| `MainActivity$installCrashRecorder$1` | the `Thread.setDefaultUncaughtExceptionHandler { … }` lambda | called on the **first line of `onCreate`** |
+| `MainActivity$button$1$2` | the `setOnClickListener { onClick() }` lambda | recovery-screen buttons |
+
+Both live in `MainActivity.kt`. With `installCrashRecorder$1` absent, `onCreate` threw on its
+very first statement and the launcher activity died — before `GameView` was ever
+constructed. The dropped class was also the crash reporter itself, which is why the in-app
+recovery screen never appeared either.
+
+### The tell
+
+Counting dex structures shows the truncation. A healthy dex from this source tree has
+**1074 classes** (64 app + 978 `kotlin-stdlib` + 32 `annotations-13.0`) and **6
+`call_site_id`** entries. The broken dex had **1072 classes** and **8 `call_site_id`** —
+two classes fewer, two extra indy call sites `dx` could not translate.
+
+### The fix
+
+Force class-based lambda codegen so `kotlinc` emits ordinary classes instead of
+`invokedynamic`:
+
+```bash
+kotlinc -jvm-target 1.8 -Xlambdas=class -Xsam-conversions=class \
+        -J-Xmx2600m -classpath android.jar -d classes/ <sources>
+```
+
+Every app lambda then becomes a real `.class` (`MainActivity$installCrashRecorder$1.class`,
+`MainActivity$button$1$2.class`, …) that `dx` dexes normally. The remaining 6 call sites are
+`kotlin-stdlib` internals (`compareBy`, `asStream`) that resolve via `LambdaMetafactory` on
+API 24+ at runtime — the same 6 present in the v1.4 dex that launched fine.
+
+`scripts/verify-dex-shape.py` now asserts this shape so a silently truncated dex fails
+loudly instead of shipping.
+
 ## Build
 
 Identical offline toolchain to v1.4 above (jdk4py Temurin **21.0.8** JRE, `kotlin-compiler@1.9.25`
 from npm, API 35 `android.jar` from `Sable/android-platforms`, `dx.jar` + `apksigner.jar`
 from `screetsec/TheFatRat`, all via the GitHub contents API). Notes specific to this run:
 
-- `kotlinc` needs an explicit heap on this 3 GB sandbox: `-J-Xmx2600m` (the default
-  ergonomics OOM). Zero errors, deprecation warnings only.
+- `kotlinc` needs an explicit heap on this 4 GB sandbox: `-J-Xmx2600m` (the default
+  ergonomics OOM). Zero errors, deprecation warnings only. **64** app classes emitted.
+- The compile **must** pass `-Xlambdas=class -Xsam-conversions=class` — see
+  [the launch failure above](#rebuild-v141-would-not-launch-invoke-dynamic-lambdas).
+  Without them `dx` silently drops two `MainActivity` lambda classes.
 - `dx --dex --min-sdk-version=26` on app classes + extracted `kotlin-stdlib` +
-  `annotations-13.0` (all `module-info.class` deleted) → dex format `038`, valid on API 24+.
+  `annotations-13.0` (all `module-info.class` deleted) → dex format `038`. `--min-sdk-version=24`
+  is **not** usable here: `dx` aborts with `invalid opcode ba - invokedynamic requires
+  --min-sdk-version >= 26` on `ComparisonsKt.compareBy` and `StreamsKt.asStream`.
+- Resulting dex: **1074 classes** (64 + 978 + 32) and **6 `call_site_id`** entries — the same
+  shape as the v1.4 dex that launched correctly.
 - Repackaged from `artifacts/Blockhold-Defense-v1.4-installable.apk` with
   `scripts/repackage-with-dex.py`: every resource, sprite and sound copied byte-identical;
   only `classes.dex` and `AndroidManifest.xml` replaced, v1 signature files dropped.
@@ -206,9 +274,10 @@ from `screetsec/TheFatRat`, all via the GitHub contents API). Notes specific to 
   same character count) and the `manifest` element's `versionCode` integer `14` → `15`.
 
 ```
-1. ZIP layout and alignment .......... PASS (classes.dex STORED @ offset 4096, 218 aligned)
+1. ZIP layout and alignment .......... PASS (classes.dex STORED, 218 entries aligned)
 2. Signing ........................... PASS v2, v3
-3. DEX integrity ..................... PASS 038, adler32 + SHA-1 valid, 1424 types resolve
+3. DEX integrity ..................... PASS 038, adler32 + SHA-1 valid, 1426 types resolve
+                                        (1074 classes bundled, Kotlin stdlib included)
 4. AndroidManifest ................... PASS ai.techtroy.blockhold 1.4.1 (15), minSdk 24 / target 35
 5. Resources vs. runtime lookups ..... PASS 189 sprites + 13 sounds packaged
 6. Sprite strip geometry ............. PASS all 99 strips square-framed
@@ -216,16 +285,48 @@ from `screetsec/TheFatRat`, all via the GitHub contents API). Notes specific to 
 
 `scripts/lint-kotlin-pitfalls.py`: **0 errors**, 15 audited warnings.
 
+`scripts/verify-dex-shape.py artifacts/Blockhold-Defense-v1.4.1-installable.apk`:
+
+```
+dex magic      : b'dex\n038\x00'
+class count    : 1074
+call_site_ids  : 6
+
+  OK   Lai/techtroy/blockhold/MainActivity$installCrashRecorder$1;
+  OK   Lai/techtroy/blockhold/MainActivity$button$1$2;
+  OK   Lai/techtroy/blockhold/MainActivity;
+  OK   Lai/techtroy/blockhold/GameView;
+
+  function                             save  restore   expected
+  drawParticle                            0        0   0/0 OK
+  drawBoard                               1        1   1/1 OK
+  drawFrame                               1        1   1/1 OK
+  drawSpriteFrameCentered                 1        1   1/1 OK
+  drawBitmapCentered                      1        1   1/1 OK
+
+ALL DEX SHAPE CHECKS PASSED
+```
+
+**Passing `verify-apk.py` does not mean the app opens.** It confirms `MainActivity`
+resolves, but the two classes dropped by `dx` were lambdas referenced only from call sites,
+so nothing in the structural check noticed them missing.
+
 ## ⚠️ Signing key: this build does NOT update over v1.4 in place
 
 The v1.4 keystore lived in `build-manual/`, which is **gitignored** and therefore absent
-from a fresh clone of this repository — the private key did not survive the previous
-session. v1.4.1 is signed with a newly generated RSA 2048 key using the same distinguished
-name (`CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region,
+from a fresh clone of this repository — the private key did not survive the session that
+built it, and neither did the key used by the first (non-launching) v1.4.1 rebuild. This
+build is signed with a newly generated RSA 2048 key using the same distinguished name
+(`CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region,
 C=PH`), certificate SHA-256
-`4657880e291d2b83cd976ad9559aff994dd3a3a6a7f121a13d56872df7ab4bd9` — different from v1.4's
-`7e4dcdc2…`. Android will reject it as an in-place update, so **v1.4 must be uninstalled
-once** before installing v1.4.1.
+`7d:59:6f:ee:b2:7d:6e:0b:46:02:bf:06:36:ea:55:1a:d7:34:26:8e:e1:16:0c:8e:50:95:0e:e9:9a:77:8f:6d`
+— different from v1.4's `7e4dcdc2…` and from the discarded `6c3807ac…` build's `4657880e…`.
+Android will reject it as an in-place update, so **v1.4 must be uninstalled once** before
+installing v1.4.1.
+
+That is three distinct signing keys in two days (`7e4dcdc2…` → `4657880e…` → `7d596fee…`).
+Each one costs players a manual uninstall and their saved progress. **Stop and back the key
+up before the next release** — see [docs/SIGNING.md](./SIGNING.md#keeping-the-key-alive).
 
 To stop this recurring: run `./scripts/make-signing-key.sh` on a durable machine, store the
 keystore outside the sandbox (encrypted backup in two places), and reuse it for every

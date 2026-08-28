@@ -32,7 +32,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 SIGNING_DIR=".signing"
-KEYSTORE="$SIGNING_DIR/blockhold-release.p12"
+# A sandbox is not a key store. Set BLOCKHOLD_KEYSTORE to a durable path outside the
+# repo (e.g. $HOME/.config/blockhold/release.p12) so the key survives between build
+# sessions instead of being regenerated — each new key forces players to uninstall.
+KEYSTORE="${BLOCKHOLD_KEYSTORE:-$SIGNING_DIR/blockhold-release.p12}"
 PROPS="$SIGNING_DIR/release.properties"
 ALIAS="blockhold"
 DNAME="CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH"
@@ -48,6 +51,38 @@ if [[ -f "$KEYSTORE" ]]; then
   echo "       Refusing to overwrite - that would break updates for anyone already installed." >&2
   echo "       Delete it deliberately if you really mean to start over." >&2
   exit 1
+fi
+
+# --export: print an existing keystore as base64 plus the GitHub secret values, so it can
+# be restored in a future sandbox instead of being replaced by a brand new key.
+if [[ "${1:-}" == "--export" ]]; then
+  if [[ ! -f "$KEYSTORE" ]]; then
+    echo "error: no keystore at $KEYSTORE to export." >&2
+    echo "       (BLOCKHOLD_KEYSTORE is honoured if you keep it elsewhere.)" >&2
+    exit 1
+  fi
+  EXPORT_PASS="${BLOCKHOLD_STORE_PASS:-}"
+  if [[ -z "$EXPORT_PASS" ]]; then
+    read -r -s -p "Keystore password: " EXPORT_PASS; echo
+  fi
+  keytool -list -keystore "$KEYSTORE" -storepass "$EXPORT_PASS" -alias "$ALIAS" >/dev/null 2>&1 \
+    || { echo "error: could not open $KEYSTORE (wrong password or alias)."; exit 1; }
+  echo
+  echo "Keystore: $KEYSTORE"
+  echo "Paste each value into its GitHub repository secret:"
+  echo
+  echo "  BLOCKHOLD_KEYSTORE_BASE64"
+  base64 -w0 "$KEYSTORE"; echo
+  echo
+  echo "  BLOCKHOLD_KEY_ALIAS"
+  echo "  $ALIAS"
+  echo
+  echo "  BLOCKHOLD_STORE_PASSWORD"
+  echo "  (the password you just entered - do not paste it into a terminal log)"
+  echo
+  echo "Keep an encrypted copy somewhere durable too; GitHub secrets are write-only."
+  echo "See docs/SIGNING.md#keeping-the-key-alive."
+  exit 0
 fi
 
 if [[ "${1:-}" == "--non-interactive" ]]; then
@@ -88,6 +123,14 @@ keyAlias=$ALIAS
 keyPassword=$STORE_PASS
 EOF
 chmod 600 "$PROPS" "$KEYSTORE"
+
+# If the keystore lives on a durable path outside the repo, expose it at the location
+# app/build.gradle.kts expects so `./gradlew assembleRelease` still finds it.
+DEFAULT_KEYSTORE="$SIGNING_DIR/blockhold-release.p12"
+if [[ "$KEYSTORE" != "$DEFAULT_KEYSTORE" ]]; then
+  ln -sfn "$(cd "$(dirname "$KEYSTORE")" && pwd)/$(basename "$KEYSTORE")" "$DEFAULT_KEYSTORE"
+  echo "  linked $DEFAULT_KEYSTORE -> $KEYSTORE (so Gradle can find it)"
+fi
 
 echo
 echo "Created:"
