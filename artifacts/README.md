@@ -2,17 +2,17 @@
 
 ## Download this one (installable v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload build including 1.3 ladder, 1.4 Crafts C1, and **F0 Wide Hold** (16x9 board + pan/zoom). Install this on an Android phone.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload with 1.3 + C1 + F0 Wide Hold + **F1 New blood**.
 
 - Package: `ai.techtroy.blockhold`
-- Version: `1.2.0` (`12`) — 1.3 + C1 crafts + F0 Wide Hold
+- Version: `1.2.0` (`12`) — 1.3 + C1 + F0 + F1 New blood
 - Minimum Android: 7.0 / API 24
 - Target Android API: 35
 - Orientation: landscape
 - Permissions requested: none
 - Offline: yes
 - Size: ~2.5 MB
-- APK SHA-256: `1bb8e6efbc9f6f12ba5ee9b6a44509ee1e64c21810ef1edddd2481494329754d`
+- APK SHA-256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
 - Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
 - Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
 - Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
@@ -30,7 +30,7 @@
 
 `Blockhold-Defense-v1.2-unsigned.apk` is the rebuilt v1.2 Forgeworks + 1.3 content payload before signing (from the latest apktool rebuild).
 
-- APK SHA-256: `3401f1b884b706f3ff996de80bdce388bd336389464c8e0786cbbc16f5033890`
+- APK SHA-256: `d5106d4e8c989360dcb90601a47508d6fe1b0aa54133c9d80f8f409f564d2f98`
 - Signing state: **unsigned** (cannot install until signed)
 
 For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.

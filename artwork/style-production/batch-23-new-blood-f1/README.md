@@ -22,4 +22,9 @@ Five normals + one elite with **one readable job each**.
 ## Ship
 
 - Installable SHA256: 
-- APK: 
+- APK:
+
+## Ship
+
+- Installable SHA256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
+- APK: `artifacts/Blockhold-Defense-v1.2-installable.apk`
