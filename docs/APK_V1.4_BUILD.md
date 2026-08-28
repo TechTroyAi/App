@@ -330,4 +330,31 @@ up before the next release** — see [docs/SIGNING.md](./SIGNING.md#keeping-the-
 
 To stop this recurring: run `./scripts/make-signing-key.sh` on a durable machine, store the
 keystore outside the sandbox (encrypted backup in two places), and reuse it for every
-future build. `versionCode 15` is still correct and required regardless.
+future v1.4.1 rebuild. The v1.4.2 source update below increments the code to `16`.
+
+
+---
+
+# v1.4.2 source update — pressure waves and continuous spawning
+
+Date: 2026-08-28
+
+The v1.4.2 source target is `versionName 1.4.2` / `versionCode 16`. The installable APK is
+pending a build in an environment with JDK 17 and Android SDK Platform 35.
+
+Implemented in the source tree:
+
+- A steeper wave pressure curve: increased enemy health growth, faster movement, denser
+  deployment, a larger regular roster per wave, faster spawn cadence, and a second elite
+  beginning at wave 20.
+- A **NEXT WAVE** action that manually starts the next wave during build time.
+- A ten-second build countdown after a cleared wave that automatically launches the next wave;
+  the countdown pauses while the player is in the workshop, reforge screen, or pause menu.
+- A **STACK WAVE** action during combat. Stacked waves share the live battlefield but retain
+  separate wave identity, rewards, boss cycles, source-owned child enemies, and milestone perks.
+- Removal of the global four-utility capacity. Free terrain, cost, and the existing one-copy-per-kind
+  rule remain in place.
+
+The next release artifact must pass `scripts/verify-apk.py` and should be smoke-tested with
+manual wave stacking, automatic launch, a wave-five perk, a wave-ten boss, and more than four
+utilities placed in one run.

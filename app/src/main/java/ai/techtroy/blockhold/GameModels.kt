@@ -387,7 +387,9 @@ internal data class SpawnSpec(
     val speedScale: Float,
     val rewardScale: Float,
     val bossTier: Int = 0,
-    val splitDepth: Int = 0
+    val splitDepth: Int = 0,
+    /** The numbered wave that owns this spawn, including children created by abilities. */
+    val sourceWave: Int = 0
 )
 
 internal class Tower(
@@ -565,7 +567,9 @@ internal class Enemy(
     val speedScale: Float = 1f,
     rewardScale: Float = 1f,
     val bossTier: Int = 0,
-    val splitDepth: Int = 0
+    val splitDepth: Int = 0,
+    /** The numbered wave that owns this enemy, used to resolve stacked-wave clears. */
+    val sourceWave: Int = 0
 ) {
     val maxHealth = kind.baseHealth * healthScale
     val moveSpeed = kind.speed * speedScale

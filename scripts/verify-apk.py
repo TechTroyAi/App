@@ -311,45 +311,72 @@ def check_signing(path: str) -> None:
         fail("no v2/v3 signature")
 
 
+def dex_infos(z: zipfile.ZipFile) -> list[tuple[str, bytes]]:
+    """Return every dex payload in multidex order, not just classes.dex."""
+    infos = [i for i in z.infolist() if re.fullmatch(r"classes(?:\d+)?\.dex", i.filename)]
+    infos.sort(key=lambda i: 1 if i.filename == "classes.dex" else int(i.filename[7:-4]))
+    return [(i.filename, z.read(i)) for i in infos]
+
+
+def all_dex_defined(z: zipfile.ZipFile) -> set[str]:
+    defined: set[str] = set()
+    for _, d in dex_infos(z):
+        if d[:4] == b"dex\n":
+            _, classes = dex_types(d)
+            defined.update(classes)
+    return defined
+
+
 def check_dex(z: zipfile.ZipFile) -> None:
     section("3. DEX integrity")
-    d = z.read("classes.dex")
-    if d[:4] != b"dex\n":
-        fail("classes.dex has a bad magic header")
+    payloads = dex_infos(z)
+    if not payloads:
+        fail("no classes*.dex payload found")
         return
-    declared = struct.unpack_from("<I", d, 32)[0]
-    ok(f"format {d[4:7].decode()}, {len(d)} bytes")
-    if declared != len(d):
-        fail(f"header file_size {declared} != actual {len(d)} (truncated payload)")
-    else:
-        ok("declared size matches payload")
 
-    hdr_sum = struct.unpack_from("<I", d, 8)[0]
-    if hdr_sum != (zlib.adler32(d[12:]) & 0xFFFFFFFF):
-        fail("adler32 checksum mismatch - ART rejects the dex and MainActivity "
-             "fails with ClassNotFoundException")
-    else:
-        ok("adler32 checksum valid")
+    all_refs: set[str] = set()
+    all_defined: set[str] = set()
+    for name, d in payloads:
+        prefix = f"{name}: "
+        if d[:4] != b"dex\n":
+            fail(prefix + "bad magic header")
+            continue
+        declared = struct.unpack_from("<I", d, 32)[0]
+        ok(f"{prefix}format {d[4:7].decode()}, {len(d)} bytes")
+        if declared != len(d):
+            fail(prefix + f"header file_size {declared} != actual {len(d)} (truncated payload)")
+        else:
+            ok(prefix + "declared size matches payload")
 
-    if d[12:32] != hashlib.sha1(d[32:]).digest():
-        fail("SHA-1 signature mismatch - dex payload was modified after generation")
-    else:
-        ok("SHA-1 signature valid")
+        hdr_sum = struct.unpack_from("<I", d, 8)[0]
+        if hdr_sum != (zlib.adler32(d[12:]) & 0xFFFFFFFF):
+            fail(prefix + "adler32 checksum mismatch - ART rejects the dex and MainActivity "
+                 "fails with ClassNotFoundException")
+        else:
+            ok(prefix + "adler32 checksum valid")
 
-    refs, defined = dex_types(d)
+        if d[12:32] != hashlib.sha1(d[32:]).digest():
+            fail(prefix + "SHA-1 signature mismatch - dex payload was modified after generation")
+        else:
+            ok(prefix + "SHA-1 signature valid")
+
+        refs, defined = dex_types(d)
+        all_refs.update(refs)
+        all_defined.update(defined)
+
     dangling = sorted(
-        t for t in refs
+        t for t in all_refs
         if t.startswith("L")
-        and t not in defined
+        and t not in all_defined
         and not t.startswith(("Landroid", "Ljava", "Ldalvik", "Lorg/xml", "Lorg/json",
                               "Lorg/w3c", "Lorg/apache", "Ljunit", "Lsun/"))
     )
     if dangling:
-        fail(f"{len(dangling)} referenced classes are not defined in the dex and are not "
-             f"framework classes (e.g. {dangling[:4]}) - NoClassDefFoundError at launch")
+        fail(f"{len(dangling)} referenced classes are not defined in the bundled DEX files and "
+             f"are not framework classes (e.g. {dangling[:4]}) - NoClassDefFoundError at launch")
     else:
-        ok(f"all {len(refs)} referenced types resolve ({len(defined)} classes bundled, "
-           f"Kotlin stdlib included)")
+        ok(f"all {len(all_refs)} referenced types resolve across {len(payloads)} DEX file(s) "
+           f"({len(all_defined)} classes bundled, Kotlin stdlib included)")
 
 
 def check_manifest(z: zipfile.ZipFile) -> str | None:
@@ -389,11 +416,11 @@ def check_manifest(z: zipfile.ZipFile) -> str | None:
 
     if launcher:
         cls = "L" + launcher.replace(".", "/") + ";"
-        _, defined = dex_types(z.read("classes.dex"))
+        defined = all_dex_defined(z)
         if cls in defined:
-            ok(f"{launcher} is present in classes.dex")
+            ok(f"{launcher} is present in the bundled DEX files")
         else:
-            fail(f"{launcher} declared in the manifest but MISSING from classes.dex "
+            fail(f"{launcher} declared in the manifest but MISSING from all classes*.dex files "
                  f"- guaranteed ClassNotFoundException on launch")
     return launcher
 
@@ -425,8 +452,11 @@ def check_resources(z: zipfile.ZipFile) -> None:
     else:
         ok(f"all {len(wanted_raw)} AudioEngine sounds are packaged")
 
-    code_refs = {s for s in dex_strings(z.read("classes.dex"))
-                 if s in drawables or s in raws}
+    code_strings = set()
+    for _, d in dex_infos(z):
+        if d[:4] == b"dex\n":
+            code_strings.update(dex_strings(d))
+    code_refs = {s for s in code_strings if s in drawables or s in raws}
     orphans = sorted(drawables - code_refs - {"ic_launcher_background", "ic_launcher_foreground"})
     if orphans:
         warn(f"{len(orphans)} packaged drawables are never referenced by code: {orphans[:6]}")

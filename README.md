@@ -6,14 +6,14 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-The latest verified Forgeworks build is `artifacts/Blockhold-Defense-v1.2-unsigned.apk`. It is intentionally **unsigned** while the permanent v1.0 release key is unavailable; Android cannot install it until it is signed. Do not sign an update with a replacement key, because existing `ai.techtroy.blockhold` installations would reject it. The last directly installable production artifact retained in the repository is the signed v1.0 APK.
+The v1.4.2 source update is in progress. The latest verified installable artifact currently retained in the repository is `artifacts/Blockhold-Defense-v1.4.1-installable.apk`; the v1.4.2 APK will be generated after the new wave and utility systems are built and verified. Reuse the v1.4.1 signing key for an in-place update; a replacement key requires a one-time uninstall.
 
 | Item | Value |
 | --- | --- |
 | Public name | Blockhold Defense |
 | Modes | Endless Pathforge, daily challenge, custom seed |
 | Application ID | `ai.techtroy.blockhold` |
-| Version | `1.2.0` (`12`) |
+| Version | Source target `1.4.2` (`16`); latest APK `1.4.1` (`15`) |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |
@@ -63,7 +63,7 @@ Only traps already placed on the battlefield can be stored. **Store** pays a Blo
 
 ### Utilities
 
-Utilities never attack, occupy clean free terrain, have three levels, and are limited to four active structures. Each kind is unique except that two Block Generators are allowed:
+Utilities never attack, occupy clean free terrain, have three levels, and have no global active-structure capacity limit in v1.4.2. Each kind is unique except that two Block Generators are allowed:
 
 - **Block Generator:** produces Blocks after waves, with a route-adjacency bonus
 - **Cache Depot:** expands Cache capacity and reduces recovery fees
