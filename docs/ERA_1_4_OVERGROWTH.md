@@ -37,7 +37,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 **Shipped:** grid **16×9**, gate/core row **4**, pinch zoom + drag pan, chrome screen-fixed, starting blocks **420**, max path **64**.
 
 ### F1 — New blood
-+5 normals, wave table hooks, +1 elite with a readable rule.
+**Shipped:** Sapper, Mycelial, Needlefly, Gloomkin, Carrion Hulk + elite **Thornback**; wave themes mix the new blood.
 
 ### F2 — Named threats
 +2 elites, +1–2 bosses with wind-up tells; banner sting.
@@ -74,3 +74,4 @@ Remaining enemies, towers, utils, enchants, crafts.
 - E1–E3 evolution moments
 - **1.4 C1 crafts** (see `artwork/style-production/batch-21-crafted-supplies-c1/`)
 - **1.4 F0 Wide Hold** (see `artwork/style-production/batch-22-wide-hold-f0/`)
+- **1.4 F1 New blood** (see `artwork/style-production/batch-23-new-blood-f1/`)

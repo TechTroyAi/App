@@ -249,11 +249,20 @@ internal enum class EnemyKind(
     SHELLBACK("Shellback", 175f, 0.65f, 25, 2, Color.rgb(103, 145, 155), 0.86f, armor = 0.38f),
     SPLITLING("Splitling", 112f, 0.92f, 20, 1, Color.rgb(218, 119, 157), 0.76f),
 
+    // 1.4 F1 New blood — normals with clear jobs
+    SAPPER("Sapper", 95f, 0.88f, 18, 1, Color.rgb(168, 110, 55), 0.78f),
+    MYCELIAL("Mycelial", 130f, 0.70f, 22, 1, Color.rgb(70, 190, 150), 0.80f, regeneration = 0.010f),
+    NEEDLEFLY("Needlefly", 48f, 1.48f, 16, 1, Color.rgb(140, 200, 70), 0.62f),
+    GLOOMKIN("Gloomkin", 88f, 0.78f, 19, 1, Color.rgb(120, 80, 180), 0.74f),
+    CARRION_HULK("Carrion Hulk", 155f, 0.68f, 24, 2, Color.rgb(160, 70, 55), 0.88f),
+
     IRONHIDE("Ironhide Champion", 760f, 0.52f, 90, 3, Color.rgb(103, 120, 132), 1.05f, armor = 0.52f, elite = true),
     BLINK_STALKER("Blink Stalker", 470f, 0.93f, 82, 2, Color.rgb(94, 77, 127), 0.89f, elite = true),
     ROOTCALLER("Rootcaller", 610f, 0.59f, 88, 3, Color.rgb(62, 151, 83), 0.98f, regeneration = 0.012f, elite = true),
     HEX_WEAVER("Hex Weaver", 550f, 0.70f, 92, 2, Color.rgb(176, 82, 205), 0.94f, elite = true),
     SIEGE_COLOSSUS("Siege Colossus", 1180f, 0.38f, 125, 5, Color.rgb(193, 94, 66), 1.22f, armor = 0.25f, elite = true),
+    // F1 elite — thorn crest: pulse-armor after each hit
+    THORNBACK("Thornback", 820f, 0.48f, 100, 3, Color.rgb(70, 120, 75), 1.10f, armor = 0.28f, elite = true),
 
     OVERGROWTH("The Overgrowth", 1900f, 0.36f, 260, 7, Color.rgb(200, 64, 73), 1.42f, armor = 0.18f, regeneration = 0.006f, boss = true)
 }
@@ -447,9 +456,17 @@ internal class Enemy(
     var rewarded = false
     val trapTriggerCounts = HashMap<Int, Int>()
     val triggeredCorruptions = HashSet<Int>()
+    /** F1 Sapper: traps triggered this life (disables after 2). */
+    var sapperTraps = 0
+    /** F1 Gloomkin: soft stealth remaining. */
+    var gloomTimer = 0f
+    /** F1 Thornback: brief armor pulse after taking a hit. */
+    var thornArmorTimer = 0f
 
     val dying: Boolean get() = deathTimer > 0f
     val targetable: Boolean get() = alive && !dying && health > 0f
+    /** Soft stealth: towers still track; prioritization can skip. */
+    val stealthed: Boolean get() = gloomTimer > 0.05f
 }
 
 internal class Projectile(

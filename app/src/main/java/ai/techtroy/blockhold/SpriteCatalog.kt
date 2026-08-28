@@ -26,11 +26,17 @@ internal class SpriteCatalog(private val context: Context) {
         EnemyKind.BRUTE to loadStrip("enemy_brute"),
         EnemyKind.SHELLBACK to loadStrip("enemy_shellback"),
         EnemyKind.SPLITLING to loadStrip("enemy_splitling"),
+        EnemyKind.SAPPER to loadStrip("enemy_sapper"),
+        EnemyKind.MYCELIAL to loadStrip("enemy_mycelial"),
+        EnemyKind.NEEDLEFLY to loadStrip("enemy_needlefly"),
+        EnemyKind.GLOOMKIN to loadStrip("enemy_gloomkin"),
+        EnemyKind.CARRION_HULK to loadStrip("enemy_carrion"),
         EnemyKind.IRONHIDE to loadStrip("enemy_ironhide"),
         EnemyKind.BLINK_STALKER to loadStrip("enemy_blink"),
         EnemyKind.ROOTCALLER to loadStrip("enemy_rootcaller"),
         EnemyKind.HEX_WEAVER to loadStrip("enemy_hex"),
         EnemyKind.SIEGE_COLOSSUS to loadStrip("enemy_siege"),
+        EnemyKind.THORNBACK to loadStrip("enemy_thornback"),
         EnemyKind.OVERGROWTH to loadStrip("enemy_overgrowth")
     )
 

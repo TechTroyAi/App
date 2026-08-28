@@ -543,7 +543,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (!enemy.alive || enemy.dying) continue
             updateEnemyAbility(enemy)
 
-            val slowMultiplier = if (enemy.slowTimer > 0f) 0.56f else 1f
+            val slowMultiplier = when {
+                enemy.slowTimer <= 0f -> 1f
+                enemy.kind == EnemyKind.NEEDLEFLY -> 0.82f  // F1: resists most slow
+                else -> 0.56f
+            }
             if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * delta
             updateEnemyPosition(enemy)
             applyCorruptionToEnemy(enemy, delta)
@@ -786,19 +790,28 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun findTarget(tower: Tower): Enemy? {
         // targetable excludes dying corpses (1.3 Phase B)
+        // F1 Gloomkin: prefer non-stealthed targets when any exist in range
         var best: Enemy? = null
         var bestProgress = -1f
+        var bestStealthed: Enemy? = null
+        var bestStealthedProgress = -1f
         val centerX = tower.col + 0.5f
         val centerY = tower.row + 0.5f
         val rangeSquared = tower.currentRange() * tower.currentRange()
         for (enemy in enemies) {
             if (!enemy.targetable) continue
-            if (distanceSquared(enemy.x, enemy.y, centerX, centerY) <= rangeSquared && enemy.progress > bestProgress) {
+            if (distanceSquared(enemy.x, enemy.y, centerX, centerY) > rangeSquared) continue
+            if (enemy.stealthed) {
+                if (enemy.progress > bestStealthedProgress) {
+                    bestStealthed = enemy
+                    bestStealthedProgress = enemy.progress
+                }
+            } else if (enemy.progress > bestProgress) {
                 best = enemy
                 bestProgress = enemy.progress
             }
         }
-        return best
+        return best ?: bestStealthed
     }
 
     private fun fireTower(tower: Tower, target: Enemy) {
@@ -1216,8 +1229,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val healthScale = waveHealthScale(wave)
         val speedScale = min(1.42f, 1f + wave * 0.006f)
         val rewardScale = min(16f, 1f + wave * 0.075f)
-        val regularCount = min(34, 6 + wave / 2)
-        val regulars = arrayOf(EnemyKind.MOSSER, EnemyKind.RUNNER, EnemyKind.BRUTE, EnemyKind.SHELLBACK, EnemyKind.SPLITLING)
+        val regularCount = min(36, 6 + wave / 2)
+        val regulars = arrayOf(
+            EnemyKind.MOSSER, EnemyKind.RUNNER, EnemyKind.BRUTE, EnemyKind.SHELLBACK, EnemyKind.SPLITLING,
+            EnemyKind.SAPPER, EnemyKind.MYCELIAL, EnemyKind.NEEDLEFLY, EnemyKind.GLOOMKIN, EnemyKind.CARRION_HULK
+        )
         val seedOffset = ((runSeed xor wave.toLong()) and Long.MAX_VALUE).rem(regulars.size.toLong()).toInt()
         waveTheme = when (wave % 8) {
             1 -> "SWARM FRONT"
@@ -1229,23 +1245,55 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             7 -> "SPLIT SWARM"
             else -> "MIXED ASSAULT"
         }
-        val count = if (wave % 8 == 1) min(40, regularCount + 8) else regularCount
+        val count = if (wave % 8 == 1) min(42, regularCount + 8) else regularCount
         repeat(count) { index ->
             val kind = when (wave % 8) {
-                1 -> if (index % 3 == 0) EnemyKind.SPLITLING else EnemyKind.MOSSER
-                2 -> if (index % 4 == 0) EnemyKind.MOSSER else EnemyKind.RUNNER
-                3 -> if (index % 3 == 0) EnemyKind.BRUTE else EnemyKind.SHELLBACK
-                4 -> if (index % 4 == 0) EnemyKind.SHELLBACK else EnemyKind.MOSSER
-                5 -> regulars[(index + wave + seedOffset) % regulars.size]
-                6 -> if (index % 3 == 0) EnemyKind.BRUTE else EnemyKind.SHELLBACK
-                7 -> if (index % 3 == 0) EnemyKind.RUNNER else EnemyKind.SPLITLING
+                1 -> when (index % 5) {
+                    0 -> EnemyKind.SPLITLING
+                    1 -> EnemyKind.MYCELIAL
+                    else -> EnemyKind.MOSSER
+                }
+                2 -> when (index % 5) {
+                    0 -> EnemyKind.NEEDLEFLY
+                    1 -> EnemyKind.MOSSER
+                    else -> EnemyKind.RUNNER
+                }
+                3 -> when (index % 4) {
+                    0 -> EnemyKind.BRUTE
+                    1 -> EnemyKind.CARRION_HULK
+                    else -> EnemyKind.SHELLBACK
+                }
+                4 -> when (index % 5) {
+                    0 -> EnemyKind.MYCELIAL
+                    1 -> EnemyKind.SHELLBACK
+                    else -> EnemyKind.MOSSER
+                }
+                5 -> when (index % 6) {
+                    0 -> EnemyKind.SAPPER
+                    1 -> EnemyKind.GLOOMKIN
+                    else -> regulars[(index + wave + seedOffset) % regulars.size]
+                }
+                6 -> when (index % 4) {
+                    0 -> EnemyKind.BRUTE
+                    1 -> EnemyKind.CARRION_HULK
+                    else -> EnemyKind.SHELLBACK
+                }
+                7 -> when (index % 5) {
+                    0 -> EnemyKind.NEEDLEFLY
+                    1 -> EnemyKind.SPLITLING
+                    else -> EnemyKind.RUNNER
+                }
                 else -> regulars[(index * 3 + wave + seedOffset) % regulars.size]
             }
-            waveQueue.add(SpawnSpec(kind, healthScale, speedScale * if (kind == EnemyKind.RUNNER) 1.03f else 1f, rewardScale))
+            val speedMul = when (kind) {
+                EnemyKind.RUNNER, EnemyKind.NEEDLEFLY -> 1.03f
+                else -> 1f
+            }
+            waveQueue.add(SpawnSpec(kind, healthScale, speedScale * speedMul, rewardScale))
         }
         if (wave % 8 == 5 && wave % 5 != 0) waveQueue.add(min(waveQueue.size, waveQueue.size * 2 / 3), SpawnSpec(EnemyKind.HEX_WEAVER, healthScale * 0.34f, speedScale, rewardScale * 0.55f))
         if (wave % 5 == 0) {
-            val elites = arrayOf(EnemyKind.IRONHIDE, EnemyKind.BLINK_STALKER, EnemyKind.ROOTCALLER, EnemyKind.HEX_WEAVER, EnemyKind.SIEGE_COLOSSUS)
+            val elites = arrayOf(EnemyKind.IRONHIDE, EnemyKind.BLINK_STALKER, EnemyKind.ROOTCALLER, EnemyKind.HEX_WEAVER, EnemyKind.SIEGE_COLOSSUS, EnemyKind.THORNBACK)
             val eliteKind = elites[((wave / 5) - 1 + seedOffset) % elites.size]
             val insertAt = min(waveQueue.size, waveQueue.size * 2 / 3)
             waveQueue.add(insertAt, SpawnSpec(eliteKind, healthScale * 0.72f, speedScale, rewardScale * 1.1f))
@@ -3492,7 +3540,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val y = gridY(enemy.y) + bob + if (dying) deathT * tileSize * 0.12f else 0f
         val size = tileSize * enemy.kind.scale * if (dying) (1f - deathT * 0.35f) else 1f
         val healthRatio = max(0f, enemy.health / enemy.maxHealth)
-        val bodyAlpha = if (dying) (1f - deathT).coerceIn(0f, 1f) else 1f
+        val stealthFade = if (enemy.stealthed) 0.45f else 1f
+        val bodyAlpha = (if (dying) (1f - deathT).coerceIn(0f, 1f) else 1f) * stealthFade
         paint.color = Color.argb((90 * bodyAlpha).toInt(), 0, 0, 0)
         canvas.drawOval(x - size * 0.34f, y + size * 0.25f, x + size * 0.34f, y + size * 0.42f, paint)
         paint.color = Color.argb(
@@ -3500,6 +3549,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             Color.red(enemy.kind.color), Color.green(enemy.kind.color), Color.blue(enemy.kind.color)
         )
         canvas.drawCircle(x, y, size * 0.46f, paint)
+        if (enemy.thornArmorTimer > 0.05f) {
+            strokePaint.strokeWidth = tileSize * 0.04f
+            strokePaint.color = Color.argb((180 * bodyAlpha).toInt(), 200, 255, 140)
+            canvas.drawCircle(x, y, size * 0.52f, strokePaint)
+        }
         if (enemy.kind.elite || enemy.kind.boss) {
             strokePaint.strokeWidth = tileSize * (if (enemy.kind.boss) 0.055f else 0.035f)
             strokePaint.color = Color.argb(

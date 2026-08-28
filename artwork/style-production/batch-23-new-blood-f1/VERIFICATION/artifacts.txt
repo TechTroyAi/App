@@ -1,0 +1,4 @@
+installable: artifacts/Blockhold-Defense-v1.2-installable.apk
+sha256: dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f
+unsigned: d5106d4e8c989360dcb90601a47508d6fe1b0aa54133c9d80f8f409f564d2f98
+enemies: SAPPER MYCELIAL NEEDLEFLY GLOOMKIN CARRION_HULK THORNBACK
