@@ -209,10 +209,37 @@ next report arrives with the exact line number attached and no `adb` needed.
 
 ## 7. Next steps
 
-1. **Right now:** clear app data on the phone and reopen v1.2.
-2. **Then:** activate CI with the two commands in section 5, or build locally with
-   `./gradlew assembleDebug`. Install *that* APK — it will be properly aligned and will contain
-   the 22 crash fixes and the crash reporter.
-3. If it still misbehaves, the recovery screen will show the exact exception; send that text.
-4. Re-run `python3 scripts/verify-apk.py --all` and rewrite `docs/VERIFICATION.md` from its actual
-   output rather than by hand.
+### The install itself: signature mismatch, not a v1.2 bug
+
+Android identifies an app by **package name + signing certificate**, and only accepts an
+update signed by the *identical* key. Fingerprints extracted from the APK signing blocks:
+
+| Key | Certificate SHA-256 | Signs | Private key in repo |
+|---|---|---|---|
+| `CN=Blockhold Defense, OU=Game Release` | `14d77995…98795a` | v1.0 | no |
+| `CN=Blockhold Defense Debug, OU=Sideload` | `095f279b…78420b` | v1.1, v1.2 | no |
+| per-machine `~/.android/debug.keystore` | varies | `assembleDebug`, CI | n/a |
+
+A CI or local debug build is signed with a different key from the installed v1.1, so the
+installer refuses it with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` ("App not installed").
+**Creating a new key does not fix this** — only the original sideload private key would, and
+it is not in this workspace. So the one-time uninstall is unavoidable regardless of key choice.
+
+That is fine, and actually helpful: uninstalling also clears the stale v1.1 preferences that
+are the prime suspect for the launch crash in section 0.
+
+1. **Uninstall Blockhold Defense on the phone.** One time, unavoidable, clears old save data.
+2. **Create the permanent key:** `./scripts/make-signing-key.sh` (needs a JDK 17). It writes
+   `.signing/blockhold-release.p12` + `release.properties` exactly where `app/build.gradle.kts`
+   already expects them, and prints the certificate fingerprint. Back the keystore up — losing
+   it forces another uninstall on every device later.
+3. **Build:** `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`,
+   zipaligned and v2+v3 signed by AGP. Or activate CI (section 5) and add the three repository
+   secrets the script prints, and CI will produce the signed release APK on every push.
+4. **Verify before shipping:** `python3 scripts/verify-apk.py <apk>` and
+   `python3 scripts/lint-kotlin-pitfalls.py`.
+5. Install that APK. Every future build signed with the same key updates in place, progress kept.
+6. If it still misbehaves, the recovery screen now shows the exact exception; send that text.
+7. Re-run `python3 scripts/verify-apk.py --all` and rewrite `docs/VERIFICATION.md` from its
+   actual output rather than by hand.
+
