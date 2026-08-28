@@ -3470,8 +3470,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun cancelReforge() {
         if (phase != GamePhase.REFORGE && !(phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.REFORGE)) return
-        pathCells.clear()
-        pathCells.addAll(reforgeOriginalPath)
+        // Never leave pathCells empty. Almost every renderer and hit-test path calls
+        // pathCells.first()/last() unguarded, so an empty route throws NoSuchElementException on
+        // the very next frame and the game dies with no obvious repro.
+        if (reforgeOriginalPath.isNotEmpty()) {
+            pathCells.clear()
+            pathCells.addAll(reforgeOriginalPath)
+        }
         reforgeOriginalPath.clear()
         pathComplete = true
         diggingGesture = false

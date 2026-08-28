@@ -40,6 +40,11 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Lint Kotlin runtime pitfalls
+        # Catches the class of bug that broke v1.2: Kotlin 1.7 made maxBy/minBy/max()/min()
+        # throw on empty collections, which the compiler only reports as warnings.
+        run: python3 scripts/lint-kotlin-pitfalls.py
+
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
 

@@ -156,15 +156,28 @@ document, and dies on first contact with a device.
 
 ### Code fixes
 - **`GameView.kt`** — 22 `maxBy`/`minBy`/`max()` calls converted to their `…OrNull` forms;
-  `prefInt`/`prefBoolean` guards added around preference reads.
+  `prefInt`/`prefBoolean` guards added around preference reads; `cancelReforge()` no longer
+  wipes `pathCells` when `reforgeOriginalPath` is empty (an empty route makes every later frame
+  throw on `pathCells.first()`/`last()`).
 - **`MainActivity.kt`** — startup is now fault-tolerant (see below).
+
+### Audited and confirmed safe (no change needed)
+- All 7 `!!` sites are inside a matching `!= null` guard or immediately follow the assignment.
+- All 9 `SpriteCatalog.getValue` calls — every enum constant is mapped, now enforced by lint.
+- All 6 `pathCells.first()/last()` calls — every `pathCells.clear()` immediately repopulates.
+- `waveQueue[spawnIndex]` is bounded by `spawnIndex < waveQueue.size`.
+- `CraftedItem.values().getOrNull(index)` in the workshop already uses the safe accessor.
 
 ### Tooling
 - **`scripts/verify-apk.py`** (new) — standard-library-only APK verifier: ZIP alignment, signing
   schemes, dex checksum/SHA-1/dangling type refs, manifest + launcher class presence in the dex,
   resource table vs. `getIdentifier` string lookups, and sprite strip geometry. No Android SDK
   required.
-- **`ci/android.yml`** (rewritten) — builds with Gradle, runs the verifier, runs
+- **`scripts/lint-kotlin-pitfalls.py`** (new) — fails the build on `maxBy`/`minBy`/`max()`/`min()`
+  and friends, warns on `first()`/`last()`/`reduce`/`getValue`/raw preference reads, and proves
+  every enum constant is mapped in each `SpriteCatalog` map so the nine `getValue` calls cannot
+  throw. Currently: **0 errors**, 15 audited warnings.
+- **`ci/android.yml`** (rewritten) — runs the lint, builds with Gradle, runs the verifier, runs
   `zipalign -c -p -v 4` and `apksigner verify`, records the SHA-256, uploads the APK.
   **Still inert until moved**, because an automation token cannot create `.github/workflows/`:
 
