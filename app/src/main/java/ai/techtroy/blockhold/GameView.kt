@@ -51,6 +51,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val sprites = SpriteCatalog(context)
     private val preferences = context.getSharedPreferences("blockhold_infinite_progress", Context.MODE_PRIVATE)
 
+    /**
+     * SharedPreferences.getInt/getBoolean throw ClassCastException when an older build stored the
+     * same key with a different type. These reads happen in the constructor, so an unguarded throw
+     * takes the whole activity down before the first frame and the app simply "won't open" for
+     * anyone upgrading from an earlier version. Always fall back to the default instead.
+     */
+    private fun prefInt(key: String, fallback: Int): Int =
+        try { preferences.getInt(key, fallback) } catch (_: Exception) { fallback }
+
+    private fun prefBoolean(key: String, fallback: Boolean): Boolean =
+        try { preferences.getBoolean(key, fallback) } catch (_: Exception) { fallback }
+
     @Volatile private var running = false
     @Volatile private var activityPaused = false
     private var renderThread: Thread? = null
@@ -97,12 +109,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var maxCore = STARTING_CORE
     private var lives = STARTING_CORE
     private var score = 0
-    private var bestScore = preferences.getInt("best_score", 0)
-    private var bestWave = preferences.getInt("best_wave", 0)
-    private var bestDailyScore = preferences.getInt("best_daily_score", preferences.getInt("best_challenge_score", 0))
-    private var bestDailyWave = preferences.getInt("best_daily_wave", preferences.getInt("best_challenge_wave", 0))
-    private var bestCustomScore = preferences.getInt("best_custom_score", preferences.getInt("best_challenge_score", 0))
-    private var bestCustomWave = preferences.getInt("best_custom_wave", preferences.getInt("best_challenge_wave", 0))
+    private var bestScore = prefInt("best_score", 0)
+    private var bestWave = prefInt("best_wave", 0)
+    private var bestDailyScore = prefInt("best_daily_score", prefInt("best_challenge_score", 0))
+    private var bestDailyWave = prefInt("best_daily_wave", prefInt("best_challenge_wave", 0))
+    private var bestCustomScore = prefInt("best_custom_score", prefInt("best_challenge_score", 0))
+    private var bestCustomWave = prefInt("best_custom_wave", prefInt("best_challenge_wave", 0))
     private var waveNumber = 0
     private var spawnIndex = 0
     private var spawnTimer = 0f
@@ -139,7 +151,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var forgePulse = 0f
     private var lastDisplayedGold = -1
     private var lastDisplayedForge = -1
-    private var savedRunAvailable = preferences.getBoolean("has_saved_run", false)
+    private var savedRunAvailable = prefBoolean("has_saved_run", false)
 
     private var viewWidth = 1f
     private var viewHeight = 1f
@@ -667,8 +679,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (corruption.kind != CorruptionKind.HEX_BLOOM) continue
             corruption.cooldown -= delta
             if (corruption.cooldown > 0f) continue
-            val towerTarget = towers.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, corruption.cell.col + 0.5f, corruption.cell.row + 0.5f) }
-            val utilityTarget = utilities.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, corruption.cell.col + 0.5f, corruption.cell.row + 0.5f) }
+            val towerTarget = towers.minByOrNull { distanceSquared(it.col + 0.5f, it.row + 0.5f, corruption.cell.col + 0.5f, corruption.cell.row + 0.5f) }
+            val utilityTarget = utilities.minByOrNull { distanceSquared(it.col + 0.5f, it.row + 0.5f, corruption.cell.col + 0.5f, corruption.cell.row + 0.5f) }
             val towerDistance = if (towerTarget == null) Float.MAX_VALUE else distanceSquared(towerTarget.col + 0.5f, towerTarget.row + 0.5f, corruption.cell.col + 0.5f, corruption.cell.row + 0.5f)
             val utilityDistance = if (utilityTarget == null) Float.MAX_VALUE else distanceSquared(utilityTarget.col + 0.5f, utilityTarget.row + 0.5f, corruption.cell.col + 0.5f, corruption.cell.row + 0.5f)
             if (min(towerDistance, utilityDistance) <= 12f) {
@@ -719,7 +731,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 burst(enemy.x, enemy.y, Color.rgb(91, 196, 99), 12, 0.75f)
             }
             EnemyKind.HEX_WEAVER -> {
-                val target = towers.filter { it.disabledTimer <= 0f }.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
+                val target = towers.filter { it.disabledTimer <= 0f }.minByOrNull { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
                 if (target != null && distanceSquared(target.col + 0.5f, target.row + 0.5f, enemy.x, enemy.y) <= 10f) {
                     applyTowerHex(target, (if (hasHarmonyNear(target)) 1.2f else 2.8f) * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f)
                     floatingLabels.add(FloatingLabel("HEXED", target.col + 0.5f, target.row + 0.35f, enemy.kind.color))
@@ -966,7 +978,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             when (trap.kind) {
                 TrapKind.SPIKE -> {
                     damageEnemy(enemy, damage, trap.kind.accent)
-                    if (perkCount(ForgePerk.CONDUCTIVE_SPIKES) > 0) enemies.filter { it.targetable && it !== enemy }.minBy { abs(it.progress - enemy.progress) }?.let { damageEnemy(it, damage * 0.38f, TrapKind.ARC.accent, 0.5f) }
+                    if (perkCount(ForgePerk.CONDUCTIVE_SPIKES) > 0) enemies.filter { it.targetable && it !== enemy }.minByOrNull { abs(it.progress - enemy.progress) }?.let { damageEnemy(it, damage * 0.38f, TrapKind.ARC.accent, 0.5f) }
                     if (isNearTowerKind(trap.col, trap.row, TowerKind.EMBER)) ignite(enemy, damage * 0.16f, 2.4f)
                 }
                 TrapKind.ROOT -> {
@@ -1578,7 +1590,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             // death: short disable nearest trap or nothing - seed scatter as minor heal to core? skip
             // F1 Carrion Hulk: death hex nearest tower
             if (enemy.kind == EnemyKind.CARRION_HULK) {
-                val target = towers.filter { it.disabledTimer <= 0f }.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
+                val target = towers.filter { it.disabledTimer <= 0f }.minByOrNull { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
                 if (target != null && distanceSquared(target.col + 0.5f, target.row + 0.5f, enemy.x, enemy.y) <= 9f) {
                     applyTowerHex(target, (if (hasHarmonyNear(target)) 0.9f else 2.0f) * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f)
                     floatingLabels.add(FloatingLabel("HEXED", target.col + 0.5f, target.row + 0.35f, enemy.kind.color))
@@ -1714,7 +1726,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             utility.activationCount += 1
             val cleanseCount = if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) 2 else 1
             repeat(cleanseCount) {
-                val target = corruptions.filter { distanceSquared(it.cell.col + 0.5f, it.cell.row + 0.5f, utility.col + 0.5f, utility.row + 0.5f) <= radiusSquared }.minBy { distanceSquared(it.cell.col + 0.5f, it.cell.row + 0.5f, utility.col + 0.5f, utility.row + 0.5f) }
+                val target = corruptions.filter { distanceSquared(it.cell.col + 0.5f, it.cell.row + 0.5f, utility.col + 0.5f, utility.row + 0.5f) <= radiusSquared }.minByOrNull { distanceSquared(it.cell.col + 0.5f, it.cell.row + 0.5f, utility.col + 0.5f, utility.row + 0.5f) }
                 if (target != null) {
                     corruptions.remove(target)
                     growthEssence = safeAdd(growthEssence, 1)
@@ -1937,7 +1949,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun surveyAvailable(): Boolean = surveyLensWaves > 0 || utilities.any { it.kind == UtilityKind.SURVEYOR_STATION }
 
     private fun surveyPreviewText(wave: Int): String {
-        val surveyor = utilities.filter { it.kind == UtilityKind.SURVEYOR_STATION }.maxBy { utilityPowerLevel(it) }
+        val surveyor = utilities.filter { it.kind == UtilityKind.SURVEYOR_STATION }.maxByOrNull { utilityPowerLevel(it) }
         val level = surveyor?.let { utilityPowerLevel(it) } ?: if (surveyLensWaves > 0) 2 else 0
         val theme = when (wave % 8) { 1 -> "SWARM"; 2 -> "RUSH"; 3 -> "ARMORED"; 4 -> "REGEN"; 5 -> "SABOTAGE"; 6 -> "SIEGE"; 7 -> "SPLIT"; else -> "MIXED" }
         val count = min(34, 6 + wave / 2) + if (wave % 8 == 1) 8 else 0
@@ -2004,17 +2016,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun utilityPowerLevel(utility: Utility): Int = min(4, utility.level + if (utility.imbuement == Imbuement.MIGHT) 1 else 0)
 
     private fun recyclingMultiplier(): Float {
-        val salvageBonus = utilities.filter { it.kind == UtilityKind.SALVAGE_YARD }.map { utilityPowerLevel(it) * 0.05f }.max() ?: 0f
+        val salvageBonus = utilities.filter { it.kind == UtilityKind.SALVAGE_YARD }.map { utilityPowerLevel(it) * 0.05f }.maxOrNull() ?: 0f
         return min(0.95f, 0.60f + perkCount(ForgePerk.BETTER_RECYCLING) * 0.15f + salvageBonus)
     }
 
     private fun cacheCapacity(): Int {
-        val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxBy { it.level }
+        val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxByOrNull { it.level }
         return min(20, 4 + if (depot == null) 0 else when (utilityPowerLevel(depot)) { 1 -> 3; 2 -> 5; 3 -> 7; else -> 8 })
     }
 
     private fun cacheStorageDiscount(): Float {
-        val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxBy { it.level }
+        val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxByOrNull { it.level }
         if (depot == null) return 0f
         val conservation = if (depot.imbuement == Imbuement.CONSERVATION) 0.10f else 0f
         return min(0.55f, utilityPowerLevel(depot) * 0.10f + conservation)
@@ -2029,7 +2041,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun utilityCapacity(): Int = 4
 
-    private fun workshopLevel(): Int = utilities.filter { it.kind == UtilityKind.FORGE_WORKSHOP }.map { it.level }.max() ?: 0
+    private fun workshopLevel(): Int = utilities.filter { it.kind == UtilityKind.FORGE_WORKSHOP }.map { it.level }.maxOrNull() ?: 0
 
     private fun craftedBlockCost(item: CraftedItem): Int {
         val conservation = utilities.any { it.kind == UtilityKind.FORGE_WORKSHOP && it.imbuement == Imbuement.CONSERVATION }
@@ -2066,7 +2078,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val banner = utilities.filter {
             it.kind == UtilityKind.BATTLE_BANNER && it.disabledTimer <= 0f &&
                 distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
-        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        }.maxByOrNull { utilityPowerLevel(it) } ?: return 1f
         return 1f + 0.08f * utilityPowerLevel(banner) + if (banner.imbuement == Imbuement.MIGHT) 0.05f else 0f
     }
 
@@ -2074,7 +2086,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val lattice = utilities.filter {
             it.kind == UtilityKind.TRAP_LATTICE && it.disabledTimer <= 0f &&
                 distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
-        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        }.maxByOrNull { utilityPowerLevel(it) } ?: return 1f
         return 1f + 0.10f * utilityPowerLevel(lattice) + if (lattice.imbuement == Imbuement.MIGHT) 0.06f else 0f
     }
 
@@ -2082,7 +2094,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val relay = utilities.filter {
             it.kind == UtilityKind.SPARK_RELAY && it.disabledTimer <= 0f &&
                 distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
-        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        }.maxByOrNull { utilityPowerLevel(it) } ?: return 1f
         return max(0.72f, 1f - 0.05f * utilityPowerLevel(relay) - if (relay.imbuement == Imbuement.TEMPO) 0.04f else 0f)
     }
 
@@ -2090,7 +2102,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val warden = utilities.filter {
             it.kind == UtilityKind.PATH_WARDEN && it.disabledTimer <= 0f &&
                 distanceSquared(it.col + 0.5f, it.row + 0.5f, x, y) <= 5.5f
-        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        }.maxByOrNull { utilityPowerLevel(it) } ?: return 1f
         return max(0.70f, 1f - 0.06f * utilityPowerLevel(warden))
     }
 
@@ -2098,7 +2110,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val kiln = utilities.filter {
             it.kind == UtilityKind.CINDER_KILN && it.disabledTimer <= 0f &&
                 distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
-        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        }.maxByOrNull { utilityPowerLevel(it) } ?: return 1f
         return 1f + 0.10f * utilityPowerLevel(kiln)
     }
 
@@ -2106,7 +2118,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val pylon = utilities.filter {
             it.kind == UtilityKind.AEGIS_PYLON && it.disabledTimer <= 0f &&
                 distanceSquared(it.col.toFloat(), it.row.toFloat(), col.toFloat(), row.toFloat()) <= 6.25f
-        }.maxBy { utilityPowerLevel(it) } ?: return 1f
+        }.maxByOrNull { utilityPowerLevel(it) } ?: return 1f
         return max(0.55f, 1f - 0.08f * utilityPowerLevel(pylon))
     }
 
@@ -2164,7 +2176,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun loadSavedRun() {
-        if (!preferences.getBoolean("has_saved_run", false)) return
+        if (!prefBoolean("has_saved_run", false)) return
         try {
             val loadedPath = preferences.getString("run_path", "").orEmpty().split(';').filter { it.isNotBlank() }.map {
                 val values = it.split(',')
@@ -2259,8 +2271,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             surveyLensWaves = preferences.getInt("run_survey_lens_waves", 0).coerceIn(0, 3)
             phaseBarrierReady = preferences.getBoolean("run_phase_barrier", false)
             splinterBraceReady = preferences.getBoolean("run_splinter_brace", false)
-            nextTrapId = (traps.maxBy { it.id }?.id ?: 0) + 1
-            nextCorruptionId = (corruptions.maxBy { it.id }?.id ?: 0) + 1
+            nextTrapId = (traps.maxByOrNull { it.id }?.id ?: 0) + 1
+            nextCorruptionId = (corruptions.maxByOrNull { it.id }?.id ?: 0) + 1
             nextEnemyId = 1
             enemies.clear()
             pendingSpawns.clear()
@@ -2413,7 +2425,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         imbuementTrap = null
         imbuementUtility = null
         bannerTimer = 0f
-        savedRunAvailable = preferences.getBoolean("has_saved_run", false)
+        savedRunAvailable = prefBoolean("has_saved_run", false)
         audio.play("ui_click", 0.4f, 0.9f)
     }
 
@@ -2946,7 +2958,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val value = tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: return
         gold = safeAdd(gold, value)
         val rankParts = tower?.let { it.level + it.overcharge / 2 } ?: trap?.let { it.level + it.overcharge / 2 } ?: 1
-        val yardBonus = utilities.filter { it.kind == UtilityKind.SALVAGE_YARD }.map { utilityPowerLevel(it) }.max() ?: 0
+        val yardBonus = utilities.filter { it.kind == UtilityKind.SALVAGE_YARD }.map { utilityPowerLevel(it) }.maxOrNull() ?: 0
         val parts = min(20, rankParts + yardBonus)
         salvageParts = safeAdd(salvageParts, parts)
         if (tower != null) towers.remove(tower) else if (trap != null) traps.remove(trap)
@@ -3068,7 +3080,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val invested = utility.kind.cost + (utility.level - 1) * (utility.kind.cost / 2 + 70)
         val value = (invested * recyclingMultiplier()).toInt()
         gold = safeAdd(gold, value)
-        val parts = utility.level + (utilities.filter { it.kind == UtilityKind.SALVAGE_YARD }.map { utilityPowerLevel(it) }.max() ?: 0)
+        val parts = utility.level + (utilities.filter { it.kind == UtilityKind.SALVAGE_YARD }.map { utilityPowerLevel(it) }.maxOrNull() ?: 0)
         salvageParts = safeAdd(salvageParts, parts)
         utilities.remove(utility)
         selectedUtility = null
@@ -3132,7 +3144,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 setBanner("THREE WAVE SIGNALS REVEALED", 1.7f)
             }
             CraftedItem.TRAP_REFIT_KIT -> {
-                val index = storedTraps.indices.filter { storedTraps[it].level < 3 }.minBy { storedTraps[it].level }
+                val index = storedTraps.indices.filter { storedTraps[it].level < 3 }.minByOrNull { storedTraps[it].level }
                 if (index == null) { setBanner("NO CACHED TRAP CAN BE REFIT", 1.5f); return }
                 storedTraps[index].level += 1
                 consumeSupply(item)

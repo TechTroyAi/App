@@ -2,8 +2,9 @@
 
 Date: 2026-08-28
 Artifact under investigation: `artifacts/Blockhold-Defense-v1.2-installable.apk`
+Reported by: player upgrading from v1.1 — "Blockhold Defense keeps stopping"
 
-Reproduce every finding below with:
+Reproduce every packaging finding below with:
 
 ```bash
 python3 scripts/verify-apk.py artifacts/Blockhold-Defense-v1.2-installable.apk
@@ -11,20 +12,112 @@ python3 scripts/verify-apk.py artifacts/Blockhold-Defense-v1.2-installable.apk
 
 ---
 
-## 1. Which file is "APK v1.2"
+## 0. Try this first (30 seconds, no tools)
 
-There are two, and only one is installable:
+**Settings → Apps → Blockhold Defense → Storage → Clear data**, then open the app.
 
-| File | Size | Actual SHA-256 | State |
-|---|---|---|---|
-| `artifacts/Blockhold-Defense-v1.2-installable.apk` | 3,613,643 B | `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4` | signed v1+v2+v3 — **this is the one you installed** |
-| `artifacts/Blockhold-Defense-v1.2-unsigned.apk` | 3,533,660 B | `07b51c08666ce88d1819adb7c0b377e1c031058cd5d9e4309cf8253fe8f5dbe0` | unsigned, cannot install |
+The reporter upgraded from v1.1, which left its saved run and best-score keys behind in
+`SharedPreferences("blockhold_infinite_progress")`. v1.2 reads six of those keys **in the
+`GameView` constructor**, before the first frame is ever drawn:
+
+```kotlin
+private var bestDailyScore = preferences.getInt("best_daily_score",
+                                 preferences.getInt("best_challenge_score", 0))
+```
+
+`SharedPreferences.getInt` throws `ClassCastException` if an earlier build wrote that key with a
+different type. Thrown there, it kills the activity before anything renders — which is exactly
+"installed fine, won't open", and exactly why a fresh install would be unaffected while an
+upgrade over v1.1 dies. Clearing data removes the old keys.
+
+If clearing data fixes it, that was the cause. If it does not, the new on-screen crash reporter
+(section 6) will print the real reason on the next build.
 
 ---
 
-## 2. The headline problem: the shipped APK is not the APK the repo claims it is
+## 1. Confirmed code defects in v1.2
 
-The recorded hashes do not match the files on disk. Not one of them.
+### 1a. 22 Kotlin empty-collection crashes (the "can't play" half)
+
+The game logic was written against Kotlin ≤1.3 collection semantics but this project compiles
+with **Kotlin 2.0.21** (`build.gradle.kts`). In Kotlin 1.7 the stdlib reintroduced `maxBy`,
+`minBy`, `max()` and `min()` as **non-null, throwing** functions — `maxBy` is literally annotated
+`@JvmName("maxByOrThrow")`. Twenty-two call sites still assume the old nullable behaviour:
+
+```kotlin
+// before — throws NoSuchElementException whenever no Cache Depot is built, i.e. always at first
+val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxBy { it.level }
+return min(20, 4 + if (depot == null) 0 else ...)
+```
+
+Every one of these sites already null-checks the result (`if (x == null)`, `?.let`, `?: return 1f`,
+`?: 0`), so the compiler only emits "unnecessary safe call" / "elvis always returns left operand"
+**warnings** — it builds cleanly and then throws at runtime the moment the collection is empty.
+
+Worst offenders, all on the normal play path with a fresh board:
+
+| Site | Empty when | Blast radius |
+|---|---|---|
+| `cacheCapacity()`, `cacheStorageDiscount()` | no Cache Depot built | 8 + 2 call sites |
+| `workshopLevel()` | no Forge Workshop built | 6 call sites |
+| `recyclingMultiplier()` | no Salvage Yard built | 4 call sites |
+| `surveyPreviewText()` | no Surveyor Station | every wave preview |
+| `updateCorruptions()` | no towers / no utilities placed | every frame during a Hex Bloom |
+| Hex Weaver + Carrion Hulk targeting | all towers disabled | mid-wave |
+| `nextTrapId` / `nextCorruptionId` in `loadSavedRun()` | no traps saved | every "Continue Run" |
+
+**Fixed:** all 22 converted to `maxByOrNull` / `minByOrNull` / `maxOrNull`, restoring the
+semantics the surrounding null checks were written for. No other bytes in `GameView.kt` changed.
+
+### 1b. Unguarded preference reads on the upgrade path
+
+**Fixed:** added `prefInt` / `prefBoolean` helpers that swallow `ClassCastException` and fall
+back to the default, and routed the eight constructor-time and title-screen reads through them.
+A future version changing a key's type can no longer brick the app.
+
+### 1c. The APK was never zipaligned
+
+168 of 221 uncompressed entries are misaligned, including `classes.dex` (stored uncompressed at
+offset 41). Control group:
+
+| APK | Uncompressed entries | Misaligned |
+|---|---|---|
+| `v0.1-debug.apk` (Gradle) | 11 | **0** |
+| `v1.0-release.apk` (Gradle) | 39 | **0** |
+| `v1.2-installable.apk` (apktool) | 221 | **168** |
+
+Conclusive: v1.2 never came out of the Gradle/AGP pipeline — it was disassembled and reassembled
+with apktool, then signed, skipping `zipalign`. ART cannot `mmap` a misaligned uncompressed dex
+and re-extracts all 1.4 MB on every cold start. That is a startup latency and memory penalty that
+can push a slow device past the launch ANR window. To be precise: it is documented as a fallback
+rather than a hard failure, so on its own it does not fully explain the crash — but it must not
+ship again.
+
+---
+
+## 2. The APK's structure is otherwise sound
+
+Everything else checks out, which is what pointed the investigation at runtime code rather than
+packaging:
+
+- **Signing** — v1 + v2 + v3 all present.
+- **`resources.arsc`** — stored uncompressed and 4-byte aligned, as targetSdk ≥ 30 requires.
+  This is why the install itself succeeded.
+- **DEX integrity** — magic `dex\n037`, declared size matches, adler32 valid, SHA-1 valid.
+- **Missing classes** — all 969 referenced types resolve against 708 bundled classes; the Kotlin
+  stdlib is fully embedded.
+- **Manifest** — `ai.techtroy.blockhold` 1.2.0 (12), minSdk 24, targetSdk 35, MAIN/LAUNCHER filter
+  present, `android:exported="true"` present, and `MainActivity` confirmed present in `classes.dex`.
+- **Theme / adaptive icon** — `AppTheme` and both `mipmap-anydpi` variants resolve fully.
+- **All 189 sprites and 13 sounds are packaged.** This matters: `SpriteCatalog.load()` does
+  `getIdentifier` then `check(id != 0)`, so one missing PNG would throw in the `GameView`
+  constructor. None are missing.
+- **All 99 sprite strips satisfy `check(width % height == 0)`.**
+- **Startup bitmap budget** ≈ 6.1 MB as ARGB_8888. Not an OOM.
+
+---
+
+## 3. The records do not describe the shipped file
 
 | Recorded in | Claimed SHA-256 | Reality |
 |---|---|---|
@@ -32,90 +125,20 @@ The recorded hashes do not match the files on disk. Not one of them.
 | `artifacts/README.md` (detail block) | `c7c05ff6…1bda216` | no such file |
 | `docs/VERIFICATION.md` (sideload block) | `dbd84c27…afbc26f` | no such file |
 | — actual installable | — | `7e43587c…0340d4` |
-| `docs/VERIFICATION.md` (unsigned block) | `a429a231…8ba8e3`, 2,325,930 B | actual is `07b51c08…`, 3,533,660 B |
+| `docs/VERIFICATION.md` (unsigned block) | `a429a231…`, 2,325,930 B | `07b51c08…`, 3,533,660 B |
 
-`docs/VERIFICATION.md` also describes an artifact that structurally is not this one:
-
-| Verification record says | Actual APK |
-|---|---|
-| 92 APK entries | 228 |
-| 706 class definitions | 708 |
-| "70 active drawable PNGs", "exactly 40 scoped images" | 191 drawables, 189 loaded by `SpriteCatalog` |
-| "Four-byte ZIP alignment: **passed**" | **168 of 221 uncompressed entries are misaligned** |
-| "`zipalign -c -p -v 4` passed" | zipalign was demonstrably never run |
-
-So the verification record was written against an older build and never refreshed. Whatever
-was actually shipped to your phone was never verified by anything.
+`docs/VERIFICATION.md` also describes a structurally different artifact — 92 entries vs 228,
+706 classes vs 708, "70 active drawable PNGs" vs 191 — and claims
+"Four-byte ZIP alignment: **passed**" and "`zipalign -c -p -v 4` passed", both false.
 
 ---
 
-## 3. Proven defect: the APK was never zipaligned
+## 4. Root cause of the process failure
 
-```
-FAIL  168 of 221 uncompressed entries are NOT 4-byte aligned
-        classes.dex @ offset 41 (offset % 4 = 1)
-        res/drawable/ic_launcher_background.png @ offset 1481673 (offset % 4 = 1)
-        ...
-```
-
-`classes.dex` is stored **uncompressed** at byte offset 41, which is not a multiple of 4.
-
-Control group — the two APKs in this repo that were genuinely built by Gradle:
-
-| APK | Uncompressed entries | Misaligned |
-|---|---|---|
-| `Blockhold-Defense-v0.1-debug.apk` (Gradle) | 11 | **0** |
-| `Blockhold-Defense-v1.0-release.apk` (Gradle) | 39 | **0** |
-| `Blockhold-Defense-v1.2-installable.apk` (apktool) | 221 | **168** |
-
-That is conclusive: v1.2 did not come out of the Gradle/AGP pipeline. It was disassembled and
-reassembled by hand with apktool and then signed, skipping `zipalign`. The v1.0 build also keeps
-`classes.dex` DEFLATED; v1.2 stores it uncompressed *and* unaligned, which is the worst of both.
-
-**Runtime effect, stated precisely:** ART refuses to `mmap` a misaligned uncompressed dex and
-falls back to extracting the whole 1.4 MB dex into memory on every cold start. That is a startup
-latency and memory penalty, and on a slow device it can push you past the ANR window on launch.
-It is a real, must-fix packaging bug — but I want to be straight with you: on its own it is
-documented as a fallback, not a hard crash. It does not by itself fully explain a refusal to open.
-
----
-
-## 4. What I ruled out
-
-I checked every structural cause of "installs but won't open" and these are all **clean**:
-
-- **Signing** — v1 + v2 + v3 all present. (v1-only would be rejected on Android 11+ for
-  targetSdk 35, but that would fail at install, and yours installed.)
-- **`resources.arsc`** — stored uncompressed and 4-byte aligned, as targetSdk ≥ 30 requires.
-  This is why the install succeeded.
-- **DEX integrity** — magic `dex\n037`, declared size matches, adler32 checksum valid, SHA-1
-  signature valid. Not corrupted or truncated.
-- **Missing classes** — all 969 referenced types resolve against the 708 bundled classes. The
-  Kotlin stdlib is fully embedded. No `NoClassDefFoundError` waiting to happen.
-- **Manifest** — `package=ai.techtroy.blockhold`, `versionName=1.2.0`, `versionCode=12`,
-  `minSdk=24`, `targetSdk=35`, `MAIN`/`LAUNCHER` intent filter present,
-  `android:exported="true"` present, launch activity `ai.techtroy.blockhold.MainActivity`
-  confirmed to exist inside `classes.dex`. So there *is* an icon and it *does* point at a real class.
-- **Theme** — `@style/AppTheme` resolves, parent `Theme.Material.Light.NoActionBar`
-  (`0x01030241`), all 7 items resolve; the `-v31` splash-screen variant is present and its
-  `windowSplashScreenAnimatedIcon` resolves to a real drawable.
-- **Adaptive icon** — `mipmap-anydpi-v26` / `-v33` reference valid background/foreground drawables.
-- **All 189 sprites `SpriteCatalog` loads by name are packaged.** This matters more than it
-  sounds: `SpriteCatalog.load()` does `resources.getIdentifier(...)` then
-  `check(id != 0) { "Missing sprite resource: $name" }`. One missing PNG = guaranteed
-  `IllegalStateException` inside the `GameView` constructor = exactly your symptom. None are missing.
-- **All 99 sprite strips satisfy `check(width % height == 0)`**, the other startup assertion.
-- **All 13 `AudioEngine` sounds are packaged.**
-- **Startup bitmap budget** — ~6.1 MB decoded as ARGB_8888. Not an OOM.
-
----
-
-## 5. Root cause of the process failure
-
-`ci/android.yml` was sitting in `ci/`, not in `.github/workflows/`. **GitHub Actions never ran
-it.** No build in this repo's history was ever produced or checked by CI, which is how a
-hand-assembled, unaligned, unverified APK became the download people were pointed at, with a
-verification document describing a different file entirely.
+`ci/android.yml` was sitting in `ci/`, not `.github/workflows/`. **GitHub Actions never ran it.**
+Nothing in this repo's history was ever built or verified by CI, which is how a hand-assembled,
+unaligned APK became the advertised download with a verification document describing a different
+file.
 
 `docs/VERIFICATION.md` is also explicit that nobody ever launched it:
 
@@ -123,52 +146,60 @@ verification document describing a different file entirely.
 > Installation, actual landscape rendering, touch ergonomics, lifecycle transitions … remain
 > device-QA items. Static compilation and package checks do not replace a playtest."
 
-The v1.2 APK was shipped having never been started once.
+The v1.2 APK shipped having never been started once. The Kotlin 1.7 collection-semantics
+regression is precisely the class of bug that compiles clean, passes every static check in that
+document, and dies on first contact with a device.
 
 ---
 
-## 6. What was changed in this branch
+## 5. Changes in this branch
 
-- **`ci/android.yml`** (rewritten) — now builds with Gradle, runs
-  `scripts/verify-apk.py`, runs `zipalign -c -p -v 4` and `apksigner verify`, records the
-  SHA-256, and uploads the APK. **It is still inert until you move it**, because an automation
-  token cannot create `.github/workflows/`. One command, then v1.2 comes out of CI correctly
-  aligned instead of out of apktool:
+### Code fixes
+- **`GameView.kt`** — 22 `maxBy`/`minBy`/`max()` calls converted to their `…OrNull` forms;
+  `prefInt`/`prefBoolean` guards added around preference reads.
+- **`MainActivity.kt`** — startup is now fault-tolerant (see below).
+
+### Tooling
+- **`scripts/verify-apk.py`** (new) — standard-library-only APK verifier: ZIP alignment, signing
+  schemes, dex checksum/SHA-1/dangling type refs, manifest + launcher class presence in the dex,
+  resource table vs. `getIdentifier` string lookups, and sprite strip geometry. No Android SDK
+  required.
+- **`ci/android.yml`** (rewritten) — builds with Gradle, runs the verifier, runs
+  `zipalign -c -p -v 4` and `apksigner verify`, records the SHA-256, uploads the APK.
+  **Still inert until moved**, because an automation token cannot create `.github/workflows/`:
 
   ```bash
   mkdir -p .github/workflows && git mv ci/android.yml .github/workflows/android.yml
   git commit -m "Activate Android CI" && git push
   ```
-- **`scripts/verify-apk.py`** (new) — standard-library-only APK verifier encoding every check
-  above (alignment, signing schemes, dex checksum/SHA-1/dangling types, manifest + launcher
-  activity presence in the dex, resource table vs. `getIdentifier` string lookups, sprite strip
-  geometry). No Android SDK needed. Run it on any APK before it goes to a phone.
+- Stale-record warnings added to `docs/VERIFICATION.md` and `artifacts/README.md`.
 
 ---
 
-## 7. What I still need from you
+## 6. No more blind crashes
 
-The package is structurally sound, so the remaining fault is a **runtime** exception that can
-only be read off the device. One of these will tell us in one line:
+`MainActivity` now:
 
-```bash
-# plug the phone in with USB debugging on, then:
-adb logcat -c
-# now tap the app icon, let it fail, then:
-adb logcat -d -b crash > crash.txt
-# no adb? on the phone: Settings > Developer options > Bug report, or use an app like Logcat Reader
-```
+1. Installs a `Thread.setDefaultUncaughtExceptionHandler` that persists the stack trace, so a
+   crash on the **render thread** — where most of the bugs in section 1a live — is captured
+   instead of vanishing into "keeps stopping".
+2. Wraps `GameView` construction in `try/catch`, so a startup failure shows a screen instead of
+   killing the process.
+3. Shows a recovery screen with the full trace (device, Android version, app version, selectable
+   text so it can be long-pressed and copied) plus two buttons: **Continue / Try again** and
+   **Reset saved data**.
 
-Send me `crash.txt`, or the text of the "Blockhold Defense keeps stopping" dialog if you tap
-**Details**.
+That last button is the built-in fix for the section 0 scenario, and the copyable trace means the
+next report arrives with the exact line number attached and no `adb` needed.
 
-Also useful, and answerable without any tools:
+---
 
-1. What exactly happens — a "keeps stopping" dialog, a black screen that sits there, or the
-   icon flashes and returns to the home screen?
-2. Android version and phone model?
-3. Did you have the older v1.0 build installed before this one?
+## 7. Next steps
 
-Once you have a Gradle-built APK (activate CI as above, or run `./gradlew assembleDebug` locally), install the CI-produced APK instead of the apktool one. If that
-opens, the alignment/packaging path was the problem. If it still fails, the logcat will name
-the exact line.
+1. **Right now:** clear app data on the phone and reopen v1.2.
+2. **Then:** activate CI with the two commands in section 5, or build locally with
+   `./gradlew assembleDebug`. Install *that* APK — it will be properly aligned and will contain
+   the 22 crash fixes and the crash reporter.
+3. If it still misbehaves, the recovery screen will show the exact exception; send that text.
+4. Re-run `python3 scripts/verify-apk.py --all` and rewrite `docs/VERIFICATION.md` from its actual
+   output rather than by hand.
