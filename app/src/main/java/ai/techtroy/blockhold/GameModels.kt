@@ -298,7 +298,14 @@ internal enum class EnemyKind(
     GRAVE_MENDER("Grave Mender", 640f, 0.55f, 95, 2, Color.rgb(90, 200, 140), 1.00f, regeneration = 0.008f, elite = true),
     PYRE_WIGHT("Pyre Wight", 580f, 0.72f, 98, 3, Color.rgb(255, 100, 45), 0.96f, elite = true),
     IRON_MONARCH("Iron Monarch", 2400f, 0.32f, 320, 8, Color.rgb(120, 125, 140), 1.50f, armor = 0.30f, boss = true),
-    SPORE_SOVEREIGN("Spore Sovereign", 2100f, 0.34f, 300, 7, Color.rgb(110, 70, 160), 1.48f, regeneration = 0.008f, boss = true)
+    SPORE_SOVEREIGN("Spore Sovereign", 2100f, 0.34f, 300, 7, Color.rgb(110, 70, 160), 1.48f, regeneration = 0.008f, boss = true),
+
+    // 1.4 F5 Field pests — normals with clear jobs (append after F2 ordinals)
+    BRIAR_MITE("Briar Mite", 52f, 1.22f, 14, 1, Color.rgb(90, 170, 70), 0.58f),
+    RUST_TICK("Rust Tick", 78f, 0.95f, 17, 1, Color.rgb(200, 110, 55), 0.68f),
+    DRIFT_SEED("Drift Seed", 42f, 1.10f, 15, 1, Color.rgb(180, 220, 120), 0.60f),
+    HOLLOW_SHELL("Hollow Shell", 140f, 0.62f, 23, 2, Color.rgb(190, 185, 170), 0.84f, armor = 0.22f),
+    WISP_DRIFTER("Wisp Drifter", 70f, 0.86f, 18, 1, Color.rgb(130, 150, 230), 0.66f)
 }
 
 internal data class GridCell(val col: Int, val row: Int)
@@ -429,6 +436,8 @@ internal class SpikeTrap(
     var pulse = 0f
     /** F3 Surge imbuement: activations this wave still boosted. */
     var surgeCharges = 0
+    /** F5 Briar Mite: seconds remaining while trap is jammed (won't trigger). */
+    var jamTimer = 0f
 
     fun upgradeCost(): Int {
         val base = if (level < 3) kind.cost / 2 + level * 22 else min(2_000_000_000, (kind.cost * 0.80 * 1.22.pow(overcharge.toDouble())).toInt().coerceAtLeast(kind.cost))
@@ -531,11 +540,15 @@ var rootTimer = 0f
     var windupKind = 0
     /** F2 Pyre Wight: self-burn trail duration. */
     var pyreTrailTimer = 0f
+    /** F5 Hollow Shell: remaining shell HP buffer before real health. */
+    var shellBuffer = 0f
+    /** F5 Wisp Drifter: soft stealth remaining (same pipeline as gloom). */
+    var wispTimer = 0f
 
     val dying: Boolean get() = deathTimer > 0f
     val targetable: Boolean get() = alive && !dying && health > 0f
     /** Soft stealth: towers still track; prioritization can skip. */
-    val stealthed: Boolean get() = gloomTimer > 0.05f
+    val stealthed: Boolean get() = gloomTimer > 0.05f || wispTimer > 0.05f
 }
 
 internal class Projectile(

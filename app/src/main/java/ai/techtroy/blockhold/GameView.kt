@@ -534,6 +534,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             enemy.stunTimer = max(0f, enemy.stunTimer - delta)
             enemy.armoredTimer = max(0f, enemy.armoredTimer - delta)
             enemy.gloomTimer = max(0f, enemy.gloomTimer - delta)
+            enemy.wispTimer = max(0f, enemy.wispTimer - delta)
             enemy.thornArmorTimer = max(0f, enemy.thornArmorTimer - delta)
             enemy.pyreTrailTimer = max(0f, enemy.pyreTrailTimer - delta)
             if (enemy.windupTimer > 0f) {
@@ -569,6 +570,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val slowMultiplier = when {
                 enemy.slowTimer <= 0f -> 1f
                 enemy.kind == EnemyKind.NEEDLEFLY -> 0.82f  // F1: resists most slow
+                enemy.kind == EnemyKind.DRIFT_SEED -> 0.90f // F5: almost ignores slow (floats)
                 else -> 0.56f
             }
             if (enemy.stunTimer <= 0f) enemy.progress += enemy.moveSpeed * slowMultiplier * delta
@@ -716,6 +718,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 floatingLabels.add(FloatingLabel("GLOOM", enemy.x, enemy.y - 0.3f, enemy.kind.color, 0.6f))
                 burst(enemy.x, enemy.y, enemy.kind.color, 8, 0.55f)
             }
+            EnemyKind.WISP_DRIFTER -> {
+                enemy.wispTimer = max(enemy.wispTimer, 2.0f)
+                enemy.abilityTimer = 4.6f
+                floatingLabels.add(FloatingLabel("WISP", enemy.x, enemy.y - 0.3f, enemy.kind.color, 0.55f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 7, 0.5f)
+            }
             EnemyKind.GRAVE_MENDER -> {
                 beginEnemyWindup(enemy, 1, 1.15f, "MENDING…")
                 enemy.abilityTimer = 6.2f
@@ -831,6 +839,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (pathCells.size < 2) return
         val challengeSpeed = if (challengeModifier == ChallengeModifier.RUSH_HOUR) 1.18f else 1f
         val enemy = Enemy(nextEnemyId++, spec.kind, spec.healthScale, spec.speedScale * challengeSpeed, spec.rewardScale, spec.bossTier, spec.splitDepth)
+        // F5 Hollow Shell: temporary armor shell absorbs first hits
+        if (spec.kind == EnemyKind.HOLLOW_SHELL) {
+            enemy.shellBuffer = enemy.maxHealth * 0.45f
+        }
         updateEnemyPosition(enemy)
         enemies.add(enemy)
         // F2 banner sting on named elite/boss spawn
@@ -861,6 +873,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val cell = pathCells[pathIndex]
         for (trap in traps) {
             if (trap.col != cell.col || trap.row != cell.row) continue
+            if (trap.jamTimer > 0f) continue
             val beaconRelay = isNearTowerKind(trap.col, trap.row, TowerKind.BEACON)
             val maxTriggers = 1 + perkCount(ForgePerk.DOUBLE_TRIGGER) + if (beaconRelay) 1 else 0
             val triggers = enemy.trapTriggerCounts[trap.id] ?: 0
@@ -869,6 +882,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (enemy.kind == EnemyKind.SAPPER && enemy.sapperTraps >= 2) continue
             enemy.trapTriggerCounts[trap.id] = triggers + 1
             if (enemy.kind == EnemyKind.SAPPER) enemy.sapperTraps += 1
+            // F5 Briar Mite: jams the trap after trigger
+            if (enemy.kind == EnemyKind.BRIAR_MITE) {
+                trap.jamTimer = max(trap.jamTimer, 3.2f)
+                floatingLabels.add(FloatingLabel("JAMMED", trap.col + 0.5f, trap.row + 0.2f, enemy.kind.color, 0.55f))
+            }
             trap.activationCount += 1
             if (trap.surgeCharges > 0) trap.surgeCharges -= 1
             trap.pulse = 1f
@@ -1169,10 +1187,36 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         armor = min(0.88f, armor) * (1f - armorPierce)
         var incoming = amount
         if (enemy.markTimer > 0f) incoming *= 1.22f
-        val actual = max(0.5f, incoming * (1f - armor))
+        var actual = max(0.5f, incoming * (1f - armor))
+        // F5 Hollow Shell: shell buffer eats damage first
+        if (enemy.shellBuffer > 0f) {
+            val absorbed = min(enemy.shellBuffer, actual)
+            enemy.shellBuffer -= absorbed
+            actual -= absorbed
+            if (enemy.shellBuffer <= 0f) {
+                enemy.shellBuffer = 0f
+                floatingLabels.add(FloatingLabel("SHELL BREAK", enemy.x, enemy.y - 0.25f, enemy.kind.color, 0.7f))
+                burst(enemy.x, enemy.y, Color.rgb(230, 220, 200), 12, 0.75f)
+            }
+            if (actual <= 0.05f) {
+                enemy.flashTimer = if (enemy.kind.boss) 0.18f else 0.14f
+                return
+            }
+        }
         enemy.health -= actual
         enemy.flashTimer = if (enemy.kind.boss) 0.18f else 0.14f
         if (enemy.kind == EnemyKind.THORNBACK && enemy.health > 0f) enemy.thornArmorTimer = max(enemy.thornArmorTimer, 1.1f)
+        // F5 Rust Tick: on hit, briefly rust (hex) nearest tower in range
+        if (enemy.kind == EnemyKind.RUST_TICK && enemy.health > 0f && enemy.abilityTimer <= 0f) {
+            val target = towers.filter { it.disabledTimer <= 0f }.minByOrNull {
+                distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y)
+            }
+            if (target != null && distanceSquared(target.col + 0.5f, target.row + 0.5f, enemy.x, enemy.y) <= 6.5f) {
+                applyTowerHex(target, 1.1f * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                floatingLabels.add(FloatingLabel("RUST", target.col + 0.5f, target.row + 0.35f, enemy.kind.color, 0.55f))
+                enemy.abilityTimer = 3.2f
+            }
+        }
         if (showLabel && random.nextFloat() < 0.22f) floatingLabels.add(FloatingLabel(actual.toInt().toString(), enemy.x, enemy.y - 0.25f, effectColor, 0.7f))
         if (enemy.health > 0f) return
         beginEnemyDeath(enemy)
@@ -1186,6 +1230,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         enemy.burnTimer = 0f
         enemy.slowTimer = 0f
         enemy.markTimer = 0f
+        enemy.wispTimer = 0f
+        enemy.shellBuffer = 0f
         enemy.stunTimer = 0f
         if (!enemy.rewarded) {
             enemy.rewarded = true
@@ -1228,6 +1274,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 burst(enemy.x, enemy.y, enemy.kind.color, 14, 0.9f)
             }
+            // F5 Hollow Shell: death armor gift to nearby allies
+            if (enemy.kind == EnemyKind.HOLLOW_SHELL) {
+                for (ally in enemies) {
+                    if (!ally.targetable || ally === enemy) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 3.6f) {
+                        ally.armoredTimer = max(ally.armoredTimer, 2.2f)
+                    }
+                }
+                burst(enemy.x, enemy.y, enemy.kind.color, 16, 0.95f)
+            }
+            // F5 Drift Seed: death burst marks nearby foes? No - seed scatter slows tower fire? 
+            // death: short disable nearest trap or nothing - seed scatter as minor heal to core? skip
             // F1 Carrion Hulk: death hex nearest tower
             if (enemy.kind == EnemyKind.CARRION_HULK) {
                 val target = towers.filter { it.disabledTimer <= 0f }.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
@@ -1244,7 +1302,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun updateEffects(delta: Float) {
-        for (trap in traps) trap.pulse = max(0f, trap.pulse - delta * 3.2f)
+        for (trap in traps) {
+            trap.pulse = max(0f, trap.pulse - delta * 3.2f)
+            trap.jamTimer = max(0f, trap.jamTimer - delta)
+        }
         for (particle in particles) {
             particle.life -= delta
             particle.x += particle.velocityX * delta
@@ -1507,35 +1568,42 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     1 -> EnemyKind.MOSSER
                     else -> EnemyKind.RUNNER
                 }
-                3 -> when (index % 4) {
+                3 -> when (index % 5) {
                     0 -> EnemyKind.BRUTE
                     1 -> EnemyKind.CARRION_HULK
+                    2 -> EnemyKind.HOLLOW_SHELL
                     else -> EnemyKind.SHELLBACK
                 }
-                4 -> when (index % 5) {
+                4 -> when (index % 6) {
                     0 -> EnemyKind.MYCELIAL
                     1 -> EnemyKind.SHELLBACK
+                    2 -> EnemyKind.RUST_TICK
                     else -> EnemyKind.MOSSER
                 }
-                5 -> when (index % 6) {
+                5 -> when (index % 7) {
                     0 -> EnemyKind.SAPPER
                     1 -> EnemyKind.GLOOMKIN
+                    2 -> EnemyKind.WISP_DRIFTER
+                    3 -> EnemyKind.RUST_TICK
                     else -> regulars[(index + wave + seedOffset) % regulars.size]
                 }
-                6 -> when (index % 4) {
+                6 -> when (index % 5) {
                     0 -> EnemyKind.BRUTE
                     1 -> EnemyKind.CARRION_HULK
+                    2 -> EnemyKind.HOLLOW_SHELL
                     else -> EnemyKind.SHELLBACK
                 }
-                7 -> when (index % 5) {
+                7 -> when (index % 6) {
                     0 -> EnemyKind.NEEDLEFLY
                     1 -> EnemyKind.SPLITLING
+                    2 -> EnemyKind.DRIFT_SEED
+                    3 -> EnemyKind.BRIAR_MITE
                     else -> EnemyKind.RUNNER
                 }
                 else -> regulars[(index * 3 + wave + seedOffset) % regulars.size]
             }
             val speedMul = when (kind) {
-                EnemyKind.RUNNER, EnemyKind.NEEDLEFLY -> 1.03f
+                EnemyKind.RUNNER, EnemyKind.NEEDLEFLY, EnemyKind.BRIAR_MITE, EnemyKind.DRIFT_SEED -> 1.03f
                 else -> 1f
             }
             waveQueue.add(SpawnSpec(kind, healthScale, speedScale * speedMul, rewardScale))

@@ -16,7 +16,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 | Utilities | ~11 (F3 + prior) |
 | Imbuements (enchants) | 9 (F3 Ward/Leech/Surge) |
 | Crafted supplies | 14 (C1 + C2) |
-| Enemy normals / elites / bosses | F1 blood + F2 named threats |
+| Enemy normals / elites / bosses | F1 blood + F2 named + **F5 pests** (15 normals pool) |
 
 ## Target adds (player ask)
 
@@ -49,8 +49,11 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 ### F4 — New guns
 **Shipped:** +3 towers full kit — **Thorn Spire** (mark), **Shard Lance** (pierce), **Mire Spout** (bog); evo×6; TWR 1/2 paging. See `docs/VERIFICATION_F4.md`.
 
-### F5+ — Fill quotas
-Remaining enemies (~5 normals, ~2 elites, ~2 bosses), towers (~7), utils (~6), enchants (~7), crafts (C3×4).
+### F5 — Field pests
+**Shipped:** +5 normals — Briar Mite (jam), Rust Tick (rust hex), Drift Seed (slow resist), Hollow Shell (buffer), Wisp Drifter (stealth). See `docs/VERIFICATION_F5.md`.
+
+### F6+ — Fill quotas
+Remaining enemies (~2 elites, ~2 bosses), towers (~7), utils (~6), enchants (~7), crafts (C3×4).
 
 ## Crafts roadmap (+10)
 
@@ -79,6 +82,7 @@ Remaining enemies (~5 normals, ~2 elites, ~2 bosses), towers (~7), utils (~6), e
 - **1.4 F2 Named threats** (see `docs/VERIFICATION` F2 notes)
 - **1.4 F3 Toolkit** (see `docs/VERIFICATION_F3.md`)
 - **1.4 F4 New guns** (see `artwork/style-production/batch-26-new-guns-f4/`, `docs/VERIFICATION_F4.md`)
+- **1.4 F5 Field pests** (see `artwork/style-production/batch-27-field-pests-f5/`, `docs/VERIFICATION_F5.md`)
 
 
 ## F3 status (2026-08-28)
