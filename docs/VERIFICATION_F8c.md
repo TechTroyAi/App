@@ -4,7 +4,7 @@
 **Phase:** 1.4 Overgrowth — **F8c** (Gravebolt / Aegis Loom) + **Rime** imbuement  
 **Branch:** `arena/01a0429d-app`  
 **Installable APK:** `artifacts/Blockhold-Defense-v1.2-installable.apk`  
-**SHA-256:** `2df20ecceddebaa80dff0c5170737b2ddf789d7e686ef3bfb2d8414a88f32db6`
+**SHA-256:** `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4`
 
 ## Content
 

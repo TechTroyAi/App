@@ -112,4 +112,4 @@ Howl Spire / Vitriol Spout shipped. APK SHA `ec5b8db7d455c2a2a7a26b6cccf2dd5f2c0
 
 
 ## F8c (2026-08-28)
-Gravebolt / Aegis Loom + Rime. **1.4 tower & imbue quotas closed.** APK SHA `2df20ecceddebaa80dff0c5170737b2ddf789d7e686ef3bfb2d8414a88f32db6`.
+Gravebolt / Aegis Loom + Rime. **1.4 tower & imbue quotas closed.** APK SHA `7e43587c47f54c016a8094950fd77bd56623aeb1438c60d7d0d9edd9180340d4`.
