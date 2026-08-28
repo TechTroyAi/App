@@ -264,7 +264,12 @@ internal enum class EnemyKind(
     // F1 elite — thorn crest: pulse-armor after each hit
     THORNBACK("Thornback", 820f, 0.48f, 100, 3, Color.rgb(70, 120, 75), 1.10f, armor = 0.28f, elite = true),
 
-    OVERGROWTH("The Overgrowth", 1900f, 0.36f, 260, 7, Color.rgb(200, 64, 73), 1.42f, armor = 0.18f, regeneration = 0.006f, boss = true)
+    OVERGROWTH("The Overgrowth", 1900f, 0.36f, 260, 7, Color.rgb(200, 64, 73), 1.42f, armor = 0.18f, regeneration = 0.006f, boss = true),
+    // F2 named threats — ordinals 17+ (smali append after OVERGROWTH)
+    GRAVE_MENDER("Grave Mender", 640f, 0.55f, 95, 2, Color.rgb(90, 200, 140), 1.00f, regeneration = 0.008f, elite = true),
+    PYRE_WIGHT("Pyre Wight", 580f, 0.72f, 98, 3, Color.rgb(255, 100, 45), 0.96f, elite = true),
+    IRON_MONARCH("Iron Monarch", 2400f, 0.32f, 320, 8, Color.rgb(120, 125, 140), 1.50f, armor = 0.30f, boss = true),
+    SPORE_SOVEREIGN("Spore Sovereign", 2100f, 0.34f, 300, 7, Color.rgb(110, 70, 160), 1.48f, regeneration = 0.008f, boss = true)
 }
 
 internal data class GridCell(val col: Int, val row: Int)
@@ -462,6 +467,12 @@ internal class Enemy(
     var gloomTimer = 0f
     /** F1 Thornback: brief armor pulse after taking a hit. */
     var thornArmorTimer = 0f
+    /** F2: ability wind-up remaining (visual tell + delayed fire). */
+    var windupTimer = 0f
+    /** F2: which ability is charging (0 idle). */
+    var windupKind = 0
+    /** F2 Pyre Wight: self-burn trail duration. */
+    var pyreTrailTimer = 0f
 
     val dying: Boolean get() = deathTimer > 0f
     val targetable: Boolean get() = alive && !dying && health > 0f

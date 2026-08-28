@@ -525,6 +525,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             enemy.rootTimer = max(0f, enemy.rootTimer - delta)
             enemy.stunTimer = max(0f, enemy.stunTimer - delta)
             enemy.armoredTimer = max(0f, enemy.armoredTimer - delta)
+            enemy.gloomTimer = max(0f, enemy.gloomTimer - delta)
+            enemy.thornArmorTimer = max(0f, enemy.thornArmorTimer - delta)
+            enemy.pyreTrailTimer = max(0f, enemy.pyreTrailTimer - delta)
+            if (enemy.windupTimer > 0f) {
+                enemy.windupTimer -= delta
+                if (enemy.windupTimer <= 0f) {
+                    resolveEnemyWindup(enemy)
+                }
+            }
             enemy.abilityTimer -= delta
 
             if (enemy.burnTimer > 0f) {
@@ -536,6 +545,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         damageEnemy(it, spread, Color.rgb(255, 104, 55), 0.4f, false)
                         it.burnTimer = max(it.burnTimer, 0.35f)
                     }
+                }
+            }
+            // F2 Pyre Wight: scorched trail burns nearby path enemies
+            if (enemy.pyreTrailTimer > 0f && enemy.kind == EnemyKind.PYRE_WIGHT) {
+                enemies.filter { it.targetable && it !== enemy && abs(it.progress - enemy.progress) < 0.55f }.take(2).forEach {
+                    ignite(it, it.maxHealth * 0.012f, 0.8f)
                 }
             }
             val regeneration = enemy.kind.regeneration + if (waveNumber % 8 == 4) 0.006f else 0f
@@ -661,7 +676,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun updateEnemyAbility(enemy: Enemy) {
-        if (enemy.abilityTimer > 0f) return
+        if (enemy.abilityTimer > 0f || enemy.windupTimer > 0f) return
         when (enemy.kind) {
             EnemyKind.BLINK_STALKER -> {
                 enemy.progress = min(pathCells.size - 1.05f, enemy.progress + 0.85f)
@@ -684,7 +699,74 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 enemy.abilityTimer = 5.7f
             }
+            EnemyKind.GLOOMKIN -> {
+                enemy.gloomTimer = max(enemy.gloomTimer, 2.4f)
+                enemy.abilityTimer = 5.2f
+                floatingLabels.add(FloatingLabel("GLOOM", enemy.x, enemy.y - 0.3f, enemy.kind.color, 0.6f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 8, 0.55f)
+            }
+            EnemyKind.GRAVE_MENDER -> {
+                beginEnemyWindup(enemy, 1, 1.15f, "MENDING…")
+                enemy.abilityTimer = 6.2f
+            }
+            EnemyKind.PYRE_WIGHT -> {
+                beginEnemyWindup(enemy, 2, 0.95f, "PYRE…")
+                enemy.abilityTimer = 5.4f
+            }
             EnemyKind.OVERGROWTH -> {
+                beginEnemyWindup(enemy, 3, 1.25f, "OVERGROWTH SURGE")
+                enemy.abilityTimer = max(3.4f, 6.8f - enemy.bossTier * 0.25f)
+            }
+            EnemyKind.IRON_MONARCH -> {
+                beginEnemyWindup(enemy, 4, 1.45f, "MONARCH SLAM")
+                enemy.abilityTimer = max(3.8f, 7.2f - enemy.bossTier * 0.2f)
+            }
+            EnemyKind.SPORE_SOVEREIGN -> {
+                beginEnemyWindup(enemy, 5, 1.35f, "SPORE BLOOM")
+                enemy.abilityTimer = max(3.6f, 6.5f - enemy.bossTier * 0.22f)
+            }
+            else -> enemy.abilityTimer = 8f
+        }
+    }
+
+    private fun beginEnemyWindup(enemy: Enemy, kind: Int, duration: Float, tell: String) {
+        enemy.windupKind = kind
+        enemy.windupTimer = duration
+        floatingLabels.add(FloatingLabel(tell, enemy.x, enemy.y - 0.45f, enemy.kind.color, pop = 1.25f))
+        burst(enemy.x, enemy.y, enemy.kind.color, if (enemy.kind.boss) 14 else 8, if (enemy.kind.boss) 1.0f else 0.65f)
+        if (enemy.kind.boss || enemy.kind.elite) {
+            setBanner(tell, if (enemy.kind.boss) 1.8f else 1.2f)
+            audio.play("wave", 0.35f, if (enemy.kind.boss) 0.7f else 1.15f)
+        }
+    }
+
+    private fun resolveEnemyWindup(enemy: Enemy) {
+        if (!enemy.alive || enemy.dying) {
+            enemy.windupKind = 0
+            return
+        }
+        when (enemy.windupKind) {
+            1 -> { // Grave Mender
+                for (ally in enemies) {
+                    if (!ally.targetable) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 6.5f) {
+                        ally.health = min(ally.maxHealth, ally.health + ally.maxHealth * 0.12f)
+                    }
+                }
+                floatingLabels.add(FloatingLabel("MENDED", enemy.x, enemy.y - 0.25f, enemy.kind.color, 0.7f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 16, 1.0f)
+            }
+            2 -> { // Pyre Wight
+                enemy.pyreTrailTimer = 3.2f
+                enemy.burnTimer = max(enemy.burnTimer, 2.5f)
+                enemy.burnDamagePerSecond = max(enemy.burnDamagePerSecond, enemy.maxHealth * 0.02f)
+                towers.filter { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 3.5f }.forEach {
+                    applyTowerHex(it, (if (hasHarmonyNear(it)) 0.6f else 1.4f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                }
+                floatingLabels.add(FloatingLabel("IGNITED", enemy.x, enemy.y - 0.25f, enemy.kind.color, 0.75f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 18, 1.1f)
+            }
+            3 -> { // Overgrowth
                 enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * (0.025f + min(0.025f, enemy.bossTier * 0.003f)))
                 if (enemy.bossTier >= 2) {
                     repeat(min(3, 1 + enemy.bossTier / 3)) {
@@ -699,11 +781,39 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                         applyTowerHex(it, (if (hasHarmonyNear(it)) 0.9f else 2.2f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
                     }
                 }
-                enemy.abilityTimer = max(3.4f, 6.8f - enemy.bossTier * 0.25f)
                 burst(enemy.x, enemy.y, Color.rgb(103, 220, 94), 18, 1.1f)
             }
-            else -> enemy.abilityTimer = 8f
+            4 -> { // Iron Monarch slam
+                val radius = 5.5f + enemy.bossTier * 0.4f
+                towers.filter { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= radius * radius }.forEach {
+                    applyTowerHex(it, (if (hasHarmonyNear(it)) 1.1f else 2.6f) * if (it.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                }
+                enemies.filter { it.targetable && it !== enemy && distanceSquared(it.x, it.y, enemy.x, enemy.y) <= 4f }.forEach {
+                    it.progress = min(pathCells.size - 1.05f, it.progress + 0.15f)
+                }
+                screenShake = max(screenShake, 0.45f)
+                floatingLabels.add(FloatingLabel("SLAM", enemy.x, enemy.y - 0.3f, enemy.kind.color, pop = 1.4f))
+                burst(enemy.x, enemy.y, Color.rgb(255, 180, 80), 28, 1.5f)
+                audio.play("cannon", 0.45f, 0.75f)
+            }
+            5 -> { // Spore Sovereign bloom
+                enemy.health = min(enemy.maxHealth, enemy.health + enemy.maxHealth * 0.04f)
+                repeat(min(4, 2 + enemy.bossTier / 2)) {
+                    val minion = Enemy(nextEnemyId++, EnemyKind.MYCELIAL, enemy.healthScale * 0.14f, min(1.4f, enemy.speedScale * 1.1f), 0.4f, splitDepth = 1)
+                    minion.progress = max(0f, enemy.progress - it * 0.22f)
+                    updateEnemyPosition(minion)
+                    pendingSpawns.add(minion)
+                }
+                enemies.filter { it.targetable && it !== enemy && distanceSquared(it.x, it.y, enemy.x, enemy.y) <= 5.5f }.forEach {
+                    it.health = min(it.maxHealth, it.health + it.maxHealth * 0.06f)
+                }
+                floatingLabels.add(FloatingLabel("BLOOM", enemy.x, enemy.y - 0.3f, enemy.kind.color, pop = 1.35f))
+                burst(enemy.x, enemy.y, enemy.kind.color, 26, 1.4f)
+                audio.play("build", 0.4f, 0.65f)
+            }
         }
+        enemy.windupKind = 0
+        enemy.windupTimer = 0f
     }
 
     private fun spawnEnemy(spec: SpawnSpec) {
@@ -712,6 +822,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val enemy = Enemy(nextEnemyId++, spec.kind, spec.healthScale, spec.speedScale * challengeSpeed, spec.rewardScale, spec.bossTier, spec.splitDepth)
         updateEnemyPosition(enemy)
         enemies.add(enemy)
+        // F2 banner sting on named elite/boss spawn
+        if (spec.kind.boss) {
+            setBanner(spec.kind.title.toUpperCase() + "  TIER ${max(1, spec.bossTier)}", 2.6f)
+            audio.play("wave", 0.55f, 0.72f)
+            burst(enemy.x, enemy.y, spec.kind.color, 16, 1.1f)
+        } else if (spec.kind.elite && (spec.kind == EnemyKind.GRAVE_MENDER || spec.kind == EnemyKind.PYRE_WIGHT || spec.kind == EnemyKind.THORNBACK)) {
+            setBanner("ELITE  ${spec.kind.title.toUpperCase()}", 1.6f)
+            burst(enemy.x, enemy.y, spec.kind.color, 10, 0.8f)
+        }
     }
 
     private fun updateEnemyPosition(enemy: Enemy) {
@@ -735,7 +854,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val maxTriggers = 1 + perkCount(ForgePerk.DOUBLE_TRIGGER) + if (beaconRelay) 1 else 0
             val triggers = enemy.trapTriggerCounts[trap.id] ?: 0
             if (triggers >= maxTriggers) continue
+            // F1 Sapper: after 2 trap hits this life, skip further traps
+            if (enemy.kind == EnemyKind.SAPPER && enemy.sapperTraps >= 2) continue
             enemy.trapTriggerCounts[trap.id] = triggers + 1
+            if (enemy.kind == EnemyKind.SAPPER) enemy.sapperTraps += 1
             trap.activationCount += 1
             trap.pulse = 1f
             var damage = effectiveTrapDamage(trap)
@@ -976,10 +1098,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         var armor = enemy.kind.armor
         if (enemy.armoredTimer > 0f) armor += 0.24f
         if (challengeModifier == ChallengeModifier.ARMORED_HORDE) armor += 0.15f
-        armor = min(0.82f, armor) * (1f - armorPierce)
+        // F1 Thornback: extra armor while pulse is active
+        if (enemy.kind == EnemyKind.THORNBACK && enemy.thornArmorTimer > 0f) armor += 0.22f
+        armor = min(0.88f, armor) * (1f - armorPierce)
         val actual = max(0.5f, amount * (1f - armor))
         enemy.health -= actual
         enemy.flashTimer = if (enemy.kind.boss) 0.18f else 0.14f
+        if (enemy.kind == EnemyKind.THORNBACK && enemy.health > 0f) enemy.thornArmorTimer = max(enemy.thornArmorTimer, 1.1f)
         if (showLabel && random.nextFloat() < 0.22f) floatingLabels.add(FloatingLabel(actual.toInt().toString(), enemy.x, enemy.y - 0.25f, effectColor, 0.7f))
         if (enemy.health > 0f) return
         beginEnemyDeath(enemy)
@@ -1014,6 +1139,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     child.progress = max(0f, enemy.progress - it * 0.12f)
                     updateEnemyPosition(child)
                     pendingSpawns.add(child)
+                }
+            }
+            // F1 Mycelial: death heal nearby allies
+            if (enemy.kind == EnemyKind.MYCELIAL) {
+                for (ally in enemies) {
+                    if (!ally.targetable || ally === enemy) continue
+                    if (distanceSquared(ally.x, ally.y, enemy.x, enemy.y) <= 4.0f) {
+                        ally.health = min(ally.maxHealth, ally.health + ally.maxHealth * 0.08f)
+                    }
+                }
+                burst(enemy.x, enemy.y, enemy.kind.color, 14, 0.9f)
+            }
+            // F1 Carrion Hulk: death hex nearest tower
+            if (enemy.kind == EnemyKind.CARRION_HULK) {
+                val target = towers.filter { it.disabledTimer <= 0f }.minBy { distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) }
+                if (target != null && distanceSquared(target.col + 0.5f, target.row + 0.5f, enemy.x, enemy.y) <= 9f) {
+                    applyTowerHex(target, (if (hasHarmonyNear(target)) 0.9f else 2.0f) * if (target.imbuement == Imbuement.CLARITY) 0.25f else 1f)
+                    floatingLabels.add(FloatingLabel("HEXED", target.col + 0.5f, target.row + 0.35f, enemy.kind.color))
                 }
             }
         }
@@ -1217,7 +1360,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedCorruption = null
         phase = GamePhase.WAVE
         val message = when {
-            waveNumber % 10 == 0 -> "MUTATED OVERGROWTH  TIER ${waveNumber / 10}"
+            waveNumber % 10 == 0 -> {
+                val tier = waveNumber / 10
+                val bossName = when {
+                    waveNumber % 30 == 0 -> "MUTATED OVERGROWTH"
+                    tier % 3 == 1 -> "IRON MONARCH"
+                    tier % 3 == 2 -> "SPORE SOVEREIGN"
+                    else -> "MUTATED OVERGROWTH"
+                }
+                "$bossName  TIER $tier"
+            }
             waveNumber % 5 == 0 -> "ELITE SIGNAL  $waveTheme"
             else -> "WAVE $waveNumber  $waveTheme"
         }
@@ -1293,7 +1445,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         if (wave % 8 == 5 && wave % 5 != 0) waveQueue.add(min(waveQueue.size, waveQueue.size * 2 / 3), SpawnSpec(EnemyKind.HEX_WEAVER, healthScale * 0.34f, speedScale, rewardScale * 0.55f))
         if (wave % 5 == 0) {
-            val elites = arrayOf(EnemyKind.IRONHIDE, EnemyKind.BLINK_STALKER, EnemyKind.ROOTCALLER, EnemyKind.HEX_WEAVER, EnemyKind.SIEGE_COLOSSUS, EnemyKind.THORNBACK)
+            val elites = arrayOf(
+                EnemyKind.IRONHIDE, EnemyKind.BLINK_STALKER, EnemyKind.ROOTCALLER, EnemyKind.HEX_WEAVER,
+                EnemyKind.SIEGE_COLOSSUS, EnemyKind.THORNBACK, EnemyKind.GRAVE_MENDER, EnemyKind.PYRE_WIGHT
+            )
             val eliteKind = elites[((wave / 5) - 1 + seedOffset) % elites.size]
             val insertAt = min(waveQueue.size, waveQueue.size * 2 / 3)
             waveQueue.add(insertAt, SpawnSpec(eliteKind, healthScale * 0.72f, speedScale, rewardScale * 1.1f))
@@ -1301,7 +1456,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         if (wave % 10 == 0) {
             val tier = wave / 10
-            waveQueue.add(SpawnSpec(EnemyKind.OVERGROWTH, healthScale * (0.78f + min(1.2f, tier * 0.05f)), min(1.28f, speedScale), rewardScale * 1.3f, tier))
+            // F2: rotate named bosses; Overgrowth remains the signature every 30
+            val bossKind = when {
+                wave % 30 == 0 -> EnemyKind.OVERGROWTH
+                tier % 3 == 1 -> EnemyKind.IRON_MONARCH
+                tier % 3 == 2 -> EnemyKind.SPORE_SOVEREIGN
+                else -> EnemyKind.OVERGROWTH
+            }
+            waveQueue.add(SpawnSpec(bossKind, healthScale * (0.78f + min(1.2f, tier * 0.05f)), min(1.28f, speedScale), rewardScale * 1.3f, tier))
         }
         val broodCount = corruptions.count { it.kind == CorruptionKind.BROOD_NEST }
         repeat(min(18, broodCount)) { waveQueue.add(min(waveQueue.size, 2 + it), SpawnSpec(EnemyKind.SPLITLING, healthScale * 0.28f, speedScale * 1.12f, rewardScale * 0.25f, splitDepth = 1)) }
@@ -1314,7 +1476,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val level = surveyor?.let { utilityPowerLevel(it) } ?: if (surveyLensWaves > 0) 2 else 0
         val theme = when (wave % 8) { 1 -> "SWARM"; 2 -> "RUSH"; 3 -> "ARMORED"; 4 -> "REGEN"; 5 -> "SABOTAGE"; 6 -> "SIEGE"; 7 -> "SPLIT"; else -> "MIXED" }
         val count = min(34, 6 + wave / 2) + if (wave % 8 == 1) 8 else 0
-        val threat = when { wave % 10 == 0 -> "OVERGROWTH T${wave / 10}"; wave % 5 == 0 -> "ELITE SIGNAL"; else -> "NO ELITE" }
+        val threat = when {
+            wave % 10 == 0 -> {
+                val tier = wave / 10
+                when {
+                    wave % 30 == 0 -> "OVERGROWTH T$tier"
+                    tier % 3 == 1 -> "IRON MONARCH T$tier"
+                    tier % 3 == 2 -> "SPORE SOVEREIGN T$tier"
+                    else -> "OVERGROWTH T$tier"
+                }
+            }
+            wave % 5 == 0 -> "ELITE SIGNAL"
+            else -> "NO ELITE"
+        }
         return when (level) { 1 -> "SURVEY • WAVE $wave $theme"; 2 -> "SURVEY • WAVE $wave $theme • ~$count HOSTILES"; else -> "SURVEY • WAVE $wave $theme • ~$count • $threat" }
     }
 
@@ -3585,14 +3759,25 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             paint.color = Color.argb(90, 255, 255, 255)
             canvas.drawCircle(x, y, size * 0.48f, paint)
         }
-        // Boss ability windup tell: ring pulse when ability is about to fire
-        if (!dying && enemy.kind.boss && enemy.abilityTimer in 0f..0.85f) {
-            val wind = 1f - (enemy.abilityTimer / 0.85f)
-            strokePaint.strokeWidth = max(2f, tileSize * 0.04f)
-            strokePaint.color = Color.argb((80 + wind * 140).toInt(), 255, 120, 90)
-            canvas.drawCircle(x, y, size * (0.55f + wind * 0.35f), strokePaint)
-            paint.color = Color.argb((40 + wind * 50).toInt(), 255, 90, 70)
-            canvas.drawCircle(x, y, size * (0.40f + wind * 0.15f), paint)
+        // F2 wind-up tell ring (elites + bosses while charging an ability)
+        if (!dying && enemy.windupTimer > 0f) {
+            val windMax = when (enemy.windupKind) {
+                1 -> 1.15f; 2 -> 0.95f; 3 -> 1.25f; 4 -> 1.45f; 5 -> 1.35f; else -> 1.2f
+            }
+            val wind = 1f - (enemy.windupTimer / windMax).coerceIn(0f, 1f)
+            val tellColor = enemy.kind.color
+            strokePaint.strokeWidth = max(2f, tileSize * (if (enemy.kind.boss) 0.05f else 0.035f))
+            strokePaint.color = Color.argb((90 + wind * 150).toInt(), Color.red(tellColor), Color.green(tellColor), Color.blue(tellColor))
+            canvas.drawCircle(x, y, size * (0.52f + wind * 0.40f), strokePaint)
+            paint.color = Color.argb((35 + wind * 55).toInt(), Color.red(tellColor), Color.green(tellColor), Color.blue(tellColor))
+            canvas.drawCircle(x, y, size * (0.38f + wind * 0.18f), paint)
+            if (enemy.kind.boss) {
+                strokePaint.color = Color.argb((70 + wind * 100).toInt(), 255, 207, 90)
+                canvas.drawCircle(x, y, size * (0.62f + wind * 0.22f), strokePaint)
+            }
+        } else if (!dying && enemy.pyreTrailTimer > 0f) {
+            paint.color = Color.argb((50 + (sin(ambientTime * 8f) * 0.5f + 0.5f) * 40).toInt().coerceIn(0, 255), 255, 100, 40)
+            canvas.drawCircle(x, y, size * 0.48f, paint)
         }
         spritePaint.alpha = 255
         if (!dying && (enemy.slowTimer > 0f || enemy.stunTimer > 0f)) {

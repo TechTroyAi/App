@@ -107,7 +107,7 @@ The historical baseline unsigned Forgeworks hash above (`a429a231…`) records t
 - Board **16x9**, gate/core on row **4**
 - Pinch zoom + drag pan; top/bottom chrome fixed
 - Starting blocks **420**, max path **64**
-- Installable SHA-256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
+- Installable SHA-256: `c7c05ff6037f49d4b99b892fca5e4cc393c96a7452739b91814dbe5dfb1da216`
 - Notes: `artwork/style-production/batch-22-wide-hold-f0/`
 
 ## 1.4 F1 New blood

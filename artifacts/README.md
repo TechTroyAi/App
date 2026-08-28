@@ -2,17 +2,17 @@
 
 ## Download this one (installable v1.2)
 
-**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload with 1.3 + C1 + F0 Wide Hold + **F1 New blood**.
+**`Blockhold-Defense-v1.2-installable.apk`** — signed sideload with 1.3 + C1 + F0 Wide Hold + F1 New blood + **F2 Named threats**.
 
 - Package: `ai.techtroy.blockhold`
-- Version: `1.2.0` (`12`) — 1.3 + C1 + F0 + F1 New blood
+- Version: `1.2.0` (`12`) — 1.3 + C1 + F0 + F1 + F2 Named threats
 - Minimum Android: 7.0 / API 24
 - Target Android API: 35
 - Orientation: landscape
 - Permissions requested: none
 - Offline: yes
 - Size: ~2.5 MB
-- APK SHA-256: `dbd84c27fe557b936f03c0c942c9d769338d24ecd5658e5cc78fa6a90afbc26f`
+- APK SHA-256: `c7c05ff6037f49d4b99b892fca5e4cc393c96a7452739b91814dbe5dfb1da216`
 - Multi-frame strips: **40** (35 prior + 5 impacts: bolt/frost/cannon/ember/beacon)
 - Signing: APK Signature Scheme **v2 + v3** (verified with `apksigner`)
 - Signing identity: `CN=Blockhold Defense Debug, OU=Sideload, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
@@ -26,11 +26,18 @@
 
 **Note:** This uses a **sideload/debug key**, not the permanent v1.0 production release key (which is not present in this workspace). If you already have production `ai.techtroy.blockhold` installed from the v1.0 release APK, uninstall that first — Android will reject an update signed with a different key.
 
+## F2 Named threats (this build)
+
+- Elites: **Grave Mender**, **Pyre Wight**
+- Bosses: **Iron Monarch**, **Spore Sovereign** (plus Overgrowth)
+- Wind-up tells + banner stings on ability charge / spawn
+- Alias also at `Blockhold-Defense-v1.2-f2-installable.apk`
+
 ## v1.2 Forgeworks signing input
 
 `Blockhold-Defense-v1.2-unsigned.apk` is the rebuilt v1.2 Forgeworks + 1.3 content payload before signing (from the latest apktool rebuild).
 
-- APK SHA-256: `d5106d4e8c989360dcb90601a47508d6fe1b0aa54133c9d80f8f409f564d2f98`
+- APK SHA-256: `ca4356610999b284103674c166ed65d3bcf2981684cc7a17bb0650c11c399b47`
 - Signing state: **unsigned** (cannot install until signed)
 
 For a production update compatible with existing v1.0 installs, re-sign the unsigned APK with the permanent Blockhold Defense key. See `docs/VERIFICATION.md` and `docs/SIGNING.md`.

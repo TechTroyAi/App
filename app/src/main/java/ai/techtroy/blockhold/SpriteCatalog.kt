@@ -37,7 +37,11 @@ internal class SpriteCatalog(private val context: Context) {
         EnemyKind.HEX_WEAVER to loadStrip("enemy_hex"),
         EnemyKind.SIEGE_COLOSSUS to loadStrip("enemy_siege"),
         EnemyKind.THORNBACK to loadStrip("enemy_thornback"),
-        EnemyKind.OVERGROWTH to loadStrip("enemy_overgrowth")
+        EnemyKind.OVERGROWTH to loadStrip("enemy_overgrowth"),
+        EnemyKind.GRAVE_MENDER to loadStrip("enemy_grave_mender"),
+        EnemyKind.PYRE_WIGHT to loadStrip("enemy_pyre_wight"),
+        EnemyKind.IRON_MONARCH to loadStrip("enemy_iron_monarch"),
+        EnemyKind.SPORE_SOVEREIGN to loadStrip("enemy_spore_sovereign")
     )
 
     val towerBase = load("tower_bolt_base")

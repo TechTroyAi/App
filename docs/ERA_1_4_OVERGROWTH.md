@@ -40,6 +40,7 @@ The hold grows: wider board, denser threats, deeper forge workshop (crafts, ench
 **Shipped:** Sapper, Mycelial, Needlefly, Gloomkin, Carrion Hulk + elite **Thornback**; wave themes mix the new blood.
 
 ### F2 — Named threats
+**Shipped:** elites **Grave Mender**, **Pyre Wight**; bosses **Iron Monarch**, **Spore Sovereign** with wind-up tells + banner stings; boss rotation on wave%10 (Overgrowth every 30).
 +2 elites, +1–2 bosses with wind-up tells; banner sting.
 
 ### F3 — Toolkit
