@@ -101,6 +101,39 @@ def trap_strip(base_sprite: Path, destination: Path) -> Path:
     return build_strip(frames, destination)
 
 
+def keyframe_strip(sources: list[Path], destination: Path, scratch: Path) -> Path:
+    """Assemble hand-rendered keyframes into one strip.
+
+    Each frame is isolated independently, so a shared bounding box is applied
+    afterwards: without it the per-frame auto-crop makes a static floor plate
+    jitter and breathe between frames.
+    """
+    scratch.mkdir(parents=True, exist_ok=True)
+    cleaned = []
+    for index, source in enumerate(sources):
+        staged = scratch / f"{destination.stem}_f{index}.png"
+        clean(source, staged)
+        cleaned.append(Image.open(staged).convert("RGBA"))
+
+    boxes = [image.getchannel("A").getbbox() for image in cleaned]
+    left = min(box[0] for box in boxes)
+    top = min(box[1] for box in boxes)
+    right = max(box[2] for box in boxes)
+    bottom = max(box[3] for box in boxes)
+
+    frames = []
+    for image in cleaned:
+        crop = image.crop((left, top, right, bottom))
+        scale = min(FRAME / crop.width, FRAME / crop.height)
+        width = max(1, round(crop.width * scale))
+        height = max(1, round(crop.height * scale))
+        body = crop.resize((width, height), Image.Resampling.LANCZOS)
+        canvas = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+        canvas.alpha_composite(body, ((FRAME - width) // 2, (FRAME - height) // 2))
+        frames.append(canvas)
+    return build_strip(frames, destination)
+
+
 def publish(staged: Path, name: str) -> Path:
     target = DRAWABLE / name
     Image.open(staged).convert("RGBA").save(target, optimize=True)
