@@ -134,6 +134,21 @@ def keyframe_strip(sources: list[Path], destination: Path, scratch: Path) -> Pat
     return build_strip(frames, destination)
 
 
+def idle_strip(base_sprite: Path, destination: Path) -> Path:
+    """Standing-structure idle cycle: a soft breathing glow, no positional shift.
+
+    Buildings must not slide sideways like a recoiling turret, so this keeps the
+    footprint fixed and only varies brightness and a hair of scale.
+    """
+    art = Image.open(base_sprite).convert("RGBA")
+    frames = [
+        _scaled(art, 1.0),
+        _tint(_scaled(art, 1.01), 1.10),
+        _tint(_scaled(art, 1.0), 1.18),
+    ]
+    return build_strip(frames, destination)
+
+
 def publish(staged: Path, name: str) -> Path:
     target = DRAWABLE / name
     Image.open(staged).convert("RGBA").save(target, optimize=True)
