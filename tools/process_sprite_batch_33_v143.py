@@ -90,6 +90,17 @@ def burst_strip(base_sprite: Path, destination: Path) -> Path:
     return build_strip(frames, destination)
 
 
+def trap_strip(base_sprite: Path, destination: Path) -> Path:
+    """Floor-trap cycle: armed and idle, charging, triggered flash."""
+    art = Image.open(base_sprite).convert("RGBA")
+    frames = [
+        _scaled(art, 1.0),
+        _tint(_scaled(art, 1.01), 1.12),
+        _tint(_scaled(art, 1.04), 1.28),
+    ]
+    return build_strip(frames, destination)
+
+
 def publish(staged: Path, name: str) -> Path:
     target = DRAWABLE / name
     Image.open(staged).convert("RGBA").save(target, optimize=True)
