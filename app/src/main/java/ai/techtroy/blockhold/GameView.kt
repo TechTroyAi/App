@@ -92,6 +92,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private var phase = GamePhase.TITLE
     private var phaseBeforePause = GamePhase.BUILD
+    /** Phase to return to when a mid-run overlay (workshop / evolution draft) closes. */
+    private var phaseBeforeOverlay = GamePhase.BUILD
     private var selectedTool = BuildTool.DIG
     private var selectedTower: Tower? = null
     private var selectedTrap: SpikeTrap? = null
@@ -179,6 +181,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var seedInputReplaceOnNextInput = false
     private var seedComposingText = ""
     private var feedbackEnabled = prefBoolean("feedback_enabled", true)
+    /** 1.4.3 pause-menu toggle: when off, cleared waves wait for a manual START. */
+    private var autoNextWave = prefBoolean("auto_next_wave", true)
     private var pathComplete = false
     private var ambientTime = 0f
     private var bannerText = ""
@@ -226,7 +230,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val resetPathRect = RectF()
     private val pauseRect = RectF()
     private val soundRect = RectF()
-    private val feedbackToggleRect = RectF()
+    private val pauseFeedbackRect = RectF()
+    private val pauseAutoWaveRect = RectF()
     private val titlePlayRect = RectF()
     private val titleContinueRect = RectF()
     private val titleChallengeRect = RectF()
@@ -449,7 +454,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val bottom = topBarHeight - dp(7f)
         pauseRect.set(viewWidth - dp(8f) - smallButton, top, viewWidth - dp(8f), bottom)
         soundRect.set(pauseRect.left - dp(7f) - smallButton, top, pauseRect.left - dp(7f), bottom)
-        feedbackToggleRect.set(soundRect.left - dp(7f) - smallButton, top, soundRect.left - dp(7f), bottom)
+        // 1.4.3: the TXT toggle moved to the pause menu; the primary action button, which always
+        // spanned this slot but was partly overdrawn by TXT, now shows in full.
         val actionWidth = min(dp(130f), viewWidth * 0.17f)
         primaryActionRect.set(soundRect.left - dp(8f) - actionWidth, top, soundRect.left - dp(8f), bottom)
         val resetWidth = min(dp(96f), viewWidth * 0.13f)
@@ -496,6 +502,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val endButtonHeight = min(dp(58f), viewHeight * 0.13f)
         endPrimaryRect.set(viewWidth * 0.5f - endButtonWidth - dp(6f), viewHeight * 0.70f, viewWidth * 0.5f - dp(6f), viewHeight * 0.70f + endButtonHeight)
         endSecondaryRect.set(viewWidth * 0.5f + dp(6f), viewHeight * 0.70f, viewWidth * 0.5f + endButtonWidth + dp(6f), viewHeight * 0.70f + endButtonHeight)
+
+        // 1.4.3 pause-menu setting toggles, row above RESUME / MAIN MENU.
+        val pauseToggleWidth = min(dp(230f), viewWidth * 0.34f)
+        val pauseToggleHeight = min(dp(46f), viewHeight * 0.09f)
+        val pauseToggleTop = viewHeight * 0.575f
+        pauseFeedbackRect.set(viewWidth * 0.5f - pauseToggleWidth - dp(6f), pauseToggleTop, viewWidth * 0.5f - dp(6f), pauseToggleTop + pauseToggleHeight)
+        pauseAutoWaveRect.set(viewWidth * 0.5f + dp(6f), pauseToggleTop, viewWidth * 0.5f + pauseToggleWidth + dp(6f), pauseToggleTop + pauseToggleHeight)
     }
 
     private fun computeOverlayRects() {
@@ -1879,8 +1892,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             saveRun()
         } else {
             phase = GamePhase.BUILD
-            nextWaveTimer = AUTO_NEXT_WAVE_DELAY
-            setBanner("WAVE $lastClearedWave CLEARED  •  NEXT WAVE IN 10S", 2.8f)
+            if (autoNextWave) {
+                nextWaveTimer = AUTO_NEXT_WAVE_DELAY
+                setBanner("WAVE $lastClearedWave CLEARED  •  NEXT WAVE IN 10S", 2.8f)
+            } else {
+                nextWaveTimer = -1f
+                setBanner("WAVE $lastClearedWave CLEARED  •  START NEXT WAVE WHEN READY", 2.8f)
+            }
             saveRun()
         }
     }
@@ -1988,8 +2006,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("WAVE $draftWave REWARD READY  •  CHOOSE YOUR FORGE PERK", 2.8f)
         } else {
             phase = GamePhase.BUILD
-            nextWaveTimer = AUTO_NEXT_WAVE_DELAY
-            setBanner("FORGE PERK  ${perk.title.uppercase()}  •  NEXT WAVE IN 10S", 2.8f)
+            if (autoNextWave) {
+                nextWaveTimer = AUTO_NEXT_WAVE_DELAY
+                setBanner("FORGE PERK  ${perk.title.uppercase()}  •  NEXT WAVE IN 10S", 2.8f)
+            } else {
+                nextWaveTimer = -1f
+                setBanner("FORGE PERK  ${perk.title.uppercase()}  •  START NEXT WAVE WHEN READY", 2.8f)
+            }
         }
         saveRun()
         audio.play("build", 0.60f, 1.22f)
@@ -2945,7 +2968,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
             if (phase == GamePhase.PAUSED) {
                 if (event.action == MotionEvent.ACTION_UP) {
-                    if (endPrimaryRect.contains(x, y)) resumeGame() else if (endSecondaryRect.contains(x, y)) returnToTitle()
+                    when {
+                        endPrimaryRect.contains(x, y) -> resumeGame()
+                        endSecondaryRect.contains(x, y) -> returnToTitle()
+                        pauseFeedbackRect.contains(x, y) -> {
+                            feedbackEnabled = !feedbackEnabled
+                            preferences.edit().putBoolean("feedback_enabled", feedbackEnabled).apply()
+                            audio.play("ui_click", 0.3f, 0.95f)
+                        }
+                        pauseAutoWaveRect.contains(x, y) -> {
+                            autoNextWave = !autoNextWave
+                            preferences.edit().putBoolean("auto_next_wave", autoNextWave).apply()
+                            audio.play("ui_click", 0.3f, if (autoNextWave) 1.1f else 0.9f)
+                        }
+                    }
                 }
                 return true
             }
@@ -2968,12 +3004,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     audio.toggle()
                     return true
                 }
-                if (feedbackToggleRect.contains(x, y)) {
-                    feedbackEnabled = !feedbackEnabled
-                    preferences.edit().putBoolean("feedback_enabled", feedbackEnabled).apply()
-                    if (feedbackEnabled) setBanner("FEEDBACK TEXT ON", 1.4f) else bannerTimer = 0f
-                    return true
-                }
                 if (resetPathRect.contains(x, y)) {
                     if (phase == GamePhase.REFORGE) cancelReforge()
                     else if (phase == GamePhase.BUILD && waveNumber == 0) resetPath()
@@ -2991,7 +3021,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
             }
 
-            if ((selectedTower != null || selectedTrap != null || selectedUtility != null || selectedCorruption != null) && phase == GamePhase.BUILD && event.action == MotionEvent.ACTION_UP) {
+            // 1.4.3: upgrading / storing / recycling / imbuing stays available mid-wave.
+            if ((selectedTower != null || selectedTrap != null || selectedUtility != null || selectedCorruption != null) && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) && event.action == MotionEvent.ACTION_UP) {
                 if (backRect.contains(x, y)) {
                     selectedTower = null
                     selectedTrap = null
@@ -3027,7 +3058,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
             }
 
-            if (phase == GamePhase.BUILD && event.action == MotionEvent.ACTION_UP) {
+            // 1.4.3: build menus (pages, tools, utility + cache cards) stay interactive mid-wave.
+            if ((phase == GamePhase.BUILD || phase == GamePhase.WAVE) && event.action == MotionEvent.ACTION_UP) {
                 if (towerPageRect.contains(x, y)) {
                     if (challengeModifier == ChallengeModifier.TRAPS_ONLY) {
                         setBanner("TRAPS ONLY CHALLENGE", 1.4f)
@@ -3122,7 +3154,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun selectTool(tool: BuildTool) {
-        if (phase != GamePhase.BUILD) return
+        if (phase != GamePhase.BUILD && phase != GamePhase.WAVE) return
         if (challengeModifier == ChallengeModifier.TRAPS_ONLY && tool.ordinal < BuildTool.SPIKES.ordinal) return
         if (challengeModifier == ChallengeModifier.TOWERS_ONLY && tool.ordinal >= BuildTool.SPIKES.ordinal) return
         clearBuildSelections()
@@ -3183,7 +3215,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun handleGridTap(cell: GridCell) {
         val existingCorruption = findCorruption(cell.col, cell.row)
-        if (existingCorruption != null && phase == GamePhase.BUILD) {
+        if (existingCorruption != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE)) {
             selectedCorruption = existingCorruption
             selectedTower = null
             selectedTrap = null
@@ -3222,7 +3254,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("${existingTrap.kind.title.uppercase()}  •  ${existingTrap.kind.description}", 2.8f)
             return
         }
-        if (phase != GamePhase.BUILD) return
+        // 1.4.3: placing towers / traps / utilities is allowed while a wave is live.
+        if (phase != GamePhase.BUILD && phase != GamePhase.WAVE) return
         selectedTower = null
         selectedTrap = null
         selectedUtility = null
@@ -3490,6 +3523,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun openWorkshop() {
         if (workshopLevel() <= 0) return
+        phaseBeforeOverlay = phase
         phase = GamePhase.WORKSHOP
         workshopTab = WorkshopTab.CRAFT
         workshopPageIndex = 0
@@ -3497,12 +3531,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun closeWorkshop() {
-        phase = GamePhase.BUILD
+        // 1.4.3: the workshop can now be opened mid-wave; return to whichever phase opened it.
+        val resumePhase = if (phaseBeforeOverlay == GamePhase.WAVE) GamePhase.WAVE else GamePhase.BUILD
+        phase = resumePhase
         imbuementTower = null
         imbuementTrap = null
         imbuementUtility = null
         setBanner("FORGEWORKS CLOSED", 1.2f)
-        saveRun()
+        if (resumePhase == GamePhase.BUILD && pathComplete) saveRun()
     }
 
     private fun craftItem(item: CraftedItem) {
@@ -3659,6 +3695,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         imbuementTower = tower
         imbuementTrap = trap
         imbuementUtility = utility
+        phaseBeforeOverlay = phase
         phase = GamePhase.WORKSHOP
         workshopTab = WorkshopTab.IMBUE
         workshopPageIndex = 0
@@ -3930,6 +3967,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun openEvolutionDraft(tower: Tower) {
         if (!tower.canEvolve() || evolutionCores <= 0) return
         evolutionTower = tower
+        phaseBeforeOverlay = phase
         phase = GamePhase.EVOLUTION_DRAFT
         audio.play("build", 0.5f, 0.78f)
     }
@@ -3942,7 +3980,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         evolutionCores -= 1
         evolutionTower = null
         selectedTower = tower
-        phase = GamePhase.BUILD
+        // 1.4.3: evolving mid-wave drops the player back into the live wave.
+        phase = if (phaseBeforeOverlay == GamePhase.WAVE) GamePhase.WAVE else GamePhase.BUILD
         tower.evolveFlash = 1f
         tower.evolveAura = 2.4f
         tower.evolveProof = 2.2f
@@ -5060,7 +5099,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         drawTopButton(canvas, primaryActionRect, actionLabel, if (canStart) Color.rgb(190, 244, 78) else Color.rgb(31, 44, 35), if (canStart) Color.rgb(13, 22, 17) else Color.rgb(104, 123, 110), canStart)
         drawTopButton(canvas, soundRect, if (audio.isEnabled()) "SFX" else "OFF", Color.rgb(31, 44, 35), Color.WHITE, true)
-        drawTopButton(canvas, feedbackToggleRect, if (feedbackEnabled) "TXT" else "OFF", Color.rgb(31, 44, 35), if (feedbackEnabled) Color.rgb(190, 244, 78) else Color.rgb(104, 123, 110), true)
         drawTopButton(canvas, pauseRect, "II", Color.rgb(31, 44, 35), Color.WHITE, true)
     }
 
@@ -5105,9 +5143,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         canvas.drawRect(0f, top, viewWidth, top + max(1f, dp(1f)), paint)
         when {
             phase == GamePhase.DIG || phase == GamePhase.REFORGE -> drawPathForgePanel(canvas)
-            selectedCorruption != null && phase == GamePhase.BUILD -> drawCorruptionPanel(canvas)
-            selectedUtility != null && phase == GamePhase.BUILD -> drawUtilityPanel(canvas)
-            (selectedTower != null || selectedTrap != null) && phase == GamePhase.BUILD -> drawDefensePanel(canvas)
+            selectedCorruption != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawCorruptionPanel(canvas)
+            selectedUtility != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawUtilityPanel(canvas)
+            (selectedTower != null || selectedTrap != null) && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawDefensePanel(canvas)
             else -> drawToolBar(canvas)
         }
     }
@@ -5434,6 +5472,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, "RUN PAUSED", viewWidth * 0.5f, viewHeight * 0.34f, min(dp(43f), viewHeight * 0.10f), Color.WHITE, true, true)
         val note = if (phaseBeforePause == GamePhase.WAVE) "RESUME THIS WAVE  •  MENU RETURNS TO LAST CHECKPOINT" else "PATH, DEFENSES, SCORE, AND WAVE ARE SAVED"
         drawCenteredText(canvas, note, viewWidth * 0.5f, viewHeight * 0.44f, dp(11f), Color.rgb(153, 171, 159), true)
+        // 1.4.3 settings row: battle text toggle (moved here from the top bar) + auto next wave.
+        drawTopButton(canvas, pauseFeedbackRect, if (feedbackEnabled) "BATTLE TEXT ON" else "BATTLE TEXT OFF", Color.rgb(31, 44, 35), if (feedbackEnabled) Color.rgb(190, 244, 78) else Color.rgb(104, 123, 110), true)
+        drawTopButton(canvas, pauseAutoWaveRect, if (autoNextWave) "AUTO WAVE ON" else "AUTO WAVE OFF", Color.rgb(31, 44, 35), if (autoNextWave) Color.rgb(190, 244, 78) else Color.rgb(104, 123, 110), true)
         drawEndButtons(canvas, "RESUME", "MAIN MENU")
     }
 
