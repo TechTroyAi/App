@@ -4715,9 +4715,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.AEGIS_LOOM -> drawSpriteFrameCentered(canvas, sprites.aegisLoomTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
         }
         if (tower.evolution != null) {
-            strokePaint.strokeWidth = tileSize * 0.045f
-            strokePaint.color = Color.rgb(255, 215, 104)
-            canvas.drawCircle(x, y, tileSize * (0.38f + sin(ambientTime * 3f) * 0.025f), strokePaint)
+            // v1.4.3: ornate fantasy-machinery gear halo replaces the plain glowing circle.
+            val ringFrame = ((ambientTime * 6f).toInt() % sprites.evolutionRing.frameCount)
+                .coerceIn(0, sprites.evolutionRing.frameCount - 1)
+            drawSpriteFrameCentered(
+                canvas,
+                sprites.evolutionRing,
+                ringFrame,
+                x,
+                y,
+                tileSize * (0.94f + sin(ambientTime * 3f) * 0.03f),
+                ambientTime * 22f
+            )
             if (tower.evolveAura > 0.02f) {
                 val a = (tower.evolveAura / 2.4f).coerceIn(0f, 1f)
                 strokePaint.strokeWidth = tileSize * 0.03f
