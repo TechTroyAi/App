@@ -37,7 +37,9 @@ JACCARD_LIMIT = 0.85
 
 # prefix -> (kind, checks)
 def category(stem: str) -> str:
-    if stem.startswith("tower_") and stem.endswith("_turret"):
+    if stem.startswith("tower_") and (
+        stem.endswith("_turret") or stem in ("tower_ember_flame", "tower_beacon_pulse")
+    ):
         return "turret"
     if stem.startswith("tower_") and stem.endswith("_base"):
         return "base"
