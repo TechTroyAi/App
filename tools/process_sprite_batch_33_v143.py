@@ -149,6 +149,23 @@ def idle_strip(base_sprite: Path, destination: Path) -> Path:
     return build_strip(frames, destination)
 
 
+def tile(source: Path, destination: Path) -> Path:
+    """Normalise a full-bleed overlay texture to a 64px tile.
+
+    Corruption overlays cover the whole ground tile, so the flood-fill isolate
+    used for objects must be skipped here: it would treat the texture's own
+    pale pixels as backdrop and crop the tile apart.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image = Image.open(source).convert("RGBA")
+    side = min(image.width, image.height)
+    left = (image.width - side) // 2
+    top = (image.height - side) // 2
+    square = image.crop((left, top, left + side, top + side))
+    square.resize((FRAME, FRAME), Image.Resampling.LANCZOS).save(destination, optimize=True)
+    return destination
+
+
 def publish(staged: Path, name: str) -> Path:
     target = DRAWABLE / name
     Image.open(staged).convert("RGBA").save(target, optimize=True)
