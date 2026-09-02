@@ -436,3 +436,74 @@ so CI can produce release-signed builds and v1.4.3 updates in place.
 - Smoke-test checklist for first launch: manual wave stacking (**STACK WAVE**), automatic
   ten-second countdown launch, a wave-five perk, a wave-ten boss, five Block Generators
   placed and upgraded, and more than four different utilities placed in one run.
+
+---
+
+# v1.4.3 artifact — fantasy × machinery art overhaul APK
+
+Date: 2026-09-02
+Artifact: `artifacts/Blockhold-Defense-v1.4.3-installable.apk`
+SHA-256: `12cfc1db0569c3f6a6e00ce5a7d85b86e9cf5729c0b6b4d813b660bdd073f631`
+Version: `1.4.3` / `versionCode 17`
+Signed with: APK Signature Scheme **v2 + v3**, `--min-sdk-version 24`
+Certificate SHA-256: `3e:a2:30:cb:7f:ee:6b:b0:dc:38:e3:da:13:4a:85:1b:e7:5a:ae:5c:6c:45:ed:fd:f0:4f:d5:2a:35:e6:8c:fe`
+Certificate DN: `CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
+
+## Build
+
+v1.4.3 replaces **every** gameplay drawable and adds two **new** resource identifiers
+(`evolution_ring`, `status_hex`) that `SpriteCatalog` loads via `Resources.getIdentifier`.
+Because the source tree's resource set is larger than the v1.4.2 APK's, the APK cannot be
+produced by the older dex-only repackage (which reuses the base resources verbatim). The
+`resources.arsc` must be re-linked so the two new drawables are registered.
+
+The offline toolchain (no JDK / Android SDK / Google·Maven / Gradle in the sandbox) was:
+
+1. **JDK 25 (Temurin)** via the `jdk4py` PyPI wheel (JRE only). Kotlin 1.9.25's bundled
+   IntelliJ `JavaVersion` can't parse `25.0.2`, so compile with **`-no-jdk`** (the app's Java
+   types come from `android.jar`): `kotlinc -no-jdk -jvm-target 1.8 -Xlambdas=class
+   -Xsam-conversions=class -classpath android.jar -d classes/` on the five source files →
+   **68 app classes**.
+2. **`android.jar` (API 35)** from `Sable/android-platforms` via the GitHub git-blobs API
+   (its `resources.arsc` is a compile stub; usable as a `kotlinc` classpath, not as an aapt2
+   `-I`).
+3. **Dexing with `dx` 1.16**: `dx --dex --min-sdk-version=26` on app classes + extracted
+   `kotlin-stdlib` (module-info stripped) + `annotations-13.0` → **1078 classes, 6 call sites**,
+   dex format `038`.
+4. **Resource re-linking with `apktool` 2.6.0** (bundles a modern aapt2 + the Android framework,
+   auto-installed on decode): `apktool d -s` the v1.4.2 APK (keeps `classes.dex` raw), copied
+   the v1.4.3 `res/` over the decoded tree (191 drawable-nodpi PNGs incl. the two new ones),
+   bumped `apktool.yml` versionInfo to `17`/`1.4.3`, then `apktool b` → fresh `resources.arsc`
+   with `evolution_ring` and `status_hex` registered.
+5. **Alignment** via `scripts/repackage-with-dex.py` (4-byte stored entries, `classes.dex` +
+   `resources.arsc` page-aligned to 4096).
+6. **Signing** with `apksigner` 0.9 (v2 + v3). Key: freshly generated RSA 2048 (v1.4.2's key
+   lived in gitignored `build-manual/` and is **not** in this checkout).
+
+Verification:
+
+```
+verify-apk.py       All structural checks passed.
+                    (alignment, v2+v3 signing, dex 038 integrity + 1436 types resolve,
+                     manifest ai.techtroy.blockhold 1.4.3 (17) minSdk 24 / target 35,
+                     191 SpriteCatalog drawables + 13 sounds, 101 sprite strips square-framed)
+verify-dex-shape.py class_defs=1078, call_site_ids=6, MainActivity + both lambda classes
+                    present, canvas save/restore balanced — ALL DEX SHAPE CHECKS PASSED
+zipalign -c -p -v 4 Verification succesful
+```
+
+## ⚠️ Signing key — new key again (v1.4.2 key unavailable)
+
+The v1.4.2 keystore backup lived in the gitignored `build-manual/` and was **not retained in
+this checkout**, so an in-place update over v1.4.2 with the same key was impossible. v1.4.3 is
+signed with a freshly generated RSA 2048 key using the same distinguished name, certificate
+SHA-256 `3e:a2:30:cb:…`, valid 2026-09-02 → 2054-01-18. **Uninstall v1.4.2 once** before
+installing v1.4.3.
+
+This time the key was exported immediately: `build-manual/KEY_BACKUP_blockhold-release.p12.b64`
+plus `build-manual/KEY_CREDENTIALS.txt` (alias `blockhold`). Both are gitignored — move them
+into two encrypted locations outside the sandbox (password manager + repository secrets
+`BLOCKHOLD_KEYSTORE_BASE64` / `BLOCKHOLD_STORE_PASSWORD` / `BLOCKHOLD_KEY_ALIAS`) so CI can
+produce release-signed builds and v1.4.4+ updates in place. A `.signing/release.properties`
+matching the key was also written so `scripts/build-apk.sh release` can reuse it on a machine
+with the Android SDK.
