@@ -166,6 +166,27 @@ def tile(source: Path, destination: Path) -> Path:
     return destination
 
 
+def walk_strip(base_sprite: Path, destination: Path) -> Path:
+    """Enemy walk cycle.
+
+    GameView plays enemy strips as 0,1,2,1 while moving and holds frame 2 on
+    death, so frame 1 is a squashed forward stride and frame 2 is a dimmer
+    stretched pose that also reads as a collapse.
+    """
+    art = Image.open(base_sprite).convert("RGBA")
+
+    def shape(sx: float, sy: float, dx: int = 0, dy: int = 0, bright: float = 1.0) -> Image.Image:
+        width = max(1, round(FRAME * sx))
+        height = max(1, round(FRAME * sy))
+        body = art.resize((width, height), Image.Resampling.LANCZOS)
+        canvas = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+        canvas.alpha_composite(body, ((FRAME - width) // 2 + dx, (FRAME - height) // 2 + dy))
+        return _tint(canvas, bright) if bright != 1.0 else canvas
+
+    frames = [shape(1.0, 1.0), shape(1.03, 0.96, 1, 1, 1.06), shape(0.96, 1.03, -1, 0, 0.90)]
+    return build_strip(frames, destination)
+
+
 def publish(staged: Path, name: str) -> Path:
     target = DRAWABLE / name
     Image.open(staged).convert("RGBA").save(target, optimize=True)
