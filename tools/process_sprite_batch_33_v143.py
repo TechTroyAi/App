@@ -11,6 +11,7 @@ Animated strips -> 192x64 RGBA (three square frames, left to right)
 from __future__ import annotations
 
 import sys
+from collections import deque
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageEnhance
@@ -185,6 +186,71 @@ def walk_strip(base_sprite: Path, destination: Path) -> Path:
 
     frames = [shape(1.0, 1.0), shape(1.03, 0.96, 1, 1, 1.06), shape(0.96, 1.03, -1, 0, 0.90)]
     return build_strip(frames, destination)
+
+
+def clean_matched(source: Path, destination: Path, tolerance: int = 26, target: int = 58) -> Path:
+    """Isolate art whose own palette contains bright neutrals.
+
+    `clean()` strips any bright neutral pixel reachable from the border, which
+    destroys subjects that are themselves pale (white salt, bone, pale stone
+    rune rims): the fill leaks inward or aborts and leaves a grey box. This
+    instead samples the actual corner colour and removes only pixels close to
+    it, so a pale subject survives while the flat backdrop goes.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image = Image.open(source).convert("RGBA")
+    width, height = image.size
+    pixels = image.load()
+    backdrop = pixels[0, 0][:3]
+
+    def matches(pixel) -> bool:
+        return all(abs(pixel[index] - backdrop[index]) <= tolerance for index in range(3))
+
+    seen = bytearray(width * height)
+    queue: deque[tuple[int, int]] = deque()
+
+    def push(x: int, y: int) -> None:
+        index = y * width + x
+        if not seen[index] and matches(pixels[x, y]):
+            seen[index] = 1
+            queue.append((x, y))
+
+    for x in range(width):
+        push(x, 0)
+        push(x, height - 1)
+    for y in range(height):
+        push(0, y)
+        push(width - 1, y)
+
+    while queue:
+        x, y = queue.popleft()
+        if x > 0:
+            push(x - 1, y)
+        if x + 1 < width:
+            push(x + 1, y)
+        if y > 0:
+            push(x, y - 1)
+        if y + 1 < height:
+            push(x, y + 1)
+
+    for y in range(height):
+        for x in range(width):
+            if seen[y * width + x]:
+                red, green, blue, _ = pixels[x, y]
+                pixels[x, y] = (red, green, blue, 0)
+
+    bounds = image.getchannel("A").getbbox()
+    if bounds is None:
+        raise RuntimeError(f"No foreground found in {source}")
+    crop = image.crop(bounds)
+    scale = min(target / crop.width, target / crop.height)
+    body_width = max(1, round(crop.width * scale))
+    body_height = max(1, round(crop.height * scale))
+    body = crop.resize((body_width, body_height), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (FRAME, FRAME), (0, 0, 0, 0))
+    canvas.alpha_composite(body, ((FRAME - body_width) // 2, (FRAME - body_height) // 2))
+    canvas.save(destination, optimize=True)
+    return destination
 
 
 def publish(staged: Path, name: str) -> Path:
