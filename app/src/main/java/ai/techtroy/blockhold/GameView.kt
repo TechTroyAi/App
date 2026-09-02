@@ -31,6 +31,9 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/** Identifies the currently held title control so sprite buttons visibly depress on touch. */
+private enum class TitleMenuAction { NONE, PLAY, CONTINUE, CHALLENGE, SOUND }
+
 internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
     companion object {
@@ -192,6 +195,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var lastDisplayedGold = -1
     private var lastDisplayedForge = -1
     private var savedRunAvailable = prefBoolean("has_saved_run", false)
+    private var titlePressedAction = TitleMenuAction.NONE
 
     private var viewWidth = 1f
     private var viewHeight = 1f
@@ -227,6 +231,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val pauseRect = RectF()
     private val soundRect = RectF()
     private val feedbackToggleRect = RectF()
+    private val titlePanelRect = RectF()
     private val titlePlayRect = RectF()
     private val titleContinueRect = RectF()
     private val titleChallengeRect = RectF()
@@ -482,13 +487,43 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         imbueRect.set(actionLeft, storeRect.bottom + panelGap * 0.5f, panelLeft + panelWidth, storeRect.bottom + panelGap * 0.5f + actionHeight)
         sellRect.set(actionLeft, imbueRect.bottom + panelGap * 0.5f, panelLeft + panelWidth, panelBottom)
 
-        val titleButtonWidth = min(dp(230f), viewWidth * 0.34f)
-        val titleButtonHeight = min(dp(60f), viewHeight * 0.13f)
-        titlePlayRect.set(viewWidth * 0.5f - titleButtonWidth - dp(6f), viewHeight * 0.68f, viewWidth * 0.5f - dp(6f), viewHeight * 0.68f + titleButtonHeight)
-        titleContinueRect.set(viewWidth * 0.5f + dp(6f), viewHeight * 0.68f, viewWidth * 0.5f + titleButtonWidth + dp(6f), viewHeight * 0.68f + titleButtonHeight)
-        val challengeHeight = min(dp(39f), viewHeight * 0.085f)
-        titleChallengeRect.set(viewWidth * 0.5f - titleButtonWidth * 0.72f, viewHeight * 0.835f, viewWidth * 0.5f + titleButtonWidth * 0.72f, viewHeight * 0.835f + challengeHeight)
-        titleSoundRect.set(viewWidth - dp(58f), dp(14f), viewWidth - dp(14f), dp(58f))
+        // Title screen: keep one focused interaction column. The panel and every control are
+        // raster sprites, while these rectangles only define responsive placement and hit areas.
+        val maxTitlePanelWidth = min(viewWidth * 0.46f, dp(440f))
+        val maxTitlePanelHeight = min(viewHeight * 0.70f, max(1f, viewHeight - dp(8f)))
+        // Fit the authored 760:632 panel uniformly so a short landscape display never stretches
+        // the artwork vertically or leaves less room than its control column needs.
+        val titlePanelScale = min(maxTitlePanelWidth / 760f, maxTitlePanelHeight / 632f)
+        val titlePanelWidth = 760f * titlePanelScale
+        val titlePanelHeight = 632f * titlePanelScale
+        val preferredTitlePanelTop = max(dp(72f), viewHeight * 0.29f)
+        val titlePanelTop = min(preferredTitlePanelTop, max(0f, viewHeight - dp(8f) - titlePanelHeight))
+        titlePanelRect.set(
+            viewWidth * 0.5f - titlePanelWidth * 0.5f,
+            titlePanelTop,
+            viewWidth * 0.5f + titlePanelWidth * 0.5f,
+            titlePanelTop + titlePanelHeight
+        )
+        val desiredTitleButtonWidth = titlePanelRect.width() * 0.80f
+        val titleButtonGap = min(dp(10f), titlePanelRect.height() * 0.035f)
+        val titleButtonsTopInset = min(dp(50f), titlePanelRect.height() * 0.13f)
+        val titleButtonsBottomInset = min(dp(24f), titlePanelRect.height() * 0.07f)
+        val titleButtonLaneHeight = max(1f, titlePanelRect.height() - titleButtonsTopInset - titleButtonsBottomInset)
+        // Preserve the authored button-sprite aspect ratio and reduce the whole button scale on
+        // short landscape displays instead of letting the third action escape its panel.
+        val titleButtonHeight = min(
+            desiredTitleButtonWidth * 152f / 640f,
+            max(1f, (titleButtonLaneHeight - titleButtonGap * 2f) / 3f)
+        )
+        val titleButtonWidth = titleButtonHeight * 640f / 152f
+        val titleButtonsHeight = titleButtonHeight * 3f + titleButtonGap * 2f
+        val titleButtonsTop = titlePanelRect.top + titleButtonsTopInset + (titleButtonLaneHeight - titleButtonsHeight) * 0.5f
+        val titleButtonLeft = titlePanelRect.centerX() - titleButtonWidth * 0.5f
+        titlePlayRect.set(titleButtonLeft, titleButtonsTop, titleButtonLeft + titleButtonWidth, titleButtonsTop + titleButtonHeight)
+        titleContinueRect.set(titleButtonLeft, titlePlayRect.bottom + titleButtonGap, titleButtonLeft + titleButtonWidth, titlePlayRect.bottom + titleButtonGap + titleButtonHeight)
+        titleChallengeRect.set(titleButtonLeft, titleContinueRect.bottom + titleButtonGap, titleButtonLeft + titleButtonWidth, titleContinueRect.bottom + titleButtonGap + titleButtonHeight)
+        val titleSoundSize = min(dp(58f), min(viewWidth, viewHeight) * 0.105f)
+        titleSoundRect.set(viewWidth - dp(16f) - titleSoundSize, dp(16f), viewWidth - dp(16f), dp(16f) + titleSoundSize)
 
         computeOverlayRects()
 
@@ -2590,6 +2625,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun newRun(mode: GameMode = GameMode.ENDLESS, seed: Long = 7331L, modifier: ChallengeModifier = ChallengeModifier.NONE) {
+        titlePressedAction = TitleMenuAction.NONE
         clearSavedRun()
         gameMode = mode
         runSeed = seed
@@ -2692,6 +2728,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun returnToTitle() {
         if ((phase == GamePhase.BUILD || (phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.BUILD)) && pathComplete) saveRun()
+        titlePressedAction = TitleMenuAction.NONE
         phase = GamePhase.TITLE
         enemies.clear()
         pendingSpawns.clear()
@@ -2876,6 +2913,29 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
+    private fun titleActionAt(x: Float, y: Float): TitleMenuAction {
+        return when {
+            titlePlayRect.contains(x, y) -> TitleMenuAction.PLAY
+            titleContinueRect.contains(x, y) && savedRunAvailable -> TitleMenuAction.CONTINUE
+            titleChallengeRect.contains(x, y) -> TitleMenuAction.CHALLENGE
+            titleSoundRect.contains(x, y) -> TitleMenuAction.SOUND
+            else -> TitleMenuAction.NONE
+        }
+    }
+
+    private fun activateTitleAction(action: TitleMenuAction) {
+        when (action) {
+            TitleMenuAction.PLAY -> newRun()
+            TitleMenuAction.CONTINUE -> if (savedRunAvailable) loadSavedRun()
+            TitleMenuAction.CHALLENGE -> {
+                phase = GamePhase.CHALLENGE_MENU
+                audio.play("ui_click", 0.38f, 1.13f)
+            }
+            TitleMenuAction.SOUND -> audio.toggle()
+            TitleMenuAction.NONE -> Unit
+        }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         synchronized(stateLock) {
             val x = event.x
@@ -2901,12 +2961,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
 
             if (phase == GamePhase.TITLE) {
-                if (event.action == MotionEvent.ACTION_UP) {
-                    when {
-                        titlePlayRect.contains(x, y) -> newRun()
-                        titleContinueRect.contains(x, y) && savedRunAvailable -> loadSavedRun()
-                        titleChallengeRect.contains(x, y) -> phase = GamePhase.CHALLENGE_MENU
-                        titleSoundRect.contains(x, y) -> audio.toggle()
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> titlePressedAction = titleActionAt(x, y)
+                    MotionEvent.ACTION_CANCEL -> titlePressedAction = TitleMenuAction.NONE
+                    MotionEvent.ACTION_UP -> {
+                        val heldAction = titlePressedAction
+                        titlePressedAction = TitleMenuAction.NONE
+                        // Trigger only when the finger is released over the same active sprite.
+                        // This makes menu controls feel deliberate and avoids accidental releases.
+                        if (heldAction != TitleMenuAction.NONE && heldAction == titleActionAt(x, y)) {
+                            activateTitleAction(heldAction)
+                        }
                     }
                 }
                 return true
@@ -4130,37 +4195,105 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawTitle(canvas: Canvas) {
-        canvas.drawColor(Color.rgb(10, 17, 13))
-        drawTitleGrid(canvas)
-        drawRoundedRect(canvas, dp(18f), dp(16f), dp(62f), dp(60f), dp(12f), Color.rgb(190, 244, 78))
-        drawCenteredText(canvas, "B", dp(40f), dp(39f), dp(24f), Color.rgb(13, 22, 17), true, true)
-        drawText(canvas, "TECHTROY GAME LAB", dp(74f), dp(45f), dp(12f), Color.rgb(190, 244, 78), Paint.Align.LEFT, true)
-        drawRoundedRect(canvas, titleSoundRect.left, titleSoundRect.top, titleSoundRect.right, titleSoundRect.bottom, dp(11f), Color.rgb(26, 39, 31))
-        drawCenteredText(canvas, if (audio.isEnabled()) "SFX" else "OFF", titleSoundRect.centerX(), titleSoundRect.centerY(), dp(11f), Color.WHITE, true)
+        // The title is deliberately sparse: environment art sets the tone while the three
+        // primary actions remain the only text a new player has to parse.
+        drawCoverBitmap(canvas, sprites.titleBackground, RectF(0f, 0f, viewWidth, viewHeight))
+        paint.color = Color.argb(44, 2, 8, 5)
+        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
 
-        val titleY = viewHeight * 0.27f
-        drawCenteredText(canvas, "BLOCKHOLD DEFENSE", viewWidth * 0.5f, titleY, min(dp(51f), viewHeight * 0.105f), Color.WHITE, true, true)
-        drawCenteredText(canvas, "ENDLESS PATHFORGE", viewWidth * 0.5f, titleY + min(dp(45f), viewHeight * 0.09f), min(dp(18f), viewHeight * 0.038f), Color.rgb(190, 244, 78), true)
-        drawCenteredText(canvas, "DIG THE ROUTE   BUILD THE LINE   OUTLAST THE OVERGROWTH", viewWidth * 0.5f, titleY + min(dp(82f), viewHeight * 0.16f), min(dp(11f), viewHeight * 0.025f), Color.rgb(166, 180, 169), true)
+        // All title chrome below is pre-rendered sprite art. Canvas is only responsible for
+        // adaptive placement, labels, and hit feedback—not drawing flat placeholder buttons.
+        drawBitmapInRect(canvas, sprites.menuPanel, titlePanelRect)
+        val crestWidth = min(dp(360f), viewWidth * 0.38f)
+        val crestHeight = crestWidth * sprites.menuTitleCrest.height / sprites.menuTitleCrest.width
+        val crestY = max(crestHeight * 0.58f + dp(8f), titlePanelRect.top - crestHeight * 0.18f)
+        drawBitmapCentered(canvas, sprites.menuTitleCrest, viewWidth * 0.5f, crestY, crestWidth)
+        drawCenteredText(
+            canvas,
+            "BLOCKHOLD",
+            viewWidth * 0.5f,
+            crestY - crestHeight * 0.10f,
+            min(dp(34f), crestWidth * 0.088f),
+            Color.rgb(245, 249, 228),
+            true,
+            true
+        )
+        drawCenteredText(
+            canvas,
+            "DEFENSE",
+            viewWidth * 0.5f,
+            crestY + crestHeight * 0.23f,
+            min(dp(12f), crestWidth * 0.033f),
+            Color.rgb(190, 244, 78),
+            true
+        )
 
-        val featureY = viewHeight * 0.54f
-        val featureWidth = min(dp(160f), viewWidth * 0.20f)
-        val featureGap = dp(8f)
-        val total = featureWidth * 3f + featureGap * 2f
-        val startX = (viewWidth - total) * 0.5f
-        drawFeaturePill(canvas, startX, featureY, featureWidth, "01", "FORGE A MAZE")
-        drawFeaturePill(canvas, startX + featureWidth + featureGap, featureY, featureWidth, "02", "10 DEFENSES")
-        drawFeaturePill(canvas, startX + (featureWidth + featureGap) * 2f, featureY, featureWidth, "∞", "SURVIVE")
+        drawTitleButton(
+            canvas, titlePlayRect, "NEW RUN", sprites.menuIconPlay,
+            sprites.menuButtonPrimary, sprites.menuButtonPrimaryPressed,
+            TitleMenuAction.PLAY, true, Color.rgb(240, 255, 214)
+        )
+        drawTitleButton(
+            canvas, titleContinueRect, "CONTINUE", sprites.menuIconContinue,
+            sprites.menuButtonSecondary, sprites.menuButtonSecondaryPressed,
+            TitleMenuAction.CONTINUE, savedRunAvailable,
+            if (savedRunAvailable) Color.rgb(221, 250, 255) else Color.rgb(126, 141, 132)
+        )
+        drawTitleButton(
+            canvas, titleChallengeRect, "CHALLENGES", sprites.menuIconChallenge,
+            sprites.menuButtonChallenge, sprites.menuButtonChallengePressed,
+            TitleMenuAction.CHALLENGE, true, Color.rgb(244, 225, 255)
+        )
 
-        drawRoundedRect(canvas, titlePlayRect.left, titlePlayRect.top, titlePlayRect.right, titlePlayRect.bottom, dp(16f), Color.rgb(190, 244, 78))
-        drawCenteredText(canvas, "START NEW RUN", titlePlayRect.centerX(), titlePlayRect.centerY(), dp(15f), Color.rgb(12, 21, 16), true, true)
-        val continueBackground = if (savedRunAvailable) Color.rgb(93, 220, 255) else Color.rgb(27, 40, 32)
-        val continueText = if (savedRunAvailable) Color.rgb(11, 25, 28) else Color.rgb(91, 108, 96)
-        drawRoundedRect(canvas, titleContinueRect.left, titleContinueRect.top, titleContinueRect.right, titleContinueRect.bottom, dp(16f), continueBackground)
-        drawCenteredText(canvas, if (savedRunAvailable) "CONTINUE RUN" else "NO SAVED RUN", titleContinueRect.centerX(), titleContinueRect.centerY(), dp(15f), continueText, true, true)
-        drawRoundedRect(canvas, titleChallengeRect.left, titleChallengeRect.top, titleChallengeRect.right, titleChallengeRect.bottom, dp(12f), Color.rgb(43, 57, 46))
-        drawCenteredText(canvas, "SEEDED CHALLENGES", titleChallengeRect.centerX(), titleChallengeRect.centerY(), dp(11f), Color.rgb(224, 232, 226), true)
-        drawCenteredText(canvas, "BEST $bestWave  •  DAILY $bestDailyWave  •  CUSTOM $bestCustomWave  •  $versionLabel", viewWidth * 0.5f, viewHeight - dp(12f), dp(9f), Color.rgb(113, 130, 119), true)
+        val soundSprite = if (audio.isEnabled()) sprites.menuIconSoundOn else sprites.menuIconSoundOff
+        drawBitmapInRect(
+            canvas,
+            soundSprite,
+            titleSoundRect,
+            if (titlePressedAction == TitleMenuAction.SOUND) 205 else 255
+        )
+        if (versionLabel.isNotEmpty()) {
+            drawText(
+                canvas, versionLabel, viewWidth - dp(13f), viewHeight - dp(10f), dp(8f),
+                Color.argb(150, 202, 214, 202), Paint.Align.RIGHT, true
+            )
+        }
+    }
+
+    private fun drawTitleButton(
+        canvas: Canvas,
+        rect: RectF,
+        label: String,
+        icon: Bitmap,
+        normalSkin: Bitmap,
+        pressedSkin: Bitmap,
+        action: TitleMenuAction,
+        enabled: Boolean,
+        textColor: Int
+    ) {
+        val held = enabled && titlePressedAction == action
+        val skin = when {
+            !enabled -> sprites.menuButtonDisabled
+            held -> pressedSkin
+            else -> normalSkin
+        }
+        drawBitmapInRect(canvas, skin, rect, if (enabled) 255 else 190)
+        val iconSize = min(rect.height() * 0.68f, dp(38f))
+        val iconX = rect.left + rect.width() * 0.215f
+        val verticalNudge = if (held) rect.height() * 0.04f else 0f
+        spritePaint.alpha = if (enabled) 255 else 110
+        drawBitmapCentered(canvas, icon, iconX, rect.centerY() + verticalNudge, iconSize)
+        spritePaint.alpha = 255
+        drawCenteredText(
+            canvas,
+            label,
+            rect.left + rect.width() * 0.635f,
+            rect.centerY() + verticalNudge,
+            min(dp(16f), rect.height() * 0.255f),
+            textColor,
+            true,
+            true
+        )
     }
 
     private fun drawChallengeMenu(canvas: Canvas) {
@@ -4343,14 +4476,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         paint.color = Color.argb(135, 8, 14, 11)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-    }
-
-    private fun drawFeaturePill(canvas: Canvas, x: Float, y: Float, width: Float, number: String, label: String) {
-        val height = min(dp(54f), viewHeight * 0.105f)
-        drawRoundedRect(canvas, x, y, x + width, y + height, dp(12f), Color.rgb(22, 34, 27))
-        drawRoundedRect(canvas, x + dp(8f), y + dp(8f), x + dp(42f), y + height - dp(8f), dp(9f), Color.rgb(39, 56, 44))
-        drawCenteredText(canvas, number, x + dp(25f), y + height * 0.5f, dp(12f), Color.rgb(190, 244, 78), true)
-        drawText(canvas, label, x + dp(50f), y + height * 0.56f, min(dp(10f), width * 0.070f), Color.rgb(218, 226, 220), Paint.Align.LEFT, true)
     }
 
     private fun drawBoard(canvas: Canvas) {
@@ -5574,6 +5699,30 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, primary, endPrimaryRect.centerX(), endPrimaryRect.centerY(), dp(13f), Color.rgb(12, 21, 16), true)
         drawRoundedRect(canvas, endSecondaryRect.left, endSecondaryRect.top, endSecondaryRect.right, endSecondaryRect.bottom, dp(14f), Color.rgb(29, 43, 34))
         drawCenteredText(canvas, secondary, endSecondaryRect.centerX(), endSecondaryRect.centerY(), dp(13f), Color.WHITE, true)
+    }
+
+    /** Draw a menu/environment bitmap into a responsive rectangle without changing its crop ratio. */
+    private fun drawCoverBitmap(canvas: Canvas, bitmap: Bitmap, destination: RectF) {
+        val sourceAspect = bitmap.width.toFloat() / max(1, bitmap.height).toFloat()
+        val destinationAspect = destination.width() / max(1f, destination.height())
+        val source = if (sourceAspect > destinationAspect) {
+            val width = (bitmap.height * destinationAspect).toInt().coerceIn(1, bitmap.width)
+            val left = (bitmap.width - width) / 2
+            Rect(left, 0, left + width, bitmap.height)
+        } else {
+            val height = (bitmap.width / destinationAspect).toInt().coerceIn(1, bitmap.height)
+            val top = (bitmap.height - height) / 2
+            Rect(0, top, bitmap.width, top + height)
+        }
+        canvas.drawBitmap(bitmap, source, destination, spritePaint)
+    }
+
+    /** Draw an authored PNG skin at the supplied hit rectangle, retaining any alpha in the sprite. */
+    private fun drawBitmapInRect(canvas: Canvas, bitmap: Bitmap, destination: RectF, alpha: Int = 255) {
+        val previousAlpha = spritePaint.alpha
+        spritePaint.alpha = alpha.coerceIn(0, 255)
+        canvas.drawBitmap(bitmap, null, destination, spritePaint)
+        spritePaint.alpha = previousAlpha
     }
 
     private fun drawSpriteFrameCentered(canvas: Canvas, strip: SpriteStrip, frame: Int, x: Float, y: Float, size: Float, rotation: Float = 0f) {

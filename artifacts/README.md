@@ -4,7 +4,8 @@
 > true 3-keyframe animation, new terrain, landmarks, and board chrome) **plus** the v1.4.3
 > feature patch: a 1-minute auto next-wave countdown, inspect/interact during a wave (no new
 > placement mid-wave), Block Generators upgrading to level 99 with per-level output growth, and
-> per-type placement cost escalation. Built offline from source with the retained offline
+> per-type placement cost escalation. **It predates the 2026-09-02 sprite-led title-menu source
+> pass and does not contain that menu refresh.** Built offline from source with the retained offline
 > toolchain (JDK 25 Temurin via jdk4py, Kotlin 1.9.25, `android.jar` API 35, `dx`, `apktool` 2.6.0
 > for resource re-linking, `zipalign`, `apksigner`). `scripts/verify-apk.py` and
 > `scripts/verify-dex-shape.py` both report **0 failures** (1078 classes, 6 call sites, 191

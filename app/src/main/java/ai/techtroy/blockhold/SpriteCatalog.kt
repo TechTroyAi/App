@@ -20,6 +20,23 @@ internal class SpriteCatalog(private val context: Context) {
     val grass = load("terrain_grass")
     val path = load("terrain_path")
 
+    /** v1.4.3 title-menu art: a complete sprite-driven forge entry screen. */
+    val titleBackground = load("menu_title_background")
+    val menuPanel = load("menu_panel")
+    val menuTitleCrest = load("menu_title_crest")
+    val menuButtonPrimary = load("menu_button_primary")
+    val menuButtonPrimaryPressed = load("menu_button_primary_pressed")
+    val menuButtonSecondary = load("menu_button_secondary")
+    val menuButtonSecondaryPressed = load("menu_button_secondary_pressed")
+    val menuButtonChallenge = load("menu_button_challenge")
+    val menuButtonChallengePressed = load("menu_button_challenge_pressed")
+    val menuButtonDisabled = load("menu_button_disabled")
+    val menuIconPlay = load("menu_icon_play")
+    val menuIconContinue = load("menu_icon_continue")
+    val menuIconChallenge = load("menu_icon_challenge")
+    val menuIconSoundOn = load("menu_icon_sound_on")
+    val menuIconSoundOff = load("menu_icon_sound_off")
+
     private val enemies = mapOf(
         EnemyKind.MOSSER to loadStrip("enemy_mosser"),
         EnemyKind.RUNNER to loadStrip("enemy_runner"),

@@ -6,16 +6,16 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-**v1.4.3 is a complete art release: the source is finished but not yet built.** The whole sprite set has been recreated in a unified *fantasy × machinery* style (see "v1.4.3 art overhaul" below) and the manifest is stamped `1.4.3` / `versionCode 17`. The APK has **not** been produced yet — the build session had no JDK and no reachable Android SDK, Gradle, or Maven mirror, so `scripts/build-apk.sh` could not run. Build it on a machine with JDK 17 + the Android SDK; the retained v1.4.2 release key must be reused so the update installs over v1.4.2 without an uninstall.
+**The current source targets v1.4.3 / `versionCode 17`.** It includes the completed gameplay art overhaul and the new sprite-led Fantasy Machinery title-menu pass described below. The retained signed v1.4.3 artifact was built before this title-menu pass, so it must **not** be described as containing the current menu refresh.
 
-The last **built and retained** artifact remains `artifacts/Blockhold-Defense-v1.4.2-installable.apk` (versionName `1.4.2`, versionCode `16`), which passes the hosted Android debug build, `scripts/verify-apk.py`, and `scripts/verify-dex-shape.py` with zero failures. It is signed with a **new** release key (the v1.4.1 private key was lost), so installing it over v1.4.1 requires a one-time uninstall; the v1.4.2 key is backed up for reuse by all future releases — see `artifacts/README.md`.
+`artifacts/Blockhold-Defense-v1.4.3-installable.apk` is the latest built and retained installable package (SHA-256 `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee`). It passed the recorded APK/Dex verification, but it is a previous v1.4.3 source snapshot. This checkout has no release-signing material, so a new release-signed artifact cannot be made here; CI can build and verify a current debug APK. See `artifacts/README.md` for the retained artifact's signing history and `docs/SIGNING.md` before producing a new distributable package.
 
 | Item | Value |
 | --- | --- |
 | Public name | Blockhold Defense |
 | Modes | Endless Pathforge, daily challenge, custom seed |
 | Application ID | `ai.techtroy.blockhold` |
-| Version | `1.4.3` (`17`) — source; latest built APK is `1.4.2` (`16`) |
+| Version | `1.4.3` (`17`) — current source; retained signed APK predates the title-menu refresh |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |
@@ -179,6 +179,12 @@ The bounded version-three save reader migrates v1.0/v1.1 checkpoints, including 
 
 v1.4.3 replaces **every** gameplay drawable with a single coherent **fantasy × machinery** sprite set — brass gearwork and rune-lit metal for everything the player builds, purely organic flesh, fungus, and bramble for everything that attacks it. All art is strict top-down to match the game camera.
 
+### Sprite-led title menu
+
+The title screen begins the same UI treatment: a forge-room cover background, framed machinery plate, crest, three large skinned actions, and a compact sound control. The screen now limits visible copy to the game identity and **NEW RUN**, **CONTINUE**, and **CHALLENGES**; redundant taglines, feature pills, score/footer copy, and "no saved run" copy are removed. Normal, pressed, and disabled states use authored sprites, while the existing New Run, saved-run Continue, Challenges, and sound-toggle behavior remains intact.
+
+The title assets are loaded by `SpriteCatalog.kt` from `drawable-nodpi` and scale as an aspect-preserving group inside the central plate on landscape devices. Canonical source/review material and the deterministic UI generator live in `artwork/menu-production/`; `title-menu-preview.png` is a 1920×1080 review composition made from the exact packaged PNGs.
+
 | Family | Count | Size | Notes |
 | --- | --- | --- | --- |
 | Tower bases | 15 | 64×64 | Octagonal gear-ring foundation pads, per-element rune accent |
@@ -232,7 +238,7 @@ Two rules matter when adding art. Pale or bright-neutral subjects (bone, salt, s
 
 ## Visual and audio assets
 
-The game uses a coherent top-down sprite layer instead of color-only entities. Forgeworks adds 40 Utility, corruption, evolution, Supply, imbuement, material, and Cache images. A fully original dark industrial forge-fantasy revision is now replacing the earlier mixed layer in reviewed batches; the completed original roster covers all five base towers, all ten tower evolutions, all eight crafted supplies, all six bound sigils, all three resources, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, terrain, gate, and core. Every packaged gameplay drawable is active original Blockhold Defense artwork. Limited animation production now includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. High-resolution sources and processing records live under `artwork/prototype/` and `artwork/style-production/`. Remaining Kenney visuals are CC0 and retain an auditable record in `docs/ASSET_LICENSES.md` until their categories are replaced.
+The game uses a coherent top-down sprite layer instead of color-only entities. Forgeworks adds 40 Utility, corruption, evolution, Supply, imbuement, material, and Cache images. A fully original dark industrial forge-fantasy revision is now replacing the earlier mixed layer in reviewed batches; the completed original roster covers all five base towers, all ten tower evolutions, all eight crafted supplies, all six bound sigils, all three resources, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, terrain, gate, and core. Every packaged gameplay drawable is active original Blockhold Defense artwork. Limited animation production now includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. High-resolution sources and processing records live under `artwork/prototype/` and `artwork/style-production/`. No Kenney or other third-party visuals remain in the packaged runtime assets; the historical CC0 record is retained in `docs/ASSET_LICENSES.md`.
 
 All sound effects are original deterministic synthesis. Regenerate them with:
 
@@ -270,13 +276,15 @@ app/src/main/java/ai/techtroy/blockhold/GameView.kt      Input, endless simulati
 app/src/main/java/ai/techtroy/blockhold/GameModels.kt    Rosters, entities, balance, progression
 app/src/main/java/ai/techtroy/blockhold/SpriteCatalog.kt Offline sprite loader
 app/src/main/java/ai/techtroy/blockhold/AudioEngine.kt   Native SoundPool playback
-app/src/main/res/drawable-nodpi/                         CC0 gameplay sprite layer
-app/src/main/assets/licenses/                            Pack license texts
+app/src/main/res/drawable-nodpi/                         Original gameplay and Fantasy Machinery UI sprites
+app/src/main/assets/licenses/                            Historical pack license texts
 docs/ASSET_LICENSES.md                                   Source/license audit
 docs/SIGNING.md                                          Permanent signing procedure
-artwork/                                                 Original icon source and store export
+artwork/                                                 Original source art, processing records, and review boards
+artwork/menu-production/                                 Title-menu source and 1920×1080 visual QA preview
 tools/generate_sfx.py                                    Reproducible original audio
 tools/generate_forgeworks_art.sh                         Reproducible Forgeworks art
+tools/generate_menu_ui_sprites.py                        Deterministic title-menu UI sprite exports
 ```
 
 ## Testing note
