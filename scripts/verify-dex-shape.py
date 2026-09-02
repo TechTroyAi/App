@@ -76,9 +76,7 @@ _fill(0x2D, 0x31, 2)   # cmpkind
 _fill(0x32, 0x37, 2)   # if-test
 _fill(0x38, 0x3D, 2)   # if-testz
 _fill(0x44, 0x51, 2)   # arrayop
-_fill(0x52, 0x58, 2)   # iinstanceop
-_fill(0x59, 0x5F, 2)   # sstaticop
-_fill(0x60, 0x66, 3)   # invoke-*
+_fill(0x52, 0x6D, 2)   # iinstanceop/iput (22c) + sget/sput (21c) — 2 code units
 _fill(0x6E, 0x72, 3)   # invoke-*
 _fill(0x74, 0x78, 3)   # invoke-*/range
 _fill(0x7B, 0x8F, 1)   # unop

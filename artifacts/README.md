@@ -1,14 +1,28 @@
-> **⏳ v1.4.3 (`17`) is source-complete but NOT built — there is no v1.4.3 APK in this
-> directory yet.** v1.4.3 is the full *fantasy × machinery* art overhaul (every gameplay
-> drawable recreated, all 30 enemies given true 3-keyframe animation, new terrain,
-> landmarks, and board chrome). The build session had no JDK and no reachable Android
-> SDK, Gradle, or Maven mirror, so `scripts/build-apk.sh` could not be run. To ship it:
-> run `./scripts/build-apk.sh release` on a machine with JDK 17 and the Android SDK,
-> **restoring the retained v1.4.2 keystore into `.signing/` first** so the update installs
-> over v1.4.2 with no uninstall, then re-run `scripts/verify-apk.py` and
-> `scripts/verify-dex-shape.py` before publishing.
+> **✅ v1.4.3 (`17`) is now built and retained as `Blockhold-Defense-v1.4.3-installable.apk`**
+> (`SHA-256 478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee`). It is the full
+> *fantasy × machinery* art overhaul (every gameplay drawable recreated, all 30 enemies given
+> true 3-keyframe animation, new terrain, landmarks, and board chrome) **plus** the v1.4.3
+> feature patch: a 1-minute auto next-wave countdown, inspect/interact during a wave (no new
+> placement mid-wave), Block Generators upgrading to level 99 with per-level output growth, and
+> per-type placement cost escalation. Built offline from source with the retained offline
+> toolchain (JDK 25 Temurin via jdk4py, Kotlin 1.9.25, `android.jar` API 35, `dx`, `apktool` 2.6.0
+> for resource re-linking, `zipalign`, `apksigner`). `scripts/verify-apk.py` and
+> `scripts/verify-dex-shape.py` both report **0 failures** (1078 classes, 6 call sites, 191
+> SpriteCatalog drawables + 13 sounds packaged, 101 sprite strips square-framed), and
+> `zipalign -c -p -v 4` reports **Verification succesful**.
 >
-> **✅ Until then use `Blockhold-Defense-v1.4.2-installable.apk` (built 2026-08-28).** The first
+> **⚠️ Signing key — new key (not the v1.4.2 key).** The retained v1.4.2 keystore lived in the
+> gitignored `build-manual/` and is **not present in this checkout**, so it could not be reused.
+> v1.4.3 is signed with a freshly generated RSA 2048 key using the same distinguished name
+> (`CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`),
+> certificate SHA-256
+> `3e:a2:30:cb:7f:ee:6b:b0:dc:38:e3:da:13:4a:85:1b:e7:5a:ae:5c:6c:45:ed:fd:f0:4f:d5:2a:35:e6:8c:fe`.
+> **Uninstall v1.4.2 once** before installing v1.4.3 (different certificate). The new key is backed
+> up for reuse by all future releases — see `build-manual/KEY_BACKUP_blockhold-release.p12.b64`
+> and `build-manual/KEY_CREDENTIALS.txt` (gitignored; move them to two encrypted locations).
+>
+> **✅ Meanwhile `Blockhold-Defense-v1.4.2-installable.apk` (built 2026-08-28) is still the last
+> release that updates in place.** The first
 > retained artifact of the `1.4.2` (`16`) source: pressure waves and continuous spawning,
 > **NEXT WAVE** manual start, ten-second auto-launch countdown, **STACK WAVE** multi-wave
 > combat, keyboard challenge seeds, the **TXT** banner toggle, unlimited utility kinds
@@ -39,7 +53,8 @@
 >
 > | File | SHA-256 | Status |
 > |---|---|---|
-> | `Blockhold-Defense-v1.4.2-installable.apk` | `842e1602e05057b5b58e74a7bacabd962ca8db1dae5dca4c92dc9befe2731eea` | **✅ install this** — pressure waves + wave stacking, `1.4.2` (16) |
+> | `Blockhold-Defense-v1.4.3-installable.apk` | `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee` | **✅ install this** — v1.4.3 art overhaul + feature patch, `1.4.3` (17); new key, uninstall v1.4.2 once |
+> | `Blockhold-Defense-v1.4.2-installable.apk` | `842e1602e05057b5b58e74a7bacabd962ca8db1dae5dca4c92dc9befe2731eea` | superseded — pressure waves + wave stacking, `1.4.2` (16) |
 > | `Blockhold-Defense-v1.4.1-installable.apk` | `789c964ad702a28531386e2e75f610a87c260275a47c53bfb4caf42fba6c7c96` | superseded — canvas restore-underflow fix + launch fix, `1.4.1` (15) |
 > | ~~`Blockhold-Defense-v1.4.1-installable.apk`~~ | ~~`6c3807aca6fb593962a627ab78e4b9b99c832f305c898f26e569dd9e53619063`~~ | ❌ **does not open** — superseded, discard if downloaded |
 > | `Blockhold-Defense-v1.4-installable.apk` | `7533c6b5967f492b0c33ece43bea36773eac4a4460ad98e55d3deb53f2147522` | crashes on first path block (canvas restore underflow) |
@@ -56,7 +71,8 @@
 > | v1.4 | `7e:4d:cd:c2:59:3d:75:4a:62:fb:8e:33:bd:e0:72:1b:3a:48:56:63:cb:bb:e3:cd:8f:31:6f:d8:14:80:de:f9` |
 > | v1.4.1 (discarded, will not open) | `46:57:88:0e:29:1d:2b:83:cd:97:6a:d9:55:9a:ff:99:4d:d3:a3:a6:a7:f1:21:a1:3d:56:87:2d:f7:ab:4b:d9` |
 > | v1.4.1 (key lost — not reusable) | `7d:59:6f:ee:b2:7d:6e:0b:46:02:bf:06:36:ea:55:1a:d7:34:26:8e:e1:16:0c:8e:50:95:0e:e9:9a:77:8f:6d` |
-> | **v1.4.2 (current, backed up)** | `f4:48:6a:bd:ba:07:f1:16:54:36:58:0f:85:49:f8:7a:92:ce:43:2b:3a:7e:b4:0b:88:3c:2c:22:09:a8:b2:2c` |
+> | **v1.4.2 (previous, key not in checkout)** | `f4:48:6a:bd:ba:07:f1:16:54:36:58:0f:85:49:f8:7a:92:ce:43:2b:3a:7e:b4:0b:88:3c:2c:22:09:a8:b2:2c` |
+> | **v1.4.3 (current, backed up)** | `3e:a2:30:cb:7f:ee:6b:b0:dc:38:e3:da:13:4a:85:1b:e7:5a:ae:5c:6c:45:ed:fd:f0:4f:d5:2a:35:e6:8c:fe` |
 >
 > Each row is a different key pair, so each transition needs a one-time uninstall. No v1.0–v1.2
 > private key exists in the repo. See [`../docs/APK_V1.4_BUILD.md`](../docs/APK_V1.4_BUILD.md) for the
