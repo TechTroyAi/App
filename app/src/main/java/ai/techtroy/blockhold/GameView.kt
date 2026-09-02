@@ -4757,13 +4757,27 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.argb(190, 100, 200, 255)
             canvas.drawCircle(x, y, tileSize * 0.48f, strokePaint)
         }
-        if (tower.disabledTimer > 0f) {
-            paint.color = Color.argb(145, 130, 48, 165)
-            canvas.drawCircle(x, y, tileSize * 0.34f, paint)
-            drawCenteredText(canvas, "HEX", x, y, tileSize * 0.13f, Color.WHITE, true)
-        }
+        if (tower.disabledTimer > 0f) drawHexShackle(canvas, x, y)
         drawRankDots(canvas, x, y + tileSize * 0.37f, tower.level, tower.overcharge, tower.kind.accent)
         drawImbuementGlyph(canvas, x, y, tower.imbuement)
+    }
+
+    /**
+     * v1.4.3: animated arcane Hex shackle. Replaces the old flat purple disc
+     * with the literal text "HEX" that both towers and utilities used to draw.
+     */
+    private fun drawHexShackle(canvas: Canvas, x: Float, y: Float) {
+        val frames = sprites.statusHex.frameCount
+        val frame = ((ambientTime * 8f).toInt() % frames).coerceIn(0, frames - 1)
+        drawSpriteFrameCentered(
+            canvas,
+            sprites.statusHex,
+            frame,
+            x,
+            y,
+            tileSize * (0.78f + sin(ambientTime * 5f) * 0.05f),
+            -ambientTime * 34f
+        )
     }
 
     private fun drawRankDots(canvas: Canvas, x: Float, y: Float, level: Int, overcharge: Int, accent: Int) {
@@ -4801,11 +4815,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             y,
             tileSize * (0.86f + sin(ambientTime * 2f + utility.kind.ordinal) * 0.015f)
         )
-        if (utility.disabledTimer > 0f) {
-            paint.color = Color.argb(150, 130, 48, 165)
-            canvas.drawCircle(x, y, tileSize * 0.34f, paint)
-            drawCenteredText(canvas, "HEX", x, y, max(dp(7f), tileSize * 0.13f), Color.WHITE, true)
-        }
+        if (utility.disabledTimer > 0f) drawHexShackle(canvas, x, y)
         if (utility.kind == UtilityKind.BLOCK_GENERATOR) drawCenteredText(canvas, "+B", x, y + tileSize * 0.31f, max(dp(6f), tileSize * 0.10f), utility.kind.accent, true)
         drawRankDots(canvas, x, y + tileSize * 0.38f, utility.level, 0, utility.kind.accent)
         drawImbuementGlyph(canvas, x, y, utility.imbuement)
