@@ -54,6 +54,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         private const val DEFAULT_CUSTOM_SEED = "733101"
         private const val MAX_BLOCK_GENERATORS = 5
         private const val ELITE_TRAP_BREAK_DELAY = 1.75f
+        /** Every category has this many slots before an Inventory Depot is online. */
+        private const val DEFAULT_INVENTORY_CAPACITY = 25
+        private const val MAX_INVENTORY_CAPACITY = 45
+        private const val INVENTORY_PAGE_SIZE = 5
+        private const val BUILD_SHELF_SLIDE_DURATION = 0.30f
     }
 
     private val stateLock = Any()
@@ -104,7 +109,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var selectedCorruption: CorruptedCell? = null
     private var selectedUtility: Utility? = null
     private var selectedUtilityKind: UtilityKind? = null
-    private var selectedStoredTrapIndex = -1
+    private var selectedInventorySelection: InventorySelection? = null
     private var evolutionTower: Tower? = null
     private var imbuementTower: Tower? = null
     private var imbuementTrap: SpikeTrap? = null
@@ -112,7 +117,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var buildPage = BuildPage.TOWERS
     private var utilityPageIndex = 0
     private var towerPageIndex = 0
-    private var cachePageIndex = 0
+    private var inventoryPageIndex = 0
+    private var inventoryCategory = InventoryCategory.TOWERS
+    /** 0 is fully shown; 1 translates just the placement shelf below the viewport. */
+    private var buildShelfSlide = 0f
     private var workshopTab = WorkshopTab.CRAFT
     private var workshopPageIndex = 0
 
@@ -121,7 +129,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val towers = ArrayList<Tower>()
     private val traps = ArrayList<SpikeTrap>()
     private val utilities = ArrayList<Utility>()
+    private val storedTowers = ArrayList<StoredTower>()
     private val storedTraps = ArrayList<StoredTrap>()
+    private val storedStructures = ArrayList<StoredStructure>()
     private val supplies = HashMap<CraftedItem, Int>()
     private val corruptions = ArrayList<CorruptedCell>()
     private val perks = HashMap<ForgePerk, Int>()
@@ -253,7 +263,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val towerPageRect = RectF()
     private val trapPageRect = RectF()
     private val utilityPageRect = RectF()
-    private val cachePageRect = RectF()
+    private val inventoryPageRect = RectF()
     private val challengeDailyRect = RectF()
     private val challengeSeedStartRect = RectF()
     private val challengeBackRect = RectF()
@@ -262,7 +272,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val evolutionRects = ArrayList<RectF>()
     private val toolRects = ArrayList<Pair<BuildTool, RectF>>()
     private val utilityRects = ArrayList<Pair<UtilityKind, RectF>>()
-    private val cacheRects = ArrayList<Pair<Int, RectF>>()
+    private val inventoryRects = ArrayList<Pair<InventorySelection, RectF>>()
+    /** Forge Workshop gets its own half-action so it can be opened and stored independently. */
+    private val workshopRect = RectF()
+    private val structureStoreRect = RectF()
     private val workshopTabRects = ArrayList<Pair<WorkshopTab, RectF>>()
     private val workshopCardRects = ArrayList<RectF>()
     private val workshopBackRect = RectF()
@@ -481,7 +494,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         towerPageRect.set(left, toolTop, left + tabWidth, toolTop + tabHeight)
         trapPageRect.set(towerPageRect.right + pageGap, toolTop, left + pageWidth, toolTop + tabHeight)
         utilityPageRect.set(left, towerPageRect.bottom + pageGap, left + tabWidth, toolBottom)
-        cachePageRect.set(utilityPageRect.right + pageGap, trapPageRect.bottom + pageGap, left + pageWidth, toolBottom)
+        inventoryPageRect.set(utilityPageRect.right + pageGap, trapPageRect.bottom + pageGap, left + pageWidth, toolBottom)
         rebuildToolRects(left + pageWidth + dp(7f), totalWidth - pageWidth - dp(7f), toolTop, toolBottom)
 
         val panelWidth = min(viewWidth - dp(24f), dp(650f))
@@ -494,6 +507,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val actionLeft = upgradeRect.right + panelGap
         val actionHeight = (panelBottom - panelTop - panelGap) / 3f
         storeRect.set(actionLeft, panelTop, panelLeft + panelWidth, panelTop + actionHeight)
+        val storeSplitGap = dp(3f)
+        val storeSplit = storeRect.centerX()
+        workshopRect.set(storeRect.left, storeRect.top, storeSplit - storeSplitGap, storeRect.bottom)
+        structureStoreRect.set(storeSplit + storeSplitGap, storeRect.top, storeRect.right, storeRect.bottom)
         imbueRect.set(actionLeft, storeRect.bottom + panelGap * 0.5f, panelLeft + panelWidth, storeRect.bottom + panelGap * 0.5f + actionHeight)
         sellRect.set(actionLeft, imbueRect.bottom + panelGap * 0.5f, panelLeft + panelWidth, panelBottom)
 
@@ -601,10 +618,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         workshopNextRect.set(viewWidth * 0.5f + dp(12f), viewHeight * 0.80f, viewWidth * 0.5f + dp(120f), viewHeight * 0.89f)
     }
 
-    private fun rebuildToolRects(left: Float = cachePageRect.right + dp(7f), width: Float = min(viewWidth - dp(20f), dp(790f)) - (cachePageRect.right - towerPageRect.left) - dp(7f), top: Float = viewHeight - bottomBarHeight + dp(9f), bottom: Float = viewHeight - dp(9f)) {
+    private fun rebuildToolRects(left: Float = inventoryPageRect.right + dp(7f), width: Float = min(viewWidth - dp(20f), dp(790f)) - (inventoryPageRect.right - towerPageRect.left) - dp(7f), top: Float = viewHeight - bottomBarHeight + dp(9f), bottom: Float = viewHeight - dp(9f)) {
         toolRects.clear()
         utilityRects.clear()
-        cacheRects.clear()
+        inventoryRects.clear()
         val gap = dp(6f)
         when (buildPage) {
             BuildPage.TOWERS, BuildPage.TRAPS -> {
@@ -616,7 +633,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     x += buttonWidth + gap
                 }
             }
-            BuildPage.UTILITIES -> {
+            BuildPage.STRUCTURES -> {
                 val kinds = UtilityKind.values().drop(utilityPageIndex * 4).take(4)
                 val buttonWidth = (width - gap * (kinds.size - 1)) / max(1, kinds.size)
                 var x = left
@@ -625,14 +642,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     x += buttonWidth + gap
                 }
             }
-            BuildPage.CACHE -> {
-                val start = cachePageIndex * 5
-                val indices = (start until min(storedTraps.size, start + 5)).toList()
+            BuildPage.INVENTORY -> {
+                val start = inventoryPageIndex * INVENTORY_PAGE_SIZE
+                val indices = (start until min(inventoryCount(inventoryCategory), start + INVENTORY_PAGE_SIZE)).toList()
                 val count = max(1, indices.size)
                 val buttonWidth = (width - gap * (count - 1)) / count
                 var x = left
                 for (index in indices) {
-                    cacheRects.add(Pair(index, RectF(x, top, x + buttonWidth, bottom)))
+                    val selection = InventorySelection(inventoryCategory, index)
+                    inventoryRects.add(Pair(selection, RectF(x, top, x + buttonWidth, bottom)))
                     x += buttonWidth + gap
                 }
             }
@@ -671,8 +689,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (nextWaveTimer <= 0f) startWave()
         }
         if (phase == GamePhase.WAVE) updateWave(delta)
+        updateBuildShelfSlide(delta)
         updateEffects(delta)
     }
+
+    /** The build shelf, not inspection panels, leaves the screen during combat. */
+    private fun updateBuildShelfSlide(delta: Float) {
+        val combatHidden = phase == GamePhase.WAVE || (phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.WAVE)
+        val target = if (combatHidden) 1f else 0f
+        val step = delta / BUILD_SHELF_SLIDE_DURATION
+        buildShelfSlide = if (target > buildShelfSlide) min(target, buildShelfSlide + step) else max(target, buildShelfSlide - step)
+    }
+
+    private fun buildShelfOffsetY(): Float = buildShelfSlide * (bottomBarHeight + dp(22f))
+
+    /** Prevent a tap from hitting a static rectangle while its card is still moving into view. */
+    private fun buildShelfReadyForInput(): Boolean = buildShelfSlide <= 0.02f
 
     private fun updateWave(delta: Float) {
         if (spawnIndex < waveQueue.size) {
@@ -2324,27 +2356,93 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         return min(0.95f, 0.60f + perkCount(ForgePerk.BETTER_RECYCLING) * 0.15f + salvageBonus)
     }
 
-    private fun cacheCapacity(): Int {
+    /** Capacity applies independently to every inventory category, never as one shared pool. */
+    private fun inventoryCapacity(): Int {
         val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxByOrNull { it.level }
-        return min(20, 4 + if (depot == null) 0 else when (utilityPowerLevel(depot)) { 1 -> 3; 2 -> 5; 3 -> 7; else -> 8 })
+        val bonus = if (depot == null) 0 else when (utilityPowerLevel(depot)) {
+            1 -> 5
+            2 -> 10
+            3 -> 15
+            else -> 20
+        }
+        return min(MAX_INVENTORY_CAPACITY, DEFAULT_INVENTORY_CAPACITY + bonus)
     }
 
-    private fun cacheStorageDiscount(): Float {
+    private fun inventoryCount(category: InventoryCategory): Int = when (category) {
+        InventoryCategory.TOWERS -> storedTowers.size
+        InventoryCategory.TRAPS -> storedTraps.size
+        InventoryCategory.STRUCTURES -> storedStructures.size
+    }
+
+    private fun inventoryPageCount(category: InventoryCategory = inventoryCategory): Int =
+        max(1, (inventoryCount(category) + INVENTORY_PAGE_SIZE - 1) / INVENTORY_PAGE_SIZE)
+
+    private fun hasInventoryRoom(category: InventoryCategory): Boolean = inventoryCount(category) < inventoryCapacity()
+
+    /** Removing the last depot may shrink every separate shelf back to its base capacity. */
+    private fun lastDepotWouldOverfillInventory(structure: Utility, addingToStructureShelf: Boolean): Boolean {
+        if (structure.kind != UtilityKind.CACHE_DEPOT || utilities.any { it !== structure && it.kind == UtilityKind.CACHE_DEPOT }) return false
+        val projectedStructures = storedStructures.size + (if (addingToStructureShelf) 1 else 0)
+        return storedTowers.size > DEFAULT_INVENTORY_CAPACITY ||
+            storedTraps.size > DEFAULT_INVENTORY_CAPACITY ||
+            projectedStructures > DEFAULT_INVENTORY_CAPACITY
+    }
+
+    private fun canStoreStructure(structure: Utility): Boolean =
+        hasInventoryRoom(InventoryCategory.STRUCTURES) && !lastDepotWouldOverfillInventory(structure, addingToStructureShelf = true)
+
+    private fun isValidInventorySelection(selection: InventorySelection?): Boolean =
+        selection != null && selection.index in 0 until inventoryCount(selection.category)
+
+    private fun inventoryItemTitle(selection: InventorySelection): String = when (selection.category) {
+        InventoryCategory.TOWERS -> storedTowers.getOrNull(selection.index)?.kind?.title
+        InventoryCategory.TRAPS -> storedTraps.getOrNull(selection.index)?.kind?.title
+        InventoryCategory.STRUCTURES -> storedStructures.getOrNull(selection.index)?.kind?.title
+    } ?: "UNAVAILABLE"
+
+    private fun inventoryItemRank(selection: InventorySelection): String = when (selection.category) {
+        InventoryCategory.TOWERS -> storedTowers.getOrNull(selection.index)?.rankLabel()
+        InventoryCategory.TRAPS -> storedTraps.getOrNull(selection.index)?.rankLabel()
+        InventoryCategory.STRUCTURES -> storedStructures.getOrNull(selection.index)?.rankLabel()
+    } ?: ""
+
+    private fun inventoryItemImbuement(selection: InventorySelection): Imbuement? = when (selection.category) {
+        InventoryCategory.TOWERS -> storedTowers.getOrNull(selection.index)?.imbuement
+        InventoryCategory.TRAPS -> storedTraps.getOrNull(selection.index)?.imbuement
+        InventoryCategory.STRUCTURES -> storedStructures.getOrNull(selection.index)?.imbuement
+    }
+
+    private fun inventoryStorageDiscount(): Float {
         val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxByOrNull { it.level }
         if (depot == null) return 0f
         val conservation = if (depot.imbuement == Imbuement.CONSERVATION) 0.10f else 0f
         return min(0.55f, utilityPowerLevel(depot) * 0.10f + conservation)
     }
 
-    private fun trapStorageCost(trap: SpikeTrap): Int {
-        var cost = max(20, (trap.kind.cost * 0.30f).toInt() + (trap.level - 1) * 12 + trap.overcharge * 8)
-        cost = (cost * (1f - cacheStorageDiscount())).toInt()
-        if (trap.imbuement == Imbuement.CONSERVATION) cost = (cost * 0.85f).toInt()
+    private fun discountedStorageCost(base: Int, imbuement: Imbuement?): Int {
+        var cost = (base * (1f - inventoryStorageDiscount())).toInt()
+        if (imbuement == Imbuement.CONSERVATION) cost = (cost * 0.85f).toInt()
         return max(1, cost)
     }
 
-    // There is intentionally no global utility capacity in v1.4.2. Free terrain and cost remain
-    // meaningful limits; each kind is unique except for the five-structure Block Generator cap.
+    private fun towerStorageCost(tower: Tower): Int {
+        val evolutionPremium = if (tower.evolution != null) 36 else 0
+        val base = max(25, (tower.kind.cost * 0.30f).toInt() + (tower.level - 1) * 16 + tower.overcharge * 10 + evolutionPremium)
+        return discountedStorageCost(base, tower.imbuement)
+    }
+
+    private fun trapStorageCost(trap: SpikeTrap): Int {
+        val base = max(20, (trap.kind.cost * 0.30f).toInt() + (trap.level - 1) * 12 + trap.overcharge * 8)
+        return discountedStorageCost(base, trap.imbuement)
+    }
+
+    private fun structureStorageCost(structure: Utility): Int {
+        val base = max(25, (structure.kind.cost * 0.30f).toInt() + (structure.level - 1) * 15)
+        return discountedStorageCost(base, structure.imbuement)
+    }
+
+    // There is intentionally no global Structure capacity. Free terrain and cost remain
+    // meaningful limits; each kind is unique except for the five-Structure Block Generator cap.
 
     private fun workshopLevel(): Int = utilities.filter { it.kind == UtilityKind.FORGE_WORKSHOP }.map { it.level }.maxOrNull() ?: 0
 
@@ -2441,18 +2539,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun saveRun() {
         if (!pathComplete || phase == GamePhase.GAME_OVER || phase == GamePhase.VICTORY) return
         val pathData = pathCells.joinToString(";") { "${it.col},${it.row}" }
-        val towerData = towers.joinToString(";") { "${it.col},${it.row},${it.kind.name},${it.level},${it.overcharge},${it.evolution?.name ?: "NONE"},${it.imbuement?.name ?: "NONE"}" }
-        val trapData = traps.joinToString(";") { "${it.id},${it.col},${it.row},${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"}" }
+        val towerData = towers.joinToString(";") { "${it.col},${it.row},${it.kind.name},${it.level},${it.overcharge},${it.evolution?.name ?: "NONE"},${it.imbuement?.name ?: "NONE"},${it.activationCount}" }
+        val trapData = traps.joinToString(";") { "${it.id},${it.col},${it.row},${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"},${it.activationCount}" }
         val utilityData = utilities.joinToString(";") { "${it.col},${it.row},${it.kind.name},${it.level},${it.imbuement?.name ?: "NONE"},${it.productionProgress},${it.activationCount}" }
         val corruptionData = corruptions.joinToString(";") { "${it.id},${it.cell.col},${it.cell.row},${it.kind.name}" }
         val perkData = perks.entries.joinToString(";") { "${it.key.name},${it.value}" }
         val pendingPerkData = if (phase == GamePhase.PERK_DRAFT) perkChoices.joinToString(",") { it.name } else ""
         val pendingPerkWavesData = pendingPerkWaves.joinToString(",")
         val savedNextWaveTimer = if (phase == GamePhase.BUILD || (phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.BUILD)) nextWaveTimer else -1f
-        val inventoryData = storedTraps.joinToString(";") { "${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"}" }
+        val towerInventoryData = storedTowers.joinToString(";") { "${it.kind.name},${it.level},${it.overcharge},${it.evolution?.name ?: "NONE"},${it.imbuement?.name ?: "NONE"},${it.activationCount}" }
+        val trapInventoryData = storedTraps.joinToString(";") { "${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"},${it.activationCount}" }
+        val structureInventoryData = storedStructures.joinToString(";") { "${it.kind.name},${it.level},${it.imbuement?.name ?: "NONE"},${it.productionProgress},${it.activationCount}" }
         val supplyData = supplies.entries.filter { it.value > 0 }.joinToString(";") { "${it.key.name},${it.value}" }
         preferences.edit()
-            .putInt("run_save_version", 3)
+            .putInt("run_save_version", 4)
             .putBoolean("has_saved_run", true)
             .putString("run_path", pathData)
             .putString("run_towers", towerData)
@@ -2463,7 +2563,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             .putString("run_pending_perks", pendingPerkData)
             .putString("run_pending_perk_waves", pendingPerkWavesData)
             .putFloat("run_next_wave_timer", savedNextWaveTimer)
-            .putString("run_inventory", inventoryData)
+            .putString("run_inventory_towers", towerInventoryData)
+            .putString("run_inventory_traps", trapInventoryData)
+            .putString("run_inventory_structures", structureInventoryData)
+            // Keep the old trap-only key as a compatibility mirror for an interrupted upgrade.
+            .putString("run_inventory", trapInventoryData)
             .putString("run_supplies", supplyData)
             .putInt("run_gold", gold)
             .putInt("run_lives", lives)
@@ -2504,8 +2608,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 tower.level = values[3].toInt().coerceIn(1, 3)
                 tower.overcharge = values[4].toInt().coerceIn(0, 999)
                 tower.evolution = if (values.size >= 6 && values[5] != "NONE") TowerEvolution.valueOf(values[5]) else null
-                if (tower.evolution?.kind != null && tower.evolution?.kind != tower.kind) tower.evolution = null
+                tower.evolution = tower.evolution?.takeIf { it.kind == tower.kind }
                 tower.imbuement = if (values.size >= 7 && values[6] != "NONE") Imbuement.valueOf(values[6]) else null
+                tower.activationCount = if (values.size >= 8) values[7].toInt().coerceIn(0, 2_000_000_000) else 0
                 towers.add(tower)
             }
             traps.clear()
@@ -2518,10 +2623,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 trap.level = values[4].toInt().coerceIn(1, 3)
                 trap.overcharge = values[5].toInt().coerceIn(0, 999)
                 trap.imbuement = if (values.size >= 7 && values[6] != "NONE") Imbuement.valueOf(values[6]) else null
+                trap.activationCount = if (values.size >= 8) values[7].toInt().coerceIn(0, 2_000_000_000) else 0
                 traps.add(trap)
             }
             utilities.clear()
-            // Utilities no longer have a four-structure global cap. The board and placement
+            // Structures no longer have a four-Structure global cap. The board and placement
             // rules still protect the save from impossible coordinates/collisions.
             preferences.getString("run_utilities", "").orEmpty().split(';').filter { it.isNotBlank() }.take(COLS * ROWS).forEach {
                 val values = it.split(',')
@@ -2554,17 +2660,96 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             preferences.getString("run_pending_perks", "").orEmpty().split(',').filter { it.isNotBlank() }.take(3).forEach { perkChoices.add(ForgePerk.valueOf(it)) }
             pendingPerkWaves.clear()
             preferences.getString("run_pending_perk_waves", "").orEmpty().split(',').filter { it.isNotBlank() }.take(32).forEach { pendingPerkWaves.add(it.toInt().coerceAtLeast(1)) }
+            storedTowers.clear()
             storedTraps.clear()
-            val saveVersion = preferences.getInt("run_save_version", 1)
-            preferences.getString("run_inventory", "").orEmpty().split(';').filter { it.isNotBlank() }.take(20).forEach {
-                val values = it.split(',')
-                if (saveVersion >= 3 && values.size >= 4) {
-                    storedTraps.add(StoredTrap(TrapKind.valueOf(values[0]), values[1].toInt().coerceIn(1, 3), values[2].toInt().coerceIn(0, 999), if (values[3] != "NONE") Imbuement.valueOf(values[3]) else null))
-                } else {
-                    repeat(values.getOrElse(1) { "0" }.toInt().coerceIn(0, 4)) { storedTraps.add(StoredTrap(TrapKind.valueOf(values[0]))) }
+            storedStructures.clear()
+            val saveVersion = prefInt("run_save_version", 1)
+
+            fun entries(key: String): List<String> = preferences.getString(key, "").orEmpty()
+                .split(';').filter { it.isNotBlank() }.take(MAX_INVENTORY_CAPACITY)
+
+            fun loadLegacyTrapInventory() {
+                entries("run_inventory").forEach { entry ->
+                    val values = entry.split(',')
+                    if (saveVersion >= 3 && values.size >= 4) {
+                        storedTraps.add(
+                            StoredTrap(
+                                TrapKind.valueOf(values[0]),
+                                values[1].toInt().coerceIn(1, 3),
+                                values[2].toInt().coerceIn(0, 999),
+                                if (values[3] != "NONE") Imbuement.valueOf(values[3]) else null,
+                                if (values.size >= 5) values[4].toInt().coerceIn(0, 2_000_000_000) else 0
+                            )
+                        )
+                    } else {
+                        repeat(values.getOrElse(1) { "0" }.toInt().coerceIn(0, 4)) {
+                            storedTraps.add(StoredTrap(TrapKind.valueOf(values[0])))
+                        }
+                    }
                 }
             }
-            while (storedTraps.size > 20) storedTraps.removeAt(storedTraps.lastIndex)
+
+            if (saveVersion >= 4) {
+                entries("run_inventory_towers").forEach { entry ->
+                    val values = entry.split(',')
+                    if (values.size < 5) return@forEach
+                    val kind = TowerKind.valueOf(values[0])
+                    var evolution = if (values[3] != "NONE") TowerEvolution.valueOf(values[3]) else null
+                    if (evolution != null && evolution.kind != kind) evolution = null
+                    storedTowers.add(
+                        StoredTower(
+                            kind,
+                            values[1].toInt().coerceIn(1, 3),
+                            values[2].toInt().coerceIn(0, 999),
+                            evolution,
+                            if (values[4] != "NONE") Imbuement.valueOf(values[4]) else null,
+                            if (values.size >= 6) values[5].toInt().coerceIn(0, 2_000_000_000) else 0
+                        )
+                    )
+                }
+                val trapEntries = entries("run_inventory_traps")
+                if (trapEntries.isEmpty()) {
+                    // A v4 key may be absent if a previous write was interrupted; preserve the
+                    // v3-compatible mirror rather than silently dropping the old trap shelf.
+                    loadLegacyTrapInventory()
+                } else {
+                    trapEntries.forEach { entry ->
+                        val values = entry.split(',')
+                        if (values.size < 4) return@forEach
+                        storedTraps.add(
+                            StoredTrap(
+                                TrapKind.valueOf(values[0]),
+                                values[1].toInt().coerceIn(1, 3),
+                                values[2].toInt().coerceIn(0, 999),
+                                if (values[3] != "NONE") Imbuement.valueOf(values[3]) else null,
+                                if (values.size >= 5) values[4].toInt().coerceIn(0, 2_000_000_000) else 0
+                            )
+                        )
+                    }
+                }
+                entries("run_inventory_structures").forEach { entry ->
+                    val values = entry.split(',')
+                    if (values.size < 5) return@forEach
+                    val kind = UtilityKind.valueOf(values[0])
+                    val maxLevel = if (kind == UtilityKind.BLOCK_GENERATOR) 99 else 3
+                    storedStructures.add(
+                        StoredStructure(
+                            kind,
+                            values[1].toInt().coerceIn(1, maxLevel),
+                            if (values[2] != "NONE") Imbuement.valueOf(values[2]) else null,
+                            values[3].toInt().coerceIn(0, 20),
+                            values[4].toInt().coerceIn(0, 2_000_000_000)
+                        )
+                    )
+                }
+            } else {
+                // v1–v3 only had run_inventory, and every entry was a trap. Migrate it into the
+                // dedicated Trap Inventory unchanged; Tower and Structure shelves begin empty.
+                loadLegacyTrapInventory()
+            }
+            while (storedTowers.size > MAX_INVENTORY_CAPACITY) storedTowers.removeAt(storedTowers.lastIndex)
+            while (storedTraps.size > MAX_INVENTORY_CAPACITY) storedTraps.removeAt(storedTraps.lastIndex)
+            while (storedStructures.size > MAX_INVENTORY_CAPACITY) storedStructures.removeAt(storedStructures.lastIndex)
             supplies.clear()
             preferences.getString("run_supplies", "").orEmpty().split(';').filter { it.isNotBlank() }.forEach {
                 val values = it.split(',')
@@ -2605,8 +2790,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedTrap = null
             selectedUtility = null
             selectedUtilityKind = null
-            selectedStoredTrapIndex = -1
+            selectedInventorySelection = null
             selectedCorruption = null
+            inventoryCategory = InventoryCategory.TOWERS
+            inventoryPageIndex = 0
+            buildShelfSlide = 0f
             buildPage = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildPage.TRAPS else BuildPage.TOWERS
             rebuildToolRects()
             phase = if (perkChoices.size == 3) GamePhase.PERK_DRAFT else GamePhase.BUILD
@@ -2622,14 +2810,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun isValidSavedPath(path: List<GridCell>): Boolean {
         if (path.size < COLS || path.size > COLS * ROWS) return false
-        if (path.first() != GridCell(0, START_ROW) || path.last() != GridCell(COLS - 1, START_ROW)) return false
+        if (path.firstOrNull() != GridCell(0, START_ROW) || path.lastOrNull() != GridCell(COLS - 1, START_ROW)) return false
         if (path.toSet().size != path.size) return false
         return path.all { it.col in 0 until COLS && it.row in 0 until ROWS } && path.zipWithNext().all { abs(it.first.col - it.second.col) + abs(it.first.row - it.second.row) == 1 }
     }
 
     private fun clearSavedRun() {
         val editor = preferences.edit()
-        arrayOf("run_path", "run_towers", "run_traps", "run_utilities", "run_corruptions", "run_perks", "run_pending_perks", "run_pending_perk_waves", "run_next_wave_timer", "run_inventory", "run_supplies", "run_gold", "run_lives", "run_max_core", "run_score", "run_wave", "run_forge_charges", "run_evolution_cores", "run_salvage_parts", "run_growth_essence", "run_survey_lens_waves", "run_phase_barrier", "run_mode", "run_modifier", "run_seed", "run_save_version").forEach { editor.remove(it) }
+        arrayOf("run_path", "run_towers", "run_traps", "run_utilities", "run_corruptions", "run_perks", "run_pending_perks", "run_pending_perk_waves", "run_next_wave_timer", "run_inventory", "run_inventory_towers", "run_inventory_traps", "run_inventory_structures", "run_supplies", "run_gold", "run_lives", "run_max_core", "run_score", "run_wave", "run_forge_charges", "run_evolution_cores", "run_salvage_parts", "run_growth_essence", "run_survey_lens_waves", "run_phase_barrier", "run_mode", "run_modifier", "run_seed", "run_save_version").forEach { editor.remove(it) }
         editor.putBoolean("has_saved_run", false).apply()
         savedRunAvailable = false
     }
@@ -2646,12 +2834,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedUtility = null
         selectedUtilityKind = null
-        selectedStoredTrapIndex = -1
+        selectedInventorySelection = null
         selectedCorruption = null
         evolutionTower = null
         imbuementTower = null
         imbuementTrap = null
         imbuementUtility = null
+        inventoryCategory = InventoryCategory.TOWERS
+        inventoryPageIndex = 0
+        buildShelfSlide = 0f
         buildPage = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildPage.TRAPS else BuildPage.TOWERS
         rebuildToolRects()
         pathCells.clear()
@@ -2660,7 +2851,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         towers.clear()
         traps.clear()
         utilities.clear()
+        storedTowers.clear()
         storedTraps.clear()
+        storedStructures.clear()
         supplies.clear()
         corruptions.clear()
         perks.clear()
@@ -2747,7 +2940,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedUtility = null
         selectedUtilityKind = null
-        selectedStoredTrapIndex = -1
+        selectedInventorySelection = null
         selectedCorruption = null
         evolutionTower = null
         imbuementTower = null
@@ -2781,7 +2974,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         towers.clear()
         traps.clear()
         utilities.clear()
+        storedTowers.clear()
         storedTraps.clear()
+        storedStructures.clear()
         supplies.clear()
         corruptions.clear()
         salvageParts = 0
@@ -2801,12 +2996,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedUtility = null
         selectedUtilityKind = null
-        selectedStoredTrapIndex = -1
+        selectedInventorySelection = null
         selectedCorruption = null
         evolutionTower = null
         imbuementTower = null
         imbuementTrap = null
         imbuementUtility = null
+        inventoryCategory = InventoryCategory.TOWERS
+        inventoryPageIndex = 0
+        buildShelfSlide = 0f
         buildPage = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildPage.TRAPS else BuildPage.TOWERS
         rebuildToolRects()
         setBanner("PATH RESET  DRAG TO THE CORE", 2.2f)
@@ -3090,19 +3288,28 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     return true
                 }
                 if (upgradeRect.contains(x, y)) {
+                    val tower = selectedTower
                     when {
                         selectedCorruption != null -> cleanseSelectedCorruption()
                         selectedUtility != null -> upgradeSelectedUtility()
+                        tower?.canEvolve() == true -> if (evolutionCores > 0) openEvolutionDraft(tower) else setBanner("DEFEAT AN OVERGROWTH BOSS FOR AN EVOLUTION CORE", 2f)
                         else -> upgradeSelectedDefense()
                     }
                     return true
                 }
-                if (storeRect.contains(x, y)) {
-                    val tower = selectedTower
+                val utility = selectedUtility
+                if (utility?.kind == UtilityKind.FORGE_WORKSHOP && workshopRect.contains(x, y)) {
+                    openWorkshop()
+                    return true
+                }
+                if (utility?.kind == UtilityKind.FORGE_WORKSHOP && structureStoreRect.contains(x, y)) {
+                    storeSelectedStructure()
+                    return true
+                }
+                if (utility?.kind != UtilityKind.FORGE_WORKSHOP && storeRect.contains(x, y)) {
                     when {
-                        tower != null && tower.canEvolve() -> if (evolutionCores > 0) openEvolutionDraft(tower) else setBanner("DEFEAT AN OVERGROWTH BOSS FOR AN EVOLUTION CORE", 2f)
-                        selectedTrap != null -> storeSelectedTrap()
-                        selectedUtility?.kind == UtilityKind.FORGE_WORKSHOP -> openWorkshop()
+                        selectedTower != null || selectedTrap != null -> storeSelectedDefense()
+                        utility != null -> storeSelectedStructure()
                     }
                     return true
                 }
@@ -3116,47 +3323,87 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
             }
 
-            if (phase == GamePhase.BUILD && event.action == MotionEvent.ACTION_UP) {
-                if (towerPageRect.contains(x, y)) {
-                    if (challengeModifier == ChallengeModifier.TRAPS_ONLY) {
-                        setBanner("TRAPS ONLY CHALLENGE", 1.4f)
+            if (phase == GamePhase.BUILD && buildShelfReadyForInput() && event.action == MotionEvent.ACTION_UP) {
+                if (buildPage == BuildPage.INVENTORY) {
+                    fun selectInventoryCategory(category: InventoryCategory) {
+                        if (inventoryCategory == category) {
+                            when (category) {
+                                InventoryCategory.TOWERS -> {
+                                    if (challengeModifier == ChallengeModifier.TRAPS_ONLY) {
+                                        setBanner("TRAPS ONLY CHALLENGE", 1.4f)
+                                        return
+                                    }
+                                    buildPage = BuildPage.TOWERS
+                                    if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
+                                }
+                                InventoryCategory.TRAPS -> {
+                                    if (challengeModifier == ChallengeModifier.TOWERS_ONLY) {
+                                        setBanner("TOWERS ONLY CHALLENGE", 1.4f)
+                                        return
+                                    }
+                                    buildPage = BuildPage.TRAPS
+                                    if (selectedTool.ordinal < BuildTool.SPIKES.ordinal) selectedTool = BuildTool.SPIKES
+                                }
+                                InventoryCategory.STRUCTURES -> buildPage = BuildPage.STRUCTURES
+                            }
+                        } else {
+                            inventoryCategory = category
+                            inventoryPageIndex = 0
+                        }
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 0.98f)
+                    }
+                    if (towerPageRect.contains(x, y)) { selectInventoryCategory(InventoryCategory.TOWERS); return true }
+                    if (trapPageRect.contains(x, y)) { selectInventoryCategory(InventoryCategory.TRAPS); return true }
+                    if (utilityPageRect.contains(x, y)) { selectInventoryCategory(InventoryCategory.STRUCTURES); return true }
+                    if (inventoryPageRect.contains(x, y)) {
+                        inventoryPageIndex = (inventoryPageIndex + 1) % inventoryPageCount()
+                        selectedInventorySelection = null
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 0.92f)
                         return true
                     }
-                    if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 4 else buildPage = BuildPage.TOWERS
-                    if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
-                    clearBuildSelections()
-                    rebuildToolRects()
-                    audio.play("ui_click", 0.28f, 1.02f)
-                    return true
-                }
-                if (trapPageRect.contains(x, y)) {
-                    if (challengeModifier == ChallengeModifier.TOWERS_ONLY) {
-                        setBanner("TOWERS ONLY CHALLENGE", 1.4f)
+                } else {
+                    if (towerPageRect.contains(x, y)) {
+                        if (challengeModifier == ChallengeModifier.TRAPS_ONLY) {
+                            setBanner("TRAPS ONLY CHALLENGE", 1.4f)
+                            return true
+                        }
+                        if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 4 else buildPage = BuildPage.TOWERS
+                        if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 1.02f)
                         return true
                     }
-                    buildPage = BuildPage.TRAPS
-                    if (selectedTool.ordinal < BuildTool.SPIKES.ordinal) selectedTool = BuildTool.SPIKES
-                    clearBuildSelections()
-                    rebuildToolRects()
-                    audio.play("ui_click", 0.28f, 0.96f)
-                    return true
-                }
-                if (utilityPageRect.contains(x, y)) {
-                    if (buildPage == BuildPage.UTILITIES) utilityPageIndex = (utilityPageIndex + 1) % 5 else buildPage = BuildPage.UTILITIES
-                    clearBuildSelections()
-                    rebuildToolRects()
-                    audio.play("ui_click", 0.28f, 1.08f)
-                    return true
-                }
-                if (cachePageRect.contains(x, y)) {
-                    if (buildPage == BuildPage.CACHE) {
-                        val pages = max(1, (storedTraps.size + 4) / 5)
-                        cachePageIndex = (cachePageIndex + 1) % pages
-                    } else buildPage = BuildPage.CACHE
-                    clearBuildSelections()
-                    rebuildToolRects()
-                    audio.play("ui_click", 0.28f, 0.92f)
-                    return true
+                    if (trapPageRect.contains(x, y)) {
+                        if (challengeModifier == ChallengeModifier.TOWERS_ONLY) {
+                            setBanner("TOWERS ONLY CHALLENGE", 1.4f)
+                            return true
+                        }
+                        buildPage = BuildPage.TRAPS
+                        if (selectedTool.ordinal < BuildTool.SPIKES.ordinal) selectedTool = BuildTool.SPIKES
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 0.96f)
+                        return true
+                    }
+                    if (utilityPageRect.contains(x, y)) {
+                        if (buildPage == BuildPage.STRUCTURES) utilityPageIndex = (utilityPageIndex + 1) % 5 else buildPage = BuildPage.STRUCTURES
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 1.08f)
+                        return true
+                    }
+                    if (inventoryPageRect.contains(x, y)) {
+                        buildPage = BuildPage.INVENTORY
+                        inventoryPageIndex = 0
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 0.92f)
+                        return true
+                    }
                 }
                 for (entry in toolRects) if (entry.second.contains(x, y)) { selectTool(entry.first); return true }
                 for (entry in utilityRects) if (entry.second.contains(x, y)) {
@@ -3168,10 +3415,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     setBanner("${kind.title.uppercase()}  •  ${kind.description}$status", 2.8f)
                     return true
                 }
-                for (entry in cacheRects) if (entry.second.contains(x, y)) {
+                for (entry in inventoryRects) if (entry.second.contains(x, y)) {
                     clearBuildSelections()
-                    selectedStoredTrapIndex = entry.first
+                    selectedInventorySelection = entry.first
                     audio.play("ui_click", 0.28f, 0.98f)
+                    setBanner("${inventoryItemTitle(entry.first).uppercase()} READY  •  FREE TO PLACE", 1.6f)
                     return true
                 }
             }
@@ -3207,7 +3455,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedUtility = null
         selectedCorruption = null
         selectedUtilityKind = null
-        selectedStoredTrapIndex = -1
+        selectedInventorySelection = null
     }
 
     private fun selectTool(tool: BuildTool) {
@@ -3316,12 +3564,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedUtility = null
         selectedCorruption = null
-        if (buildPage == BuildPage.UTILITIES && selectedUtilityKind != null) {
-            placeUtility(cell, selectedUtilityKind!!)
+        if (buildPage == BuildPage.STRUCTURES) {
+            val kind = selectedUtilityKind ?: return
+            placeUtility(cell, kind)
             return
         }
-        if (buildPage == BuildPage.CACHE && selectedStoredTrapIndex in storedTraps.indices) {
-            placeStoredTrap(cell)
+        if (buildPage == BuildPage.INVENTORY) {
+            val inventorySelection = selectedInventorySelection ?: return
+            if (isValidInventorySelection(inventorySelection)) placeStoredInventoryItem(cell, inventorySelection)
             return
         }
         when (selectedTool) {
@@ -3420,7 +3670,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun placeTrap(cell: GridCell, kind: TrapKind) {
         if (challengeModifier == ChallengeModifier.TOWERS_ONLY) return
-        if (!isPathCell(cell) || cell == pathCells.first() || cell == pathCells.last() || findTrap(cell.col, cell.row) != null) {
+        val gateCell = pathCells.firstOrNull()
+        val coreCell = pathCells.lastOrNull()
+        if (!isPathCell(cell) || cell == gateCell || cell == coreCell || findTrap(cell.col, cell.row) != null) {
             setBanner("TRAPS GO ON AN EMPTY PATH BLOCK", 1.5f)
             audio.play("ui_click", 0.24f, 0.7f)
             return
@@ -3499,53 +3751,185 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         saveRun()
     }
 
-    private fun storeSelectedTrap() {
-        val trap = selectedTrap ?: return
-        if (storedTraps.size >= cacheCapacity()) {
-            setBanner("CACHE FULL  ${storedTraps.size}/${cacheCapacity()}", 1.6f)
+    /** Stores either defense family without selling it; permanent rank state is retained. */
+    private fun storeSelectedDefense() {
+        val tower = selectedTower
+        val trap = selectedTrap
+        val category = if (tower != null) InventoryCategory.TOWERS else InventoryCategory.TRAPS
+        if (tower == null && trap == null) return
+        if (!hasInventoryRoom(category)) {
+            setBanner("${category.title} INVENTORY FULL  ${inventoryCount(category)}/${inventoryCapacity()}", 1.7f)
             return
         }
         val wrapped = supplyCount(CraftedItem.RECOVERY_WRAP) > 0
-        val cost = if (wrapped) 0 else trapStorageCost(trap)
+        val cost = if (wrapped) 0 else tower?.let { towerStorageCost(it) } ?: trap?.let { trapStorageCost(it) } ?: 0
         if (gold < cost) {
             setBanner("NEED $cost BLOCKS TO STORE", 1.6f)
             return
         }
         gold -= cost
         if (wrapped) consumeSupply(CraftedItem.RECOVERY_WRAP)
-        storedTraps.add(StoredTrap(trap.kind, trap.level, trap.overcharge, trap.imbuement))
-        traps.remove(trap)
+        val title: String
+        if (tower != null) {
+            storedTowers.add(StoredTower(tower.kind, tower.level, tower.overcharge, tower.evolution, tower.imbuement, tower.activationCount))
+            towers.remove(tower)
+            title = tower.kind.title
+        } else {
+            val storedTrap = trap ?: return
+            storedTraps.add(StoredTrap(storedTrap.kind, storedTrap.level, storedTrap.overcharge, storedTrap.imbuement, storedTrap.activationCount))
+            traps.remove(storedTrap)
+            title = storedTrap.kind.title
+        }
+        selectedTower = null
         selectedTrap = null
-        selectedStoredTrapIndex = storedTraps.lastIndex
-        buildPage = BuildPage.CACHE
-        rebuildToolRects()
-        setBanner("${trap.kind.title.uppercase()} CACHED  -$cost BLOCKS", 1.8f)
+        openInventoryAfterStore(category)
+        setBanner("${title.uppercase()} STORED${if (wrapped) "  •  WRAP USED" else "  •  -$cost BLOCKS"}", 1.8f)
         saveRun()
     }
 
-    private fun placeStoredTrap(cell: GridCell) {
-        if (challengeModifier == ChallengeModifier.TOWERS_ONLY) return
-        if (selectedStoredTrapIndex !in storedTraps.indices) return
-        if (!isPathCell(cell) || cell == pathCells.first() || cell == pathCells.last() || findTrap(cell.col, cell.row) != null) {
-            setBanner("CACHED TRAPS NEED AN EMPTY PATH BLOCK", 1.6f)
+    /** Stores a Structure, including wave-cycle progress and activation cadence. */
+    private fun storeSelectedStructure() {
+        val structure = selectedUtility ?: return
+        if (!hasInventoryRoom(InventoryCategory.STRUCTURES)) {
+            setBanner("STRUCTURES INVENTORY FULL  ${storedStructures.size}/${inventoryCapacity()}", 1.7f)
             return
         }
-        val stored = storedTraps.removeAt(selectedStoredTrapIndex)
+        // An online Inventory Depot can raise every shelf above 25. Do not let its own removal
+        // strand any shelf over the base limit it is about to restore.
+        if (lastDepotWouldOverfillInventory(structure, addingToStructureShelf = true)) {
+            setBanner("KEEP INVENTORY DEPOT ONLINE UNTIL EVERY SHELF IS 25 OR LOWER", 2f)
+            return
+        }
+        val wrapped = supplyCount(CraftedItem.RECOVERY_WRAP) > 0
+        val cost = if (wrapped) 0 else structureStorageCost(structure)
+        if (gold < cost) {
+            setBanner("NEED $cost BLOCKS TO STORE", 1.6f)
+            return
+        }
+        gold -= cost
+        if (wrapped) consumeSupply(CraftedItem.RECOVERY_WRAP)
+        storedStructures.add(
+            StoredStructure(
+                structure.kind,
+                structure.level,
+                structure.imbuement,
+                structure.productionProgress,
+                structure.activationCount
+            )
+        )
+        utilities.remove(structure)
+        selectedUtility = null
+        openInventoryAfterStore(InventoryCategory.STRUCTURES)
+        setBanner("${structure.kind.title.uppercase()} STORED${if (wrapped) "  •  WRAP USED" else "  •  -$cost BLOCKS"}", 1.8f)
+        saveRun()
+    }
+
+    private fun openInventoryAfterStore(category: InventoryCategory) {
+        buildPage = BuildPage.INVENTORY
+        inventoryCategory = category
+        inventoryPageIndex = max(0, (inventoryCount(category) - 1) / INVENTORY_PAGE_SIZE)
+        selectedInventorySelection = InventorySelection(category, inventoryCount(category) - 1)
+        rebuildToolRects()
+    }
+
+    private fun placeStoredInventoryItem(cell: GridCell, selection: InventorySelection) {
+        when (selection.category) {
+            InventoryCategory.TOWERS -> placeStoredTower(cell, selection)
+            InventoryCategory.TRAPS -> placeStoredTrap(cell, selection)
+            InventoryCategory.STRUCTURES -> placeStoredStructure(cell, selection)
+        }
+    }
+
+    /** Free re-placement of a tower deliberately skips escalating build costs. */
+    private fun placeStoredTower(cell: GridCell, selection: InventorySelection) {
+        if (challengeModifier == ChallengeModifier.TRAPS_ONLY || selection.index !in storedTowers.indices) return
+        if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findTrap(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row)?.kind == CorruptionKind.BROOD_NEST) {
+            setBanner("STORED TOWERS NEED A FREE TERRAIN BLOCK", 1.6f)
+            return
+        }
+        val stored = storedTowers.removeAt(selection.index)
+        val tower = Tower(cell.col, cell.row, stored.kind)
+        tower.level = stored.level
+        tower.overcharge = stored.overcharge
+        tower.evolution = stored.evolution?.takeIf { it.kind == stored.kind }
+        tower.imbuement = stored.imbuement
+        tower.activationCount = stored.activationCount
+        towers.add(tower)
+        finishInventoryDeployment(InventoryCategory.TOWERS)
+        burst(cell.col + 0.5f, cell.row + 0.5f, stored.kind.accent, 13, 0.8f)
+        setBanner("${stored.kind.title.uppercase()} REDEPLOYED FREE  •  ${stored.rankLabel()}", 1.7f)
+        saveRun()
+    }
+
+    /** Free re-placement of a trap keeps its upgrades and imbuement intact. */
+    private fun placeStoredTrap(cell: GridCell, selection: InventorySelection) {
+        if (challengeModifier == ChallengeModifier.TOWERS_ONLY || selection.index !in storedTraps.indices) return
+        val gateCell = pathCells.firstOrNull()
+        val coreCell = pathCells.lastOrNull()
+        if (!isPathCell(cell) || cell == gateCell || cell == coreCell || findTrap(cell.col, cell.row) != null) {
+            setBanner("STORED TRAPS NEED AN EMPTY PATH BLOCK", 1.6f)
+            return
+        }
+        val stored = storedTraps.removeAt(selection.index)
         val trap = SpikeTrap(nextTrapId++, cell.col, cell.row, stored.kind)
         trap.level = stored.level
         trap.overcharge = stored.overcharge
         trap.imbuement = stored.imbuement
+        trap.activationCount = stored.activationCount
         traps.add(trap)
-        selectedStoredTrapIndex = -1
-        cachePageIndex = min(cachePageIndex, max(0, (storedTraps.size - 1) / 5))
-        rebuildToolRects()
+        finishInventoryDeployment(InventoryCategory.TRAPS)
         burst(cell.col + 0.5f, cell.row + 0.5f, stored.kind.accent, 13, 0.8f)
-        setBanner("${stored.kind.title.uppercase()} RECOVERED  ${stored.rankLabel()}", 1.7f)
+        setBanner("${stored.kind.title.uppercase()} REDEPLOYED FREE  •  ${stored.rankLabel()}", 1.7f)
         saveRun()
+    }
+
+    /** Free re-placement of a Structure bypasses unlock/cost gates but preserves normal board limits. */
+    private fun placeStoredStructure(cell: GridCell, selection: InventorySelection) {
+        if (selection.index !in storedStructures.indices) return
+        val stored = storedStructures[selection.index]
+        if (!structurePlacementAllowed(cell, stored.kind)) return
+        storedStructures.removeAt(selection.index)
+        val structure = Utility(cell.col, cell.row, stored.kind)
+        structure.level = stored.level.coerceIn(1, structure.maxLevel())
+        structure.imbuement = stored.imbuement
+        structure.productionProgress = stored.productionProgress.coerceIn(0, 20)
+        structure.activationCount = stored.activationCount.coerceIn(0, 2_000_000_000)
+        utilities.add(structure)
+        selectedUtility = structure
+        selectedUtilityKind = null
+        finishInventoryDeployment(InventoryCategory.STRUCTURES)
+        burst(cell.col + 0.5f, cell.row + 0.5f, stored.kind.accent, 16, 0.95f)
+        setBanner("${stored.kind.title.uppercase()} REDEPLOYED FREE  •  ${stored.rankLabel()}", 1.8f)
+        saveRun()
+    }
+
+    private fun finishInventoryDeployment(category: InventoryCategory) {
+        selectedInventorySelection = null
+        inventoryPageIndex = min(inventoryPageIndex, inventoryPageCount(category) - 1)
+        rebuildToolRects()
     }
 
     private fun utilityUnlocked(kind: UtilityKind): Boolean {
         return waveNumber >= 10 || kind == UtilityKind.BLOCK_GENERATOR || kind == UtilityKind.SURVEYOR_STATION || kind == UtilityKind.SALVAGE_YARD
+    }
+
+    private fun structurePlacementAllowed(cell: GridCell, kind: UtilityKind): Boolean {
+        // Structures have no global cap: unique kinds remain unique while Block Generators can
+        // occupy up to five terrain cells. Stored redeployments obey these board rules too.
+        val copies = utilities.count { it.kind == kind }
+        if (kind == UtilityKind.BLOCK_GENERATOR && copies >= MAX_BLOCK_GENERATORS) {
+            setBanner("BLOCK GENERATOR LIMIT  $MAX_BLOCK_GENERATORS/$MAX_BLOCK_GENERATORS", 1.6f)
+            return false
+        }
+        if (kind != UtilityKind.BLOCK_GENERATOR && copies >= 1) {
+            setBanner("ONE COPY OF THIS STRUCTURE IS ALREADY ACTIVE", 1.5f)
+            return false
+        }
+        if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row) != null) {
+            setBanner("STRUCTURES NEED CLEAN FREE TERRAIN", 1.5f)
+            return false
+        }
+        return true
     }
 
     private fun placeUtility(cell: GridCell, kind: UtilityKind) {
@@ -3553,22 +3937,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("DEFEAT THE FIRST OVERGROWTH TO UNLOCK", 1.8f)
             return
         }
-        // v1.4.2 removes the global four-utility capacity. Keep one copy for each utility
-        // roster entry, while allowing a maximum of five Block Generators.
-        val copies = utilities.count { it.kind == kind }
-        if (kind == UtilityKind.BLOCK_GENERATOR) {
-            if (copies >= MAX_BLOCK_GENERATORS) {
-                setBanner("BLOCK GENERATOR LIMIT  $MAX_BLOCK_GENERATORS/$MAX_BLOCK_GENERATORS", 1.6f)
-                return
-            }
-        } else if (copies >= 1) {
-            setBanner("ONE COPY OF THIS UTILITY IS ALREADY ACTIVE", 1.5f)
-            return
-        }
-        if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row) != null) {
-            setBanner("UTILITIES NEED CLEAN FREE TERRAIN", 1.5f)
-            return
-        }
+        if (!structurePlacementAllowed(cell, kind)) return
         val cost = utilityPlacementCost(kind)
         if (gold < cost) {
             setBanner("NEED $cost BLOCKS", 1.5f)
@@ -3587,7 +3956,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun upgradeSelectedUtility() {
         val utility = selectedUtility ?: return
         if (utility.level >= utility.maxLevel()) {
-            setBanner("UTILITY AT MAXIMUM LEVEL", 1.4f)
+            setBanner("STRUCTURE AT MAXIMUM LEVEL", 1.4f)
             return
         }
         val hasGearset = supplyCount(CraftedItem.UTILITY_GEARSET) > 0
@@ -3611,6 +3980,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("NO RECYCLING CHALLENGE", 1.5f)
             return
         }
+        if (lastDepotWouldOverfillInventory(utility, addingToStructureShelf = false)) {
+            setBanner("KEEP INVENTORY DEPOT ONLINE UNTIL EVERY SHELF IS 25 OR LOWER", 2f)
+            return
+        }
         val invested = utility.kind.cost + (utility.level - 1) * (utility.kind.cost / 2 + 70)
         val value = (invested * recyclingMultiplier()).toInt()
         gold = safeAdd(gold, value)
@@ -3619,7 +3992,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         utilities.remove(utility)
         selectedUtility = null
         rebuildToolRects()
-        setBanner("UTILITY RECYCLED  +$value BLOCKS  +$parts PARTS", 1.8f)
+        setBanner("STRUCTURE RECYCLED  +$value BLOCKS  +$parts PARTS", 1.8f)
         saveRun()
     }
 
@@ -3679,7 +4052,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             CraftedItem.TRAP_REFIT_KIT -> {
                 val index = storedTraps.indices.filter { storedTraps[it].level < 3 }.minByOrNull { storedTraps[it].level }
-                if (index == null) { setBanner("NO CACHED TRAP CAN BE REFIT", 1.5f); return }
+                if (index == null) { setBanner("NO STORED TRAP CAN BE REFIT", 1.5f); return }
                 storedTraps[index].level += 1
                 consumeSupply(item)
                 rebuildToolRects()
@@ -3903,13 +4276,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun extendReforgePath(cell: GridCell) {
-        if (pathComplete || pathCells.isEmpty()) return
-        val last = pathCells.last()
+        if (pathComplete) return
+        val last = pathCells.lastOrNull() ?: return
         val distance = abs(cell.col - last.col) + abs(cell.row - last.row)
         if (distance > 1) {
             var safety = 0
-            while (!pathComplete && pathCells.last() != cell && safety < COLS + ROWS) {
-                val current = pathCells.last()
+            while (!pathComplete && pathCells.lastOrNull() != cell && safety < COLS + ROWS) {
+                val current = pathCells.lastOrNull() ?: break
                 val dx = cell.col - current.col
                 val dy = cell.row - current.row
                 val next = if (abs(dx) >= abs(dy) && dx != 0) GridCell(current.col + if (dx > 0) 1 else -1, current.row) else GridCell(current.col, current.row + if (dy > 0) 1 else -1)
@@ -3978,8 +4351,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             return
         }
         val displaced = displacedReforgeTraps()
-        if (storedTraps.size + displaced.size > cacheCapacity()) {
-            setBanner("CACHE FULL  NEED ${storedTraps.size + displaced.size}/${cacheCapacity()} SLOTS", 1.9f)
+        if (storedTraps.size + displaced.size > inventoryCapacity()) {
+            setBanner("TRAP INVENTORY FULL  NEED ${storedTraps.size + displaced.size}/${inventoryCapacity()} SLOTS", 1.9f)
             return
         }
         val hasCoupler = supplyCount(CraftedItem.REFORGE_COUPLER) > 0 && reforgeCost > 0
@@ -3998,12 +4371,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         gold -= storageCost
         if (hasCoupler) consumeSupply(CraftedItem.REFORGE_COUPLER)
         repeat(wraps) { consumeSupply(CraftedItem.RECOVERY_WRAP) }
-        for (trap in displaced) storedTraps.add(StoredTrap(trap.kind, trap.level, trap.overcharge, trap.imbuement))
+        for (trap in displaced) storedTraps.add(StoredTrap(trap.kind, trap.level, trap.overcharge, trap.imbuement, trap.activationCount))
         traps.removeAll(displaced)
         reforgeOriginalPath.clear()
         phase = GamePhase.BUILD
         rebuildToolRects()
-        setBanner("REFORGED  -F$forgeCost  -$storageCost BLOCKS  ${displaced.size} CACHED", 2.5f)
+        setBanner("REFORGED  -F$forgeCost  -$storageCost BLOCKS  ${displaced.size} STORED", 2.5f)
         saveRun()
         audio.play("build", 0.62f, 0.86f)
     }
@@ -4976,7 +5349,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     /**
      * v1.4.3: animated arcane Hex shackle. Replaces the old flat purple disc
-     * with the literal text "HEX" that both towers and utilities used to draw.
+     * with the literal text "HEX" that both towers and Structures used to draw.
      */
     private fun drawHexShackle(canvas: Canvas, x: Float, y: Float) {
         val frames = sprites.statusHex.frameCount
@@ -5267,7 +5640,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         val canStart = when {
             phase == GamePhase.BUILD && pathComplete -> true
-            phase == GamePhase.REFORGE && pathComplete && effectiveReforgeCost() <= forgeCharges && reforgeRecoveryCost() <= gold && storedTraps.size + displacedReforgeTraps().size <= cacheCapacity() -> true
+            phase == GamePhase.REFORGE && pathComplete && effectiveReforgeCost() <= forgeCharges && reforgeRecoveryCost() <= gold && storedTraps.size + displacedReforgeTraps().size <= inventoryCapacity() -> true
             phase == GamePhase.WAVE && activeWaveNumbers.isNotEmpty() -> true
             else -> false
         }
@@ -5354,14 +5727,35 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawBottomBar(canvas: Canvas) {
-        val top = viewHeight - bottomBarHeight
-        drawBitmapInRect(canvas, sprites.hudBottomRail, RectF(0f, top, viewWidth, viewHeight))
+        val shelfBounds = RectF(0f, viewHeight - bottomBarHeight, viewWidth, viewHeight)
+        val showsInspection = (selectedCorruption != null || selectedUtility != null || selectedTower != null || selectedTrap != null) &&
+            (phase == GamePhase.BUILD || phase == GamePhase.WAVE)
         when {
-            phase == GamePhase.DIG || phase == GamePhase.REFORGE -> drawPathForgePanel(canvas)
-            selectedCorruption != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawCorruptionPanel(canvas)
-            selectedUtility != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawUtilityPanel(canvas)
-            (selectedTower != null || selectedTrap != null) && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawDefensePanel(canvas)
-            else -> drawToolBar(canvas)
+            phase == GamePhase.DIG || phase == GamePhase.REFORGE -> {
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawPathForgePanel(canvas)
+            }
+            selectedCorruption != null && showsInspection -> {
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawCorruptionPanel(canvas)
+            }
+            selectedUtility != null && showsInspection -> {
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawUtilityPanel(canvas)
+            }
+            (selectedTower != null || selectedTrap != null) && showsInspection -> {
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawDefensePanel(canvas)
+            }
+            else -> {
+                // The rail and its build cards are one placement shelf. Translating both—not the
+                // inspection surface above—makes the wave transition unambiguous.
+                canvas.save()
+                canvas.translate(0f, buildShelfOffsetY())
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawToolBar(canvas)
+                canvas.restore()
+            }
         }
     }
 
@@ -5388,10 +5782,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawToolBar(canvas: Canvas) {
         val towersLocked = challengeModifier == ChallengeModifier.TRAPS_ONLY
         val trapsLocked = challengeModifier == ChallengeModifier.TOWERS_ONLY
-        drawPageTab(canvas, towerPageRect, if (towersLocked) "LOCK" else "TWR ${towerPageIndex + 1}/4", buildPage == BuildPage.TOWERS, if (towersLocked) sprites.uiIconLock else sprites.uiIconTowers, towersLocked)
-        drawPageTab(canvas, trapPageRect, if (trapsLocked) "LOCK" else "TRAPS", buildPage == BuildPage.TRAPS, if (trapsLocked) sprites.uiIconLock else sprites.uiIconTraps, trapsLocked)
-        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/5", buildPage == BuildPage.UTILITIES, sprites.uiIconUtilities)
-        drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, sprites.uiIconCache)
+        if (buildPage == BuildPage.INVENTORY) {
+            // The three left tabs become explicit shelf selectors while Inventory is open. Tap an
+            // active shelf again to return to its matching build catalog; the fourth tab pages it.
+            drawPageTab(canvas, towerPageRect, "TWR ${storedTowers.size}/${inventoryCapacity()}", inventoryCategory == InventoryCategory.TOWERS, sprites.uiIconTowers)
+            drawPageTab(canvas, trapPageRect, "TRP ${storedTraps.size}/${inventoryCapacity()}", inventoryCategory == InventoryCategory.TRAPS, sprites.uiIconTraps)
+            drawPageTab(canvas, utilityPageRect, "STR ${storedStructures.size}/${inventoryCapacity()}", inventoryCategory == InventoryCategory.STRUCTURES, sprites.uiIconUtilities)
+            drawPageTab(canvas, inventoryPageRect, "INV ${inventoryPageIndex + 1}/${inventoryPageCount()}", true, sprites.uiIconCache)
+        } else {
+            drawPageTab(canvas, towerPageRect, if (towersLocked) "LOCK" else "TWR ${towerPageIndex + 1}/4", buildPage == BuildPage.TOWERS, if (towersLocked) sprites.uiIconLock else sprites.uiIconTowers, towersLocked)
+            drawPageTab(canvas, trapPageRect, if (trapsLocked) "LOCK" else "TRAPS", buildPage == BuildPage.TRAPS, if (trapsLocked) sprites.uiIconLock else sprites.uiIconTraps, trapsLocked)
+            drawPageTab(canvas, utilityPageRect, "STR ${utilityPageIndex + 1}/5", buildPage == BuildPage.STRUCTURES, sprites.uiIconUtilities)
+            drawPageTab(canvas, inventoryPageRect, "INVENTORY", false, sprites.uiIconCache)
+        }
         for ((tool, rect) in toolRects) {
             val selected = selectedTool == tool && ((buildPage == BuildPage.TOWERS && tool.ordinal < BuildTool.SPIKES.ordinal) || (buildPage == BuildPage.TRAPS && tool.ordinal >= BuildTool.SPIKES.ordinal))
             val toolCost = toolPlacementCost(tool)
@@ -5436,15 +5839,46 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             drawCenteredText(canvas, utilityFooter, rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(12, 22, 17) else footerColor, true)
         }
-        for ((index, rect) in cacheRects) {
-            val stored = storedTraps[index]
-            val selected = selectedStoredTrapIndex == index
+        for ((selection, rect) in inventoryRects) {
+            val selected = selectedInventorySelection == selection
             drawBitmapInRect(canvas, if (selected) sprites.uiBuildSlotSelected else sprites.uiBuildSlot, rect)
-            drawSpriteFrameCentered(canvas, sprites.trap(stored.kind), 0, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
-            drawCenteredText(canvas, stored.kind.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
-            drawCenteredText(canvas, stored.rankLabel(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(7f), rect.width() * 0.08f), if (stored.imbuement != null) stored.imbuement!!.accent else Color.rgb(190, 244, 78), true)
+            when (selection.category) {
+                InventoryCategory.TOWERS -> storedTowers.getOrNull(selection.index)?.let { stored ->
+                    drawToolIcon(canvas, buildToolForTowerKind(stored.kind), rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.32f)
+                }
+                InventoryCategory.TRAPS -> storedTraps.getOrNull(selection.index)?.let { stored ->
+                    drawSpriteFrameCentered(canvas, sprites.trap(stored.kind), 0, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
+                }
+                InventoryCategory.STRUCTURES -> storedStructures.getOrNull(selection.index)?.let { stored ->
+                    drawSpriteFrameCentered(canvas, sprites.utility(stored.kind), 1, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.54f)
+                }
+            }
+            drawCenteredText(canvas, inventoryItemTitle(selection).uppercase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
+            val stateColor = inventoryItemImbuement(selection)?.accent ?: Color.rgb(190, 244, 78)
+            drawCenteredText(canvas, "FREE  •  ${inventoryItemRank(selection)}", rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(7f), rect.width() * 0.08f), if (selected) Color.rgb(22, 38, 27) else stateColor, true)
         }
-        if (buildPage == BuildPage.CACHE && storedTraps.isEmpty()) drawCenteredText(canvas, "CACHE EMPTY  •  STORE A PLACED TRAP", (cachePageRect.right + viewWidth) * 0.5f, viewHeight - bottomBarHeight * 0.5f, dp(11f), Color.rgb(137, 153, 142), true)
+        if (buildPage == BuildPage.INVENTORY && inventoryCount(inventoryCategory) == 0) {
+            val hint = "${inventoryCategory.title} INVENTORY EMPTY  •  STORE A PLACED ${if (inventoryCategory == InventoryCategory.STRUCTURES) "STRUCTURE" else inventoryCategory.title.dropLast(1)}"
+            drawCenteredText(canvas, hint, (inventoryPageRect.right + viewWidth) * 0.5f, viewHeight - bottomBarHeight * 0.5f, dp(10f), Color.rgb(137, 153, 142), true)
+        }
+    }
+
+    private fun buildToolForTowerKind(kind: TowerKind): BuildTool = when (kind) {
+        TowerKind.BOLT -> BuildTool.BOLT
+        TowerKind.FROST -> BuildTool.FROST
+        TowerKind.CANNON -> BuildTool.CANNON
+        TowerKind.EMBER -> BuildTool.EMBER
+        TowerKind.BEACON -> BuildTool.BEACON
+        TowerKind.THORN -> BuildTool.THORN
+        TowerKind.LANCE -> BuildTool.LANCE
+        TowerKind.MIRE -> BuildTool.MIRE
+        TowerKind.GALE -> BuildTool.GALE
+        TowerKind.SUNFORGE -> BuildTool.SUNFORGE
+        TowerKind.LODESTONE -> BuildTool.LODESTONE
+        TowerKind.HOWL -> BuildTool.HOWL
+        TowerKind.VITRIOL -> BuildTool.VITRIOL
+        TowerKind.GRAVEBOLT -> BuildTool.GRAVEBOLT
+        TowerKind.AEGIS_LOOM -> BuildTool.AEGIS_LOOM
     }
 
     private fun drawPageTab(canvas: Canvas, rect: RectF, label: String, selected: Boolean, icon: Bitmap, locked: Boolean = false) {
@@ -5537,57 +5971,69 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val tower = selectedTower
         val trap = selectedTrap
         val title = if (tower != null && tower.evolution != null) tower.evolution!!.title else tower?.kind?.title ?: trap?.kind?.title ?: return
-        val accent = tower?.kind?.accent ?: trap?.kind?.accent ?: Color.WHITE
         var cost = tower?.upgradeCost() ?: trap?.upgradeCost() ?: 0
         if ((tower?.level ?: trap?.level ?: 1) >= 3) cost = max(1, cost - (cost * perkCount(ForgePerk.EFFICIENT_OVERCHARGE) * 0.20f).toInt())
-        val canBuy = gold >= cost
+        val canEvolve = tower?.canEvolve() == true
+        val canBuy = if (canEvolve) evolutionCores > 0 else gold >= cost
         val damage = tower?.currentDamage() ?: trap?.currentDamage() ?: 0f
         val range = tower?.currentRange()
         val rank = tower?.rankLabel() ?: trap?.rankLabel().orEmpty()
-        val sellValue = tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: 0
         val definition = tower?.evolution?.description ?: tower?.kind?.description ?: trap?.kind?.description ?: ""
         drawUiButton(canvas, backRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), backRect.height() * 0.34f))
         drawUiPanel(canvas, upgradeRect, active = canBuy)
-        drawBitmapCentered(canvas, sprites.uiIconUpgrade, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.27f, min(upgradeRect.height() * 0.24f, dp(27f)))
+        drawBitmapCentered(canvas, if (canEvolve) sprites.uiIconEvolve else sprites.uiIconUpgrade, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.27f, min(upgradeRect.height() * 0.24f, dp(27f)))
         val titleColor = if (canBuy) Color.rgb(238, 252, 222) else Color.rgb(150, 168, 156)
-        drawCenteredText(canvas, "UPGRADE ${title.uppercase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
-        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.50f, upgradeRect.width() * 0.90f, dp(8f), titleColor, 2)
-        val stats = if (range != null) "DMG ${damage.toInt()}  •  RNG ${oneDecimal(range)}  •  ${cost}B" else "DMG ${damage.toInt()}  •  ${cost}B"
+        val upgradeTitle = if (canEvolve) "EVOLVE ${title.uppercase()}" else "UPGRADE ${title.uppercase()}  •  $rank"
+        drawCenteredText(canvas, upgradeTitle, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
+        val detail = if (canEvolve) "Choose one permanent evolution path. Stored towers keep that path." else definition
+        drawWrappedText(canvas, detail, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.50f, upgradeRect.width() * 0.90f, dp(8f), titleColor, 2)
+        val stats = if (canEvolve) "${evolutionCores} CORE  •  READY" else if (range != null) "DMG ${damage.toInt()}  •  RNG ${oneDecimal(range)}  •  ${cost}B" else "DMG ${damage.toInt()}  •  ${cost}B"
         drawCenteredText(canvas, stats, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.81f, min(dp(9f), upgradeRect.width() * 0.026f), titleColor, true)
-        val canEvolve = tower?.canEvolve() == true
-        val storeLabel = when { canEvolve -> "EVOLVE  •  $evolutionCores CORE"; trap != null -> "STORE  •  ${trapStorageCost(trap)}B"; else -> "EVOLUTION LOCKED" }
-        val storeIcon = when { canEvolve -> sprites.uiIconEvolve; trap != null -> sprites.uiIconStore; else -> sprites.uiIconLock }
-        drawUiButton(canvas, storeRect, storeLabel, storeIcon, if (canEvolve) UiControlTone.ACCENT else UiControlTone.SECONDARY, canEvolve || trap != null, if (canEvolve) Color.rgb(240, 224, 255) else Color.rgb(190, 220, 240), min(dp(7.5f), storeRect.height() * 0.34f))
+        val category = if (tower != null) InventoryCategory.TOWERS else InventoryCategory.TRAPS
+        val wrapped = supplyCount(CraftedItem.RECOVERY_WRAP) > 0
+        val storageCost = if (wrapped) 0 else tower?.let { towerStorageCost(it) } ?: trap?.let { trapStorageCost(it) } ?: 0
+        val storageEnabled = hasInventoryRoom(category) && (wrapped || gold >= storageCost)
+        val storageLabel = if (wrapped) "STORE  •  WRAP FREE" else "STORE  •  ${storageCost}B"
+        drawUiButton(canvas, storeRect, storageLabel, sprites.uiIconStore, UiControlTone.SECONDARY, storageEnabled, if (storageEnabled) Color.rgb(190, 220, 240) else Color.rgb(138, 151, 142), min(dp(7.5f), storeRect.height() * 0.34f))
         val existingImbuement = tower?.imbuement ?: trap?.imbuement
         drawUiButton(canvas, imbueRect, if (existingImbuement == null) "IMBUE" else "IMBUED  •  ${existingImbuement.title.uppercase()}", sprites.uiIconImbue, UiControlTone.ACCENT, textColor = existingImbuement?.accent ?: Color.rgb(232, 216, 255), textSize = min(dp(7.5f), imbueRect.height() * 0.34f))
         val recycleLocked = challengeModifier == ChallengeModifier.NO_RECYCLING
-        drawUiButton(canvas, sellRect, if (recycleLocked) "NO RECYCLING" else "RECYCLE  •  +$sellValue", sprites.uiIconRecycle, UiControlTone.WARNING, !recycleLocked, Color.rgb(255, 217, 193), min(dp(7.5f), sellRect.height() * 0.34f))
+        drawUiButton(canvas, sellRect, if (recycleLocked) "NO RECYCLING" else "RECYCLE  •  +${tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: 0}", sprites.uiIconRecycle, UiControlTone.WARNING, !recycleLocked, Color.rgb(255, 217, 193), min(dp(7.5f), sellRect.height() * 0.34f))
     }
 
     private fun drawUtilityPanel(canvas: Canvas) {
         val utility = selectedUtility ?: return
         val cost = if (utility.level < utility.maxLevel()) utility.upgradeCost() else 0
         val canUpgrade = utility.level < utility.maxLevel() && gold >= cost
-        val utilityTextColor = if (canUpgrade) Color.rgb(238, 252, 222) else Color.rgb(190, 204, 194)
+        val structureTextColor = if (canUpgrade) Color.rgb(238, 252, 222) else Color.rgb(190, 204, 194)
         drawUiButton(canvas, backRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), backRect.height() * 0.34f))
         drawUiPanel(canvas, upgradeRect, active = canUpgrade)
         drawBitmapCentered(canvas, sprites.uiIconUpgrade, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.27f, min(upgradeRect.height() * 0.24f, dp(27f)))
-        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LV ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.03f), utilityTextColor, true)
+        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LV ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.03f), structureTextColor, true)
         val definition = if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
             "+${utility.blockOutput()} BLOCKS AFTER EACH WAVE"
         } else {
             utility.kind.description
         }
-        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), utilityTextColor, 2)
+        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), structureTextColor, 2)
         val upgradeFooter = if (utility.level < utility.maxLevel()) "UPGRADE  •  ${cost}B" else "MAX LEVEL"
         if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
             val activeGenerators = utilities.count { it.kind == UtilityKind.BLOCK_GENERATOR }
-            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  $upgradeFooter", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), utilityTextColor, true)
+            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  $upgradeFooter", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), structureTextColor, true)
         } else {
-            drawCenteredText(canvas, upgradeFooter, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), utilityTextColor, true)
+            drawCenteredText(canvas, upgradeFooter, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), structureTextColor, true)
         }
+        val wrapped = supplyCount(CraftedItem.RECOVERY_WRAP) > 0
+        val storageCost = if (wrapped) 0 else structureStorageCost(utility)
+        val storageEnabled = canStoreStructure(utility) && (wrapped || gold >= storageCost)
+        val storageLabel = if (wrapped) "STORE  •  WRAP FREE" else "STORE  •  ${storageCost}B"
         val workshop = utility.kind == UtilityKind.FORGE_WORKSHOP
-        drawUiButton(canvas, storeRect, if (workshop) "FORGEWORKS" else "PASSIVE", if (workshop) sprites.uiIconStore else sprites.uiIconLock, if (workshop) UiControlTone.PRIMARY else UiControlTone.SECONDARY, workshop, if (workshop) Color.rgb(239, 250, 211) else Color.rgb(131, 145, 136), min(dp(7.5f), storeRect.height() * 0.34f))
+        if (workshop) {
+            drawUiButton(canvas, workshopRect, "FORGEWORKS", sprites.uiIconStore, UiControlTone.PRIMARY, textColor = Color.rgb(239, 250, 211), textSize = min(dp(6.8f), workshopRect.height() * 0.31f))
+            drawUiButton(canvas, structureStoreRect, storageLabel, sprites.uiIconStore, UiControlTone.SECONDARY, storageEnabled, if (storageEnabled) Color.rgb(190, 220, 240) else Color.rgb(138, 151, 142), min(dp(6.4f), structureStoreRect.height() * 0.30f))
+        } else {
+            drawUiButton(canvas, storeRect, storageLabel, sprites.uiIconStore, UiControlTone.SECONDARY, storageEnabled, if (storageEnabled) Color.rgb(190, 220, 240) else Color.rgb(138, 151, 142), min(dp(7.5f), storeRect.height() * 0.34f))
+        }
         drawUiButton(canvas, imbueRect, if (utility.imbuement == null) "IMBUE" else "IMBUED  •  ${utility.imbuement!!.title.uppercase()}", sprites.uiIconImbue, UiControlTone.ACCENT, textColor = utility.imbuement?.accent ?: Color.rgb(232, 216, 255), textSize = min(dp(7.5f), imbueRect.height() * 0.34f))
         val recycleLocked = challengeModifier == ChallengeModifier.NO_RECYCLING
         drawUiButton(canvas, sellRect, if (recycleLocked) "NO RECYCLING" else "RECYCLE", sprites.uiIconRecycle, UiControlTone.WARNING, !recycleLocked, Color.rgb(255, 217, 193), min(dp(7.5f), sellRect.height() * 0.34f))

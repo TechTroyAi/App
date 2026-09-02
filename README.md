@@ -28,9 +28,9 @@ See `artifacts/README.md` for artifact hashes and signing status, `docs/VERIFICA
 
 1. Drag from the gate on the left through adjacent blocks until the route reaches the glowing core on the right.
 2. Backtrack over the previous block to undo a segment. The route locks when it reaches the core.
-3. Switch among **Towers**, **Traps**, **Utilities**, and **Cache** in the bottom build bar.
-4. Put towers and Utilities on clean free terrain; place traps directly on empty route blocks.
-5. Tap any structure between waves to upgrade it, Overcharge/evolve eligible defenses, open Forgeworks, imbue it, store placed traps, or recycle it.
+3. Switch among **Towers**, **Traps**, **Structures**, and **Inventory** in the bottom build bar.
+4. Put towers and Structures on clean free terrain; place traps directly on empty route blocks.
+5. Tap any placed tower, trap, or Structure to upgrade it, Overcharge/evolve eligible defenses, open Forgeworks, imbue it, store it, or recycle it.
 6. Start the next wave. Combat, targeting, status effects, and projectiles are automatic.
 7. Every five cleared waves, choose one of three persistent Forge Perks.
 8. Bosses every ten waves spread corruption and award Forge Charges plus Evolution Cores.
@@ -71,16 +71,20 @@ Towers and traps have three normal levels. After level three, repeatable **Overc
 
 ## Forgeworks Update
 
-### Forge Cache
+### Inventory
 
-Only traps already placed on the battlefield can be stored. **Store** pays a Block recovery fee and preserves the trap's type, level, Overcharge rank, and imbuement; placing that exact cached trap again is free. **Recycle** instead destroys the trap for Blocks and Salvage Parts. Reforge-displaced traps also require open Cache slots and recovery Blocks. The base Cache holds four traps; a Cache Depot expands capacity and lowers recovery fees.
+**Inventory** replaces the former Cache. It has three independent shelves: **Towers**, **Traps**, and **Structures**. Each shelf begins with **25 slots**; an **Inventory Depot** expands every shelf and lowers recovery fees.
 
-### Utilities
+Select any placed tower, trap, or Structure and choose **Store** to pay its recovery fee without destroying it. Stored objects retain their permanent state: levels, Overcharge, evolution branch, imbuement, Structure production progress, and activation cadence. A **Recovery Wrap** makes the next Inventory recovery free. Selecting a stored card and placing it on a valid cell is always **free**—it never pays an escalating construction cost again.
 
-Utilities never attack, occupy clean free terrain, and have three upgrade levels. v1.4.2 has no global active-utility capacity limit: each utility kind is unique, while up to **five Block Generators** may be placed at once. Selecting a utility shows its definition and upgrade action:
+The Inventory view exposes the three shelf counts separately. Its Tower, Trap, and Structure tabs choose a shelf; tap the active shelf tab to return to that build catalog. Reforge-displaced traps use open **Trap Inventory** slots and their normal recovery cost.
+
+### Structures
+
+**Structures** replace the former Utilities category. Structures never attack, occupy clean free terrain, and have three upgrade levels. There is no global active-Structure cap: each Structure kind is unique, while up to **five Block Generators** may be placed at once. Selecting a Structure shows its definition, upgrade action, Store action, and recycle action:
 
 - **Block Generator:** produces Blocks after every cleared wave; upgrades increase output
-- **Cache Depot:** expands trap storage and lowers recovery fees
+- **Inventory Depot:** expands every Inventory shelf and lowers recovery fees
 - **Forge Workshop:** repairs, fabricates supplies, and binds sigils
 - **Purifier Totem:** reduces nearby corruption cleansing costs
 - **Surveyor Station:** reveals approaching waves and elite threats
@@ -99,9 +103,13 @@ Utilities never attack, occupy clean free terrain, and have three upgrade levels
 
 ### Crafting, Supplies, and Imbuement
 
-Elite enemies, bosses, recycling, cleansing, and Utilities supply **Salvage Parts** and **Growth Essence**. A Forge Workshop converts those materials and Blocks into eight bounded Supply stacks: Core Patch, Recovery Wrap, Purifier Vial, Reforge Coupler, Utility Gearset, Survey Lens, Trap Refit Kit, and Blank Sigil. Supplies are used only between waves; context-sensitive Supplies activate automatically when their matching action is taken.
+Elite enemies, bosses, recycling, cleansing, and Structures supply **Salvage Parts** and **Growth Essence**. A Forge Workshop converts those materials and Blocks into bounded Supply stacks: Core Patch, Recovery Wrap, Purifier Vial, Reforge Coupler, Structure Gearset, Survey Lens, Trap Refit Kit, and Blank Sigil. Supplies are used only between waves; context-sensitive Supplies activate automatically when their matching action is taken.
 
-A level-three Workshop can consume a Blank Sigil, Growth Essence, and Blocks to give one eligible level-three structure a persistent run imbuement: **Might**, **Tempo**, **Reach**, **Clarity**, **Echoes**, or **Conservation**. A structure has one slot, and a replacement destroys its old effect. Cached traps retain their imbuement.
+A level-three Workshop can consume a Blank Sigil, Growth Essence, and Blocks to give one eligible level-three structure a persistent run imbuement. Stored towers, traps, and Structures retain their imbuement when they are redeployed.
+
+### Combat shelf behavior
+
+Starting a wave slides the **placement shelf** down and fully off-screen. It does not suppress inspection: during combat, tap any placed tower, trap, Structure, or corruption to open its normal inspection/action panel.
 
 ## Enemy roster
 
@@ -136,7 +144,7 @@ Every fifth cleared wave presents a deterministic three-card draft. The 25 persi
 
 ### Path Reforging and corruption
 
-Overgrowth bosses award limited **Forge Charges**. Between waves, the Reforge control opens a full route preview: redraw from gate to core, backtrack to undo, then confirm the displayed Forge, recovery, and Cache-capacity costs or cancel to restore the original route. Towers and Utilities are impassable. Traps displaced by the confirmed route enter the exact-item Forge Cache only when the recovery fee and capacity requirements are met.
+Overgrowth bosses award limited **Forge Charges**. Between waves, the Reforge control opens a full route preview: redraw from gate to core, backtrack to undo, then confirm the displayed Forge and Trap Inventory recovery costs or cancel to restore the original route. Towers and Structures are impassable. Traps displaced by the confirmed route enter the exact-item Trap Inventory only when the recovery fee and shelf capacity requirements are met.
 
 Boss cycles add up to six readable mutation types, with intensity rising by tier:
 
@@ -167,13 +175,13 @@ A run records:
 
 - Forged route
 - Towers, levels, and Overcharge ranks
-- Traps plus exact cached-trap records preserving type, level, Overcharge, and imbuement
-- Utilities, Supplies, materials, Survey Lens duration, and structure imbuements
+- Exact Tower, Trap, and Structure Inventory records preserving permanent state
+- Structures, Supplies, materials, Survey Lens duration, and structure imbuements
 - Perk stacks, tower evolution branches, corruption, Forge Charges, and Evolution Cores
 - Mode, numeric seed, modifier, Blocks, core health, score, and completed wave
 - Separate Endless, Daily, and Custom score/high-wave records
 
-The bounded version-three save reader migrates v1.0/v1.1 checkpoints, including legacy aggregate trap inventory, while supplying safe defaults for Forgeworks fields. Checkpoints are written only between waves, including pending perk drafts. Leaving during a live wave returns **Continue** to the last safe build checkpoint.
+The bounded version-four save reader migrates legacy trap-only Cache records into the dedicated Trap Inventory while supplying safe defaults for Tower and Structure shelves. Checkpoints preserve all three Inventory shelves. Leaving during a live wave returns **Continue** to the last safe build checkpoint.
 
 ## v1.4.3 art overhaul
 
@@ -247,7 +255,7 @@ Two rules matter when adding art. Pale or bright-neutral subjects (bone, salt, s
 
 ## Visual and audio assets
 
-The game uses a coherent top-down sprite layer instead of color-only entities or flat interface chrome. Forgeworks adds Utility, corruption, evolution, Supply, imbuement, material, and Cache images; the Fantasy Machinery pass adds a title family plus 49 playable HUD/interface exports. The fully original dark industrial forge-fantasy roster covers all towers, evolutions, crafted supplies, sigils, resources, traps, enemies, Utilities, corruption mutations, terrain, landmarks, and the full player-facing interface. Limited animation production includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. Gameplay source/processing records live under `artwork/prototype/` and `artwork/style-production/`; interface generators and visual QA live under `artwork/menu-production/` and `artwork/hud-production/`. No Kenney or other third-party visuals remain in the packaged runtime assets; the historical CC0 record is retained in `docs/ASSET_LICENSES.md`.
+The game uses a coherent top-down sprite layer instead of color-only entities or flat interface chrome. Forgeworks adds Structure, corruption, evolution, Supply, imbuement, material, and Inventory images; the Fantasy Machinery pass adds a title family plus 49 playable HUD/interface exports. The fully original dark industrial forge-fantasy roster covers all towers, evolutions, crafted supplies, sigils, resources, traps, enemies, Structures, corruption mutations, terrain, landmarks, and the full player-facing interface. Limited animation production includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. Gameplay source/processing records live under `artwork/prototype/` and `artwork/style-production/`; interface generators and visual QA live under `artwork/menu-production/` and `artwork/hud-production/`. No Kenney or other third-party visuals remain in the packaged runtime assets; the historical CC0 record is retained in `docs/ASSET_LICENSES.md`.
 
 All sound effects are original deterministic synthesis. Regenerate them with:
 

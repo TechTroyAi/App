@@ -40,9 +40,19 @@ internal enum class ChallengeModifier(val title: String, val description: String
 internal enum class BuildPage {
     TOWERS,
     TRAPS,
-    UTILITIES,
-    CACHE
+    STRUCTURES,
+    INVENTORY
 }
+
+/** Separate player inventory shelves. Each shelf preserves a different placed-object state. */
+internal enum class InventoryCategory(val title: String) {
+    TOWERS("TOWERS"),
+    TRAPS("TRAPS"),
+    STRUCTURES("STRUCTURES")
+}
+
+/** A selected inventory card; its category keeps same-index cards from different shelves distinct. */
+internal data class InventorySelection(val category: InventoryCategory, val index: Int)
 
 internal enum class BuildTool(val title: String, val cost: Int) {
     DIG("DIG", 0),
@@ -192,7 +202,7 @@ internal enum class UtilityKind(
     val accent: Int
 ) {
     BLOCK_GENERATOR("Block Generator", "Produces Blocks after every cleared wave; upgrades increase its output", 200, Color.rgb(255, 203, 81)),
-    CACHE_DEPOT("Cache Depot", "Expands trap storage and lowers recovery fees", 180, Color.rgb(93, 220, 255)),
+    CACHE_DEPOT("Inventory Depot", "Expands every Inventory shelf and lowers recovery fees", 180, Color.rgb(93, 220, 255)),
     FORGE_WORKSHOP("Forge Workshop", "Repairs, fabricates supplies, and binds sigils", 220, Color.rgb(255, 157, 84)),
     PURIFIER_TOTEM("Purifier Totem", "Reduces nearby corruption cleansing costs", 210, Color.rgb(112, 231, 143)),
     SURVEYOR_STATION("Surveyor Station", "Reveals approaching waves and elite threats", 130, Color.rgb(151, 204, 255)),
@@ -222,12 +232,12 @@ internal enum class CraftedItem(
     val maxStack: Int
 ) {
     CORE_PATCH("Core Patch", "Use between waves to repair one Core health", 60, 3, 0, 1, 3),
-    RECOVERY_WRAP("Recovery Wrap", "Automatically makes the next trap recovery free", 40, 2, 0, 2, 3),
+    RECOVERY_WRAP("Recovery Wrap", "Automatically makes the next Inventory recovery free", 40, 2, 0, 2, 3),
     PURIFIER_VIAL("Purifier Vial", "Automatically reduces the next cleanse by two Forge", 80, 2, 1, 2, 3),
     REFORGE_COUPLER("Reforge Coupler", "Automatically reduces the next Reforge by two Forge", 120, 4, 0, 2, 3),
-    UTILITY_GEARSET("Utility Gearset", "Automatically halves the next utility upgrade cost", 150, 5, 0, 2, 3),
+    UTILITY_GEARSET("Structure Gearset", "Automatically halves the next Structure upgrade cost", 150, 5, 0, 2, 3),
     SURVEY_LENS("Survey Lens", "Use to reveal the next three wave themes", 50, 2, 0, 2, 3),
-    TRAP_REFIT_KIT("Trap Refit Kit", "Use to upgrade the lowest-ranked cached trap", 100, 4, 0, 2, 3),
+    TRAP_REFIT_KIT("Trap Refit Kit", "Use to upgrade the lowest-ranked stored trap", 100, 4, 0, 2, 3),
     BLANK_SIGIL("Blank Sigil", "Required to bind one persistent run imbuement", 100, 5, 1, 3, 6),
 
     // 1.4 Crafts C1 — panic forge kit
@@ -248,9 +258,9 @@ internal enum class CraftedItem(
 }
 
 internal enum class Imbuement(val title: String, val description: String, val accent: Int) {
-    MIGHT("Might", "Improves damage or utility output by 15 percent", Color.rgb(255, 104, 82)),
+    MIGHT("Might", "Improves damage or Structure output by 15 percent", Color.rgb(255, 104, 82)),
     TEMPO("Tempo", "Accelerates attacks, statuses, and production cycles", Color.rgb(255, 215, 86)),
-    REACH("Reach", "Expands tower, chain, and utility operating radius", Color.rgb(93, 220, 255)),
+    REACH("Reach", "Expands tower, chain, and Structure operating radius", Color.rgb(93, 220, 255)),
     CLARITY("Clarity", "Greatly resists Hex disabling", Color.rgb(234, 244, 255)),
     ECHOES("Echoes", "Every fifth activation repeats part of its effect", Color.rgb(195, 120, 255)),
     CONSERVATION("Conservation", "Reduces upgrade, storage, and activation costs", Color.rgb(128, 230, 146)),
@@ -552,13 +562,39 @@ internal class SpikeTrap(
     fun rankLabel(): String = if (level < 3) "LEVEL $level" else if (overcharge == 0) "LEVEL 3" else "OVERCHARGE $overcharge"
 }
 
+/** Permanent tower state retained by the Tower Inventory shelf. Combat-only timers intentionally reset on redeploy. */
+internal data class StoredTower(
+    val kind: TowerKind,
+    var level: Int = 1,
+    var overcharge: Int = 0,
+    var evolution: TowerEvolution? = null,
+    var imbuement: Imbuement? = null,
+    var activationCount: Int = 0
+) {
+    fun rankLabel(): String = evolution?.title?.uppercase()
+        ?: if (level < 3) "LEVEL $level" else if (overcharge == 0) "LEVEL 3" else "OVERCHARGE $overcharge"
+}
+
+/** Permanent trap state retained by the Trap Inventory shelf. */
 internal data class StoredTrap(
     val kind: TrapKind,
     var level: Int = 1,
     var overcharge: Int = 0,
-    var imbuement: Imbuement? = null
+    var imbuement: Imbuement? = null,
+    var activationCount: Int = 0
 ) {
     fun rankLabel(): String = if (level < 3) "LEVEL $level" else if (overcharge == 0) "LEVEL 3" else "OVERCHARGE $overcharge"
+}
+
+/** Permanent Structure state retained by the Structure Inventory shelf. */
+internal data class StoredStructure(
+    val kind: UtilityKind,
+    var level: Int = 1,
+    var imbuement: Imbuement? = null,
+    var productionProgress: Int = 0,
+    var activationCount: Int = 0
+) {
+    fun rankLabel(): String = "LEVEL $level"
 }
 
 internal class Utility(
