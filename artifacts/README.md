@@ -1,4 +1,14 @@
-> **✅ Use `Blockhold-Defense-v1.4.2-installable.apk` (built 2026-08-28).** The first
+> **⏳ v1.4.3 (`17`) is source-complete but NOT built — there is no v1.4.3 APK in this
+> directory yet.** v1.4.3 is the full *fantasy × machinery* art overhaul (every gameplay
+> drawable recreated, all 30 enemies given true 3-keyframe animation, new terrain,
+> landmarks, and board chrome). The build session had no JDK and no reachable Android
+> SDK, Gradle, or Maven mirror, so `scripts/build-apk.sh` could not be run. To ship it:
+> run `./scripts/build-apk.sh release` on a machine with JDK 17 and the Android SDK,
+> **restoring the retained v1.4.2 keystore into `.signing/` first** so the update installs
+> over v1.4.2 with no uninstall, then re-run `scripts/verify-apk.py` and
+> `scripts/verify-dex-shape.py` before publishing.
+>
+> **✅ Until then use `Blockhold-Defense-v1.4.2-installable.apk` (built 2026-08-28).** The first
 > retained artifact of the `1.4.2` (`16`) source: pressure waves and continuous spawning,
 > **NEXT WAVE** manual start, ten-second auto-launch countdown, **STACK WAVE** multi-wave
 > combat, keyboard challenge seeds, the **TXT** banner toggle, unlimited utility kinds

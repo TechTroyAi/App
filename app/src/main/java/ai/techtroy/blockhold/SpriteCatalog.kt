@@ -104,6 +104,12 @@ internal class SpriteCatalog(private val context: Context) {
         CorruptionKind.BROOD_NEST to load("corruption_brood_nest")
     )
 
+    /** v1.4.3 ornate rotating gear halo that replaces the flat evolution circle. */
+    val evolutionRing = loadStrip("evolution_ring")
+
+    /** v1.4.3 animated Hex shackle that replaces the flat "HEX" text badge. */
+    val statusHex = loadStrip("status_hex")
+
     private val evolutions = mapOf(
         TowerEvolution.CHAIN_CONDUCTOR to load("evolution_chain_conductor"),
         TowerEvolution.RAIL_SPIRE to load("evolution_rail_spire"),

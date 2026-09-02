@@ -6,14 +6,16 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-The v1.4.2 update is implemented, built, and retained: `artifacts/Blockhold-Defense-v1.4.2-installable.apk` (versionName `1.4.2`, versionCode `16`) passes the hosted Android debug build, `scripts/verify-apk.py`, and `scripts/verify-dex-shape.py` with zero failures. It is signed with a **new** release key (the v1.4.1 private key was lost), so installing it over v1.4.1 requires a one-time uninstall; the v1.4.2 key is backed up for reuse by all future releases — see `artifacts/README.md`.
+**v1.4.3 is a complete art release: the source is finished but not yet built.** The whole sprite set has been recreated in a unified *fantasy × machinery* style (see "v1.4.3 art overhaul" below) and the manifest is stamped `1.4.3` / `versionCode 17`. The APK has **not** been produced yet — the build session had no JDK and no reachable Android SDK, Gradle, or Maven mirror, so `scripts/build-apk.sh` could not run. Build it on a machine with JDK 17 + the Android SDK; the retained v1.4.2 release key must be reused so the update installs over v1.4.2 without an uninstall.
+
+The last **built and retained** artifact remains `artifacts/Blockhold-Defense-v1.4.2-installable.apk` (versionName `1.4.2`, versionCode `16`), which passes the hosted Android debug build, `scripts/verify-apk.py`, and `scripts/verify-dex-shape.py` with zero failures. It is signed with a **new** release key (the v1.4.1 private key was lost), so installing it over v1.4.1 requires a one-time uninstall; the v1.4.2 key is backed up for reuse by all future releases — see `artifacts/README.md`.
 
 | Item | Value |
 | --- | --- |
 | Public name | Blockhold Defense |
 | Modes | Endless Pathforge, daily challenge, custom seed |
 | Application ID | `ai.techtroy.blockhold` |
-| Version | `1.4.2` (`16`) — source and latest APK in sync |
+| Version | `1.4.3` (`17`) — source; latest built APK is `1.4.2` (`16`) |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |
@@ -172,6 +174,61 @@ A run records:
 - Separate Endless, Daily, and Custom score/high-wave records
 
 The bounded version-three save reader migrates v1.0/v1.1 checkpoints, including legacy aggregate trap inventory, while supplying safe defaults for Forgeworks fields. Checkpoints are written only between waves, including pending perk drafts. Leaving during a live wave returns **Continue** to the last safe build checkpoint.
+
+## v1.4.3 art overhaul
+
+v1.4.3 replaces **every** gameplay drawable with a single coherent **fantasy × machinery** sprite set — brass gearwork and rune-lit metal for everything the player builds, purely organic flesh, fungus, and bramble for everything that attacks it. All art is strict top-down to match the game camera.
+
+| Family | Count | Size | Notes |
+| --- | --- | --- | --- |
+| Tower bases | 15 | 64×64 | Octagonal gear-ring foundation pads, per-element rune accent |
+| Turret heads | 15 | 192×64 | 3-frame firing recoil, aimed along +X |
+| Projectiles | 15 | 192×64 | 3-frame travel |
+| Impacts | 15 | 192×64 | 3-frame radial burst |
+| Evolution emblems | 30 | 64×64 | Real crest art per evolution, parent accent colour |
+| Evolution ring | 1 | 192×64 | Hollow-centre overlay so the tower shows through |
+| Traps | 5 | 192×64 | True keyframe mechanical motion |
+| Utility structures | 17 | 192×64 | Idle loop, no recoil offset |
+| Corruption overlays | 6 | 64×64 | Full-bleed ground tiles |
+| Hex status | 1 | 192×64 | Animated shackle sprite |
+| Crafted items | 18 | 64×64 | |
+| Imbuement sigils | 16 | 64×64 | Brass-rimmed rune tokens |
+| Resource icons | 3 | 64×64 | |
+| **Enemies** | **30** | 192×64 | **True 3-keyframe animation** |
+| Terrain tiles | 2 | 128×128 | Seamless full-bleed grass and road |
+| Landmarks | 2 | 192×64 | Animated spawn gate and core reactor |
+
+### True enemy animation
+
+All 30 enemies (19 normal, 8 elite, 3 boss) use hand-rendered keyframes rather than a procedural squash-and-stretch cycle. Each strip is three distinct poses:
+
+| Frame | Pose |
+| --- | --- |
+| 0 | Neutral — limbs tucked, glow calm |
+| 1 | Attack — limbs thrown forward, maw or spines open, glow blazing |
+| 2 | Death — collapsed or unravelling, cracked or wilted, glow extinguished, colours desaturated |
+
+`GameView` plays `0,1,2,1` while walking and holds frame 2 on death, so the death pose doubles as the walk-cycle extreme.
+
+### Map and chrome
+
+Terrain is two seamless 128×128 tiles: overgrown turf with half-buried brass fragments, and a deliberately dark, low-contrast road so bright creatures and towers stay readable on top of it. The spawn gate animates closed → opening → fully open with a blazing portal throat; the core reactor pulses calm → bright and has a cracked, tarnished damaged frame. `GameView.drawBoardBezel()` frames the play grid in a tarnished brass rail with corner rivets so the board reads as a machined table.
+
+### Regenerating the sprites
+
+High-resolution sources live in `artwork/style-production/batch-33-v143/` (per-frame animation keys under `anim/`). The processing pipeline is `tools/process_sprite_batch_33_v143.py`:
+
+```python
+import sys; sys.path.insert(0, "tools")
+from process_sprite_batch_33_v143 import clean, clean_matched, keyframe_strip, tile, publish, SOURCE, STAGE
+
+clean(SOURCE / "x_source.png", STAGE / "x.png")          # normal subjects
+clean_matched(SOURCE / "x_source.png", STAGE / "x.png")  # pale / bright-neutral subjects
+tile(SOURCE / "t_source.png", STAGE / "t.png", size=128) # full-bleed terrain
+publish(keyframe_strip(frames, STAGE / "a.png", STAGE / "anim", matched=True), "a.png")
+```
+
+Two rules matter when adding art. Pale or bright-neutral subjects (bone, salt, spore haze, pale fluff) must use `clean_matched()` — the plain flood-fill `clean()` treats their own bright pixels as backdrop and leaves a grey box or eats into the subject. Full-bleed textures must use `tile()`, never `clean()`, which would shred them. Verify any new sprite by asserting the published size and that pixel `(1, 1)` has alpha ≤ 40.
 
 ## Visual and audio assets
 

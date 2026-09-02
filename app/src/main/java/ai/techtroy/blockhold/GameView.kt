@@ -4308,6 +4308,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         canvas.save()
         canvas.clipRect(viewportLeft, viewportTop, viewportRight, viewportBottom)
         canvas.drawRoundRect(boardLeft - dp(6f), boardTop - dp(6f), boardLeft + COLS * tileSize + dp(6f), boardTop + ROWS * tileSize + dp(6f), dp(12f), dp(12f), paint)
+        drawBoardBezel(canvas)
         val col0 = max(0, ((viewportLeft - boardLeft) / tileSize).toInt() - 1)
         val row0 = max(0, ((viewportTop - boardTop) / tileSize).toInt() - 1)
         val col1 = min(COLS - 1, ((viewportRight - boardLeft) / tileSize).toInt() + 1)
@@ -4452,6 +4453,40 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawRoundedRect(canvas, x - width * 0.5f, y - dp(9f), x + width * 0.5f, y + dp(9f), dp(7f), Color.argb(220, 15, 28, 20))
             drawCenteredText(canvas, name, x, y, max(dp(6f), tileSize * 0.10f), Color.rgb(190, 244, 78), true)
         }
+    }
+
+    /**
+     * v1.4.3 chrome: a brass bezel framing the play board so the grid reads as a
+     * machined table rather than a bare rectangle. Purely decorative — drawn inside
+     * the existing board clip, touches no layout or hit-testing maths.
+     */
+    private fun drawBoardBezel(canvas: Canvas) {
+        val left = boardLeft - dp(6f)
+        val top = boardTop - dp(6f)
+        val right = boardLeft + COLS * tileSize + dp(6f)
+        val bottom = boardTop + ROWS * tileSize + dp(6f)
+        val corner = dp(12f)
+        strokePaint.style = Paint.Style.STROKE
+        // Outer tarnished brass rail
+        strokePaint.strokeWidth = dp(3f)
+        strokePaint.color = Color.argb(215, 148, 112, 52)
+        canvas.drawRoundRect(left, top, right, bottom, corner, corner, strokePaint)
+        // Inner highlight rail
+        strokePaint.strokeWidth = dp(1.5f)
+        strokePaint.color = Color.argb(150, 214, 172, 88)
+        canvas.drawRoundRect(left + dp(3f), top + dp(3f), right - dp(3f), bottom - dp(3f), corner, corner, strokePaint)
+        // Corner rivets
+        paint.style = Paint.Style.FILL
+        val inset = dp(9f)
+        for (px in listOf(left + inset, right - inset)) {
+            for (py in listOf(top + inset, bottom - inset)) {
+                paint.color = Color.argb(230, 196, 154, 74)
+                canvas.drawCircle(px, py, dp(2.6f), paint)
+                paint.color = Color.argb(190, 92, 68, 30)
+                canvas.drawCircle(px, py, dp(1.1f), paint)
+            }
+        }
+        strokePaint.style = Paint.Style.STROKE
     }
 
     private fun drawTerrainTile(canvas: Canvas, col: Int, row: Int) {
@@ -4715,9 +4750,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             TowerKind.AEGIS_LOOM -> drawSpriteFrameCentered(canvas, sprites.aegisLoomTurret, firingFrame, x, y - tileSize * 0.06f, tileSize * (0.78f + sin(ambientTime * 5f) * 0.03f), tower.angle * 57.29578f)
         }
         if (tower.evolution != null) {
-            strokePaint.strokeWidth = tileSize * 0.045f
-            strokePaint.color = Color.rgb(255, 215, 104)
-            canvas.drawCircle(x, y, tileSize * (0.38f + sin(ambientTime * 3f) * 0.025f), strokePaint)
+            // v1.4.3: ornate fantasy-machinery gear halo replaces the plain glowing circle.
+            val ringFrame = ((ambientTime * 6f).toInt() % sprites.evolutionRing.frameCount)
+                .coerceIn(0, sprites.evolutionRing.frameCount - 1)
+            drawSpriteFrameCentered(
+                canvas,
+                sprites.evolutionRing,
+                ringFrame,
+                x,
+                y,
+                tileSize * (0.94f + sin(ambientTime * 3f) * 0.03f),
+                ambientTime * 22f
+            )
             if (tower.evolveAura > 0.02f) {
                 val a = (tower.evolveAura / 2.4f).coerceIn(0f, 1f)
                 strokePaint.strokeWidth = tileSize * 0.03f
@@ -4748,13 +4792,27 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.argb(190, 100, 200, 255)
             canvas.drawCircle(x, y, tileSize * 0.48f, strokePaint)
         }
-        if (tower.disabledTimer > 0f) {
-            paint.color = Color.argb(145, 130, 48, 165)
-            canvas.drawCircle(x, y, tileSize * 0.34f, paint)
-            drawCenteredText(canvas, "HEX", x, y, tileSize * 0.13f, Color.WHITE, true)
-        }
+        if (tower.disabledTimer > 0f) drawHexShackle(canvas, x, y)
         drawRankDots(canvas, x, y + tileSize * 0.37f, tower.level, tower.overcharge, tower.kind.accent)
         drawImbuementGlyph(canvas, x, y, tower.imbuement)
+    }
+
+    /**
+     * v1.4.3: animated arcane Hex shackle. Replaces the old flat purple disc
+     * with the literal text "HEX" that both towers and utilities used to draw.
+     */
+    private fun drawHexShackle(canvas: Canvas, x: Float, y: Float) {
+        val frames = sprites.statusHex.frameCount
+        val frame = ((ambientTime * 8f).toInt() % frames).coerceIn(0, frames - 1)
+        drawSpriteFrameCentered(
+            canvas,
+            sprites.statusHex,
+            frame,
+            x,
+            y,
+            tileSize * (0.78f + sin(ambientTime * 5f) * 0.05f),
+            -ambientTime * 34f
+        )
     }
 
     private fun drawRankDots(canvas: Canvas, x: Float, y: Float, level: Int, overcharge: Int, accent: Int) {
@@ -4792,11 +4850,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             y,
             tileSize * (0.86f + sin(ambientTime * 2f + utility.kind.ordinal) * 0.015f)
         )
-        if (utility.disabledTimer > 0f) {
-            paint.color = Color.argb(150, 130, 48, 165)
-            canvas.drawCircle(x, y, tileSize * 0.34f, paint)
-            drawCenteredText(canvas, "HEX", x, y, max(dp(7f), tileSize * 0.13f), Color.WHITE, true)
-        }
+        if (utility.disabledTimer > 0f) drawHexShackle(canvas, x, y)
         if (utility.kind == UtilityKind.BLOCK_GENERATOR) drawCenteredText(canvas, "+B", x, y + tileSize * 0.31f, max(dp(6f), tileSize * 0.10f), utility.kind.accent, true)
         drawRankDots(canvas, x, y + tileSize * 0.38f, utility.level, 0, utility.kind.accent)
         drawImbuementGlyph(canvas, x, y, utility.imbuement)
