@@ -6,7 +6,7 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-**The current source targets v1.4.3 / `versionCode 17`.** It includes the completed gameplay art overhaul plus the sprite-led Fantasy Machinery title and playable-interface passes described below. The retained signed v1.4.3 artifact was built before both interface passes, so it must **not** be described as containing the current UI refresh.
+**The current source targets v1.4.3 / `versionCode 17`.** It includes the completed gameplay art overhaul plus the sprite-led Fantasy Machinery title/playable-interface passes and the Inventory revision described below. The retained signed v1.4.3 artifact was built before these UI and Inventory passes, so it must **not** be described as containing the current refresh.
 
 `artifacts/Blockhold-Defense-v1.4.3-installable.apk` is the latest built and retained installable package (SHA-256 `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee`). It passed the recorded APK/Dex verification, but it is a previous v1.4.3 source snapshot. This checkout has no release-signing material, so a new release-signed artifact cannot be made here; CI can build and verify a current debug APK. See `artifacts/README.md` for the retained artifact's signing history and `docs/SIGNING.md` before producing a new distributable package.
 
