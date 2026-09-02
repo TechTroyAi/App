@@ -102,18 +102,30 @@ def trap_strip(base_sprite: Path, destination: Path) -> Path:
     return build_strip(frames, destination)
 
 
-def keyframe_strip(sources: list[Path], destination: Path, scratch: Path) -> Path:
+def keyframe_strip(
+    sources: list[Path],
+    destination: Path,
+    scratch: Path,
+    matched: bool = False,
+) -> Path:
     """Assemble hand-rendered keyframes into one strip.
 
     Each frame is isolated independently, so a shared bounding box is applied
     afterwards: without it the per-frame auto-crop makes a static floor plate
     jitter and breathe between frames.
+
+    Set `matched` for subjects containing their own bright neutrals (bone,
+    pale carapace, spore haze) so the backdrop is keyed by colour instead of
+    brightness.
     """
     scratch.mkdir(parents=True, exist_ok=True)
     cleaned = []
     for index, source in enumerate(sources):
         staged = scratch / f"{destination.stem}_f{index}.png"
-        clean(source, staged)
+        if matched:
+            clean_matched(source, staged)
+        else:
+            clean(source, staged)
         cleaned.append(Image.open(staged).convert("RGBA"))
 
     boxes = [image.getchannel("A").getbbox() for image in cleaned]
