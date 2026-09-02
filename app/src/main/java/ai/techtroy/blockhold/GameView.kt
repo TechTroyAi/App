@@ -34,6 +34,9 @@ import kotlin.math.sqrt
 /** Identifies the currently held title control so sprite buttons visibly depress on touch. */
 private enum class TitleMenuAction { NONE, PLAY, CONTINUE, CHALLENGE, SOUND }
 
+/** Shared visual roles for the reusable Fantasy Machinery in-game button family. */
+private enum class UiControlTone { PRIMARY, SECONDARY, ACCENT, WARNING }
+
 internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
     companion object {
@@ -196,6 +199,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var lastDisplayedForge = -1
     private var savedRunAvailable = prefBoolean("has_saved_run", false)
     private var titlePressedAction = TitleMenuAction.NONE
+    /** Last live pointer position lets every art-backed in-game control use its pressed sprite. */
+    private var uiTouchActive = false
+    private var uiTouchX = -1f
+    private var uiTouchY = -1f
 
     private var viewWidth = 1f
     private var viewHeight = 1f
@@ -455,9 +462,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         pauseRect.set(viewWidth - dp(8f) - smallButton, top, viewWidth - dp(8f), bottom)
         soundRect.set(pauseRect.left - dp(7f) - smallButton, top, pauseRect.left - dp(7f), bottom)
         feedbackToggleRect.set(soundRect.left - dp(7f) - smallButton, top, soundRect.left - dp(7f), bottom)
-        val actionWidth = min(dp(130f), viewWidth * 0.17f)
+        // Compact landscape devices reserve the right-side actions first and collapse their
+        // wording to icons/short labels, leaving a useful strip for the resource readouts.
+        val compactTopControls = viewWidth < dp(480f)
+        val actionWidth = if (compactTopControls) min(dp(96f), viewWidth * 0.16f) else min(dp(130f), viewWidth * 0.17f)
         primaryActionRect.set(soundRect.left - dp(8f) - actionWidth, top, soundRect.left - dp(8f), bottom)
-        val resetWidth = min(dp(96f), viewWidth * 0.13f)
+        val resetWidth = if (compactTopControls) smallButton else min(dp(96f), viewWidth * 0.13f)
         resetPathRect.set(primaryActionRect.left - dp(7f) - resetWidth, top, primaryActionRect.left - dp(7f), bottom)
 
         val toolTop = viewHeight - bottomBarHeight + dp(9f)
@@ -2940,6 +2950,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         synchronized(stateLock) {
             val x = event.x
             val y = event.y
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_POINTER_DOWN -> {
+                    uiTouchActive = true
+                    uiTouchX = x
+                    uiTouchY = y
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> uiTouchActive = false
+            }
 
             // F0 camera: pinch-zoom + drag-pan on the board viewport (chrome stays fixed)
             val playPhases = phase == GamePhase.BUILD || phase == GamePhase.DIG || phase == GamePhase.WAVE ||
@@ -4297,43 +4315,45 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawChallengeMenu(canvas: Canvas) {
-        canvas.drawColor(Color.rgb(10, 17, 13))
-        drawTitleGrid(canvas)
-        drawCenteredText(canvas, "OFFLINE SEEDED CHALLENGES", viewWidth * 0.5f, viewHeight * 0.13f, min(dp(35f), viewHeight * 0.075f), Color.WHITE, true, true)
-        drawCenteredText(canvas, "WAVES, PERKS, ELITES, AND CORRUPTION REPEAT FOR THE SAME SEED", viewWidth * 0.5f, viewHeight * 0.20f, dp(10f), Color.rgb(160, 179, 166), true)
+        drawCoverBitmap(canvas, sprites.titleBackground, RectF(0f, 0f, viewWidth, viewHeight))
+        paint.color = Color.argb(164, 4, 11, 8)
+        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        drawUiModal(canvas, RectF(viewWidth * 0.08f, viewHeight * 0.07f, viewWidth * 0.92f, viewHeight * 0.91f), 244)
+        drawBitmapCentered(canvas, sprites.uiIconSeed, viewWidth * 0.5f, viewHeight * 0.105f, min(dp(34f), viewHeight * 0.065f))
+        drawCenteredText(canvas, "CHALLENGES", viewWidth * 0.5f, viewHeight * 0.16f, min(dp(30f), viewHeight * 0.067f), Color.WHITE, true, true)
+        drawCenteredText(canvas, "DAILY OR CUSTOM SEED", viewWidth * 0.5f, viewHeight * 0.21f, dp(10f), Color.rgb(188, 204, 191), true)
         val calendar = Calendar.getInstance()
         val dailySeed = calendar.get(Calendar.YEAR).toLong() * 10000L + (calendar.get(Calendar.MONTH) + 1).toLong() * 100L + calendar.get(Calendar.DAY_OF_MONTH).toLong()
         drawChallengeCard(canvas, challengeDailyRect, "DAILY PATH", "SEED $dailySeed", modifierForSeed(dailySeed), Color.rgb(190, 244, 78))
         val customSeed = customSeedValue()
-        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "TAP CUSTOM SEED TO START", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
-        drawCenteredText(canvas, "SHAREABLE SEED  •  UP TO $MAX_SEED_CHARACTERS DIGITS", viewWidth * 0.5f, viewHeight * 0.59f, dp(10f), Color.rgb(147, 165, 153), true)
-        drawRoundedRect(canvas, seedInputRect.left, seedInputRect.top, seedInputRect.right, seedInputRect.bottom, dp(10f), Color.rgb(28, 43, 34))
-        strokePaint.strokeWidth = dp(if (seedInputActive) 2f else 1.2f)
-        strokePaint.color = if (seedInputActive) Color.rgb(93, 220, 255) else Color.rgb(63, 87, 70)
-        canvas.drawRoundRect(seedInputRect, dp(10f), dp(10f), strokePaint)
-        drawCenteredText(canvas, if (customSeedText.isEmpty()) "TAP TO ENTER SEED" else customSeedText, seedInputRect.centerX(), seedInputRect.centerY(), dp(18f), Color.WHITE, true)
-        drawCenteredText(canvas, "TAP FIELD TO TYPE  •  DIGITS ONLY  •  MAX $MAX_SEED_CHARACTERS", viewWidth * 0.5f, seedInputRect.bottom + dp(18f), dp(8.5f), Color.rgb(147, 165, 153), true)
-        drawCenteredText(canvas, "DAILY  W$bestDailyWave  ${formatNumber(bestDailyScore)}   •   CUSTOM  W$bestCustomWave  ${formatNumber(bestCustomScore)}", viewWidth * 0.5f, viewHeight * 0.80f, dp(10f), Color.rgb(190, 244, 78), true)
-        drawRoundedRect(canvas, challengeBackRect.left, challengeBackRect.top, challengeBackRect.right, challengeBackRect.bottom, dp(12f), Color.rgb(43, 57, 46))
-        drawCenteredText(canvas, "BACK", challengeBackRect.centerX(), challengeBackRect.centerY(), dp(11f), Color.WHITE, true)
+        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "SEED $customSeed", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
+        drawUiPanel(canvas, seedInputRect, active = seedInputActive)
+        drawBitmapCentered(canvas, sprites.uiIconSeed, seedInputRect.left + seedInputRect.width() * 0.12f, seedInputRect.centerY(), min(seedInputRect.height() * 0.54f, dp(25f)))
+        drawCenteredText(canvas, if (customSeedText.isEmpty()) "ENTER SEED" else customSeedText, seedInputRect.left + seedInputRect.width() * 0.58f, seedInputRect.centerY(), dp(18f), Color.WHITE, true)
+        drawCenteredText(canvas, "UP TO $MAX_SEED_CHARACTERS DIGITS  •  SAME SEED, SAME RUN", viewWidth * 0.5f, seedInputRect.bottom + dp(18f), dp(8.5f), Color.rgb(176, 193, 180), true)
+        drawCenteredText(canvas, "DAILY  W$bestDailyWave  •  CUSTOM  W$bestCustomWave", viewWidth * 0.5f, viewHeight * 0.80f, dp(10f), Color.rgb(190, 244, 78), true)
+        drawUiButton(canvas, challengeBackRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(10f), challengeBackRect.height() * 0.29f))
     }
 
     private fun drawChallengeCard(canvas: Canvas, rect: RectF, title: String, subtitle: String, modifier: ChallengeModifier, accent: Int) {
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(15f), Color.rgb(23, 37, 29))
-        strokePaint.strokeWidth = dp(2f)
-        strokePaint.color = accent
+        drawUiCard(canvas, rect)
+        strokePaint.strokeWidth = dp(1.5f)
+        strokePaint.color = Color.argb(172, Color.red(accent), Color.green(accent), Color.blue(accent))
         canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
+        drawBitmapCentered(canvas, sprites.uiIconSeed, rect.left + rect.width() * 0.13f, rect.top + rect.height() * 0.18f, min(rect.height() * 0.20f, dp(22f)))
         drawCenteredText(canvas, title, rect.centerX(), rect.top + rect.height() * 0.22f, dp(17f), accent, true, true)
-        drawCenteredText(canvas, subtitle, rect.centerX(), rect.top + rect.height() * 0.41f, min(dp(9f), rect.width() * 0.035f), Color.rgb(178, 194, 183), true)
+        drawCenteredText(canvas, subtitle, rect.centerX(), rect.top + rect.height() * 0.41f, min(dp(9f), rect.width() * 0.035f), Color.rgb(194, 207, 197), true)
         drawCenteredText(canvas, modifier.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.62f, dp(12f), Color.WHITE, true)
-        drawWrappedText(canvas, modifier.description, rect.centerX(), rect.top + rect.height() * 0.75f, rect.width() * 0.84f, dp(9f), Color.rgb(150, 169, 156), 2)
+        drawWrappedText(canvas, modifier.description, rect.centerX(), rect.top + rect.height() * 0.76f, rect.width() * 0.84f, dp(9f), Color.rgb(174, 191, 178), 2)
     }
 
     private fun drawPerkDraft(canvas: Canvas) {
         paint.color = Color.argb(232, 6, 12, 9)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-        drawCenteredText(canvas, "THE FORGE ANSWERS", viewWidth * 0.5f, viewHeight * 0.17f, min(dp(39f), viewHeight * 0.085f), Color.rgb(190, 244, 78), true, true)
-        drawCenteredText(canvas, "CHOOSE ONE PERSISTENT RUN PERK  •  PICKS CAN STACK", viewWidth * 0.5f, viewHeight * 0.25f, dp(10f), Color.rgb(166, 183, 171), true)
+        drawUiModal(canvas, RectF(viewWidth * 0.07f, viewHeight * 0.10f, viewWidth * 0.93f, viewHeight * 0.77f), 246)
+        drawBitmapCentered(canvas, sprites.uiIconUpgrade, viewWidth * 0.5f, viewHeight * 0.14f, min(dp(38f), viewHeight * 0.07f))
+        drawCenteredText(canvas, "FORGE PICK", viewWidth * 0.5f, viewHeight * 0.20f, min(dp(34f), viewHeight * 0.075f), Color.rgb(190, 244, 78), true, true)
+        drawCenteredText(canvas, "CHOOSE ONE  •  STACKS PERSIST", viewWidth * 0.5f, viewHeight * 0.26f, dp(10f), Color.rgb(194, 210, 197), true)
         perkChoices.forEachIndexed { index, perk ->
             if (index >= perkRects.size) return@forEachIndexed
             val rect = perkRects[index]
@@ -4344,8 +4364,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 PerkCategory.CORE -> Color.rgb(255, 119, 104)
                 PerkCategory.ROUTE -> Color.rgb(189, 136, 255)
             }
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(15f), Color.rgb(23, 37, 29))
-            strokePaint.strokeWidth = dp(2f)
+            drawUiCard(canvas, rect)
+            strokePaint.strokeWidth = dp(1.5f)
             strokePaint.color = accent
             canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
             drawCenteredText(canvas, perk.category.name, rect.centerX(), rect.top + rect.height() * 0.14f, dp(8f), accent, true)
@@ -4359,14 +4379,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val tower = evolutionTower ?: return
         paint.color = Color.argb(232, 6, 12, 9)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-        drawCenteredText(canvas, "EVOLUTION CORE", viewWidth * 0.5f, viewHeight * 0.17f, min(dp(39f), viewHeight * 0.085f), Color.rgb(255, 203, 81), true, true)
-        drawCenteredText(canvas, "${tower.kind.title.uppercase()}  •  CHOOSE ONE MUTUALLY EXCLUSIVE FORM", viewWidth * 0.5f, viewHeight * 0.25f, dp(10f), Color.rgb(177, 192, 181), true)
+        drawUiModal(canvas, RectF(viewWidth * 0.10f, viewHeight * 0.10f, viewWidth * 0.90f, viewHeight * 0.77f), 246)
+        drawBitmapCentered(canvas, sprites.uiIconEvolve, viewWidth * 0.5f, viewHeight * 0.14f, min(dp(38f), viewHeight * 0.07f))
+        drawCenteredText(canvas, "EVOLVE", viewWidth * 0.5f, viewHeight * 0.20f, min(dp(34f), viewHeight * 0.075f), Color.rgb(255, 203, 81), true, true)
+        drawCenteredText(canvas, "${tower.kind.title.uppercase()}  •  CHOOSE A FORM", viewWidth * 0.5f, viewHeight * 0.26f, dp(10f), Color.rgb(201, 214, 204), true)
         val options = TowerEvolution.choices(tower.kind)
         options.forEachIndexed { index, evolution ->
             if (index >= evolutionRects.size) return@forEachIndexed
             val rect = evolutionRects[index]
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(15f), Color.rgb(24, 38, 30))
-            strokePaint.strokeWidth = dp(2f)
+            drawUiCard(canvas, rect, active = true)
+            strokePaint.strokeWidth = dp(1.5f)
             strokePaint.color = tower.kind.accent
             canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
             drawWrappedText(canvas, evolution.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.28f, rect.width() * 0.84f, dp(17f), Color.WHITE, 2, true)
@@ -4376,16 +4398,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawWorkshop(canvas: Canvas) {
-        canvas.drawColor(Color.rgb(9, 15, 12))
-        drawTitleGrid(canvas)
-        drawRoundedRect(canvas, workshopBackRect.left, workshopBackRect.top, workshopBackRect.right, workshopBackRect.bottom, dp(10f), Color.rgb(35, 49, 39))
-        drawCenteredText(canvas, "BACK", workshopBackRect.centerX(), workshopBackRect.centerY(), dp(10f), Color.WHITE, true)
-        drawCenteredText(canvas, "FORGEWORKS", viewWidth * 0.5f, viewHeight * 0.075f, min(dp(31f), viewHeight * 0.067f), Color.rgb(255, 183, 105), true, true)
-        drawCenteredText(canvas, "WORKSHOP L${workshopLevel()}  •  $gold BLOCKS  •  $salvageParts PARTS  •  $growthEssence ESSENCE", viewWidth * 0.5f, viewHeight * 0.115f, dp(9f), Color.rgb(184, 199, 188), true)
+        drawCoverBitmap(canvas, sprites.titleBackground, RectF(0f, 0f, viewWidth, viewHeight))
+        paint.color = Color.argb(176, 4, 11, 8)
+        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        drawUiModal(canvas, RectF(viewWidth * 0.05f, viewHeight * 0.045f, viewWidth * 0.95f, viewHeight * 0.93f), 246)
+        drawUiButton(canvas, workshopBackRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), workshopBackRect.height() * 0.30f))
+        drawBitmapCentered(canvas, sprites.uiIconCraft, viewWidth * 0.5f, viewHeight * 0.062f, min(dp(30f), viewHeight * 0.055f))
+        drawCenteredText(canvas, "FORGEWORKS", viewWidth * 0.5f, viewHeight * 0.105f, min(dp(28f), viewHeight * 0.060f), Color.rgb(255, 203, 120), true, true)
+        drawCenteredText(canvas, "L${workshopLevel()}  •  B$gold  •  P$salvageParts  •  G$growthEssence", viewWidth * 0.5f, viewHeight * 0.132f, dp(8.5f), Color.rgb(205, 218, 207), true)
         for ((tab, rect) in workshopTabRects) {
             val active = workshopTab == tab
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(10f), if (active) Color.rgb(255, 183, 105) else Color.rgb(30, 44, 35))
-            drawCenteredText(canvas, tab.name, rect.centerX(), rect.centerY(), dp(10f), if (active) Color.rgb(26, 20, 13) else Color.WHITE, true)
+            val icon = when (tab) {
+                WorkshopTab.CRAFT -> sprites.uiIconCraft
+                WorkshopTab.IMBUE -> sprites.uiIconImbue
+                WorkshopTab.SUPPLIES -> sprites.uiIconSupplies
+            }
+            drawUiButton(canvas, rect, tab.name, icon, if (active) UiControlTone.PRIMARY else UiControlTone.SECONDARY, textColor = if (active) Color.rgb(239, 255, 217) else Color.WHITE, textSize = min(dp(9f), rect.height() * 0.25f))
         }
         val start = workshopPageIndex * 4
         when (workshopTab) {
@@ -4395,27 +4423,25 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 val targetName = imbuementTower?.kind?.title ?: imbuementTrap?.kind?.title ?: imbuementUtility?.kind?.title
                 val currentImbuement = imbuementTower?.imbuement ?: imbuementTrap?.imbuement ?: imbuementUtility?.imbuement
                 if (targetName == null) {
-                    drawCenteredText(canvas, "SELECT A LEVEL 3 STRUCTURE ON THE BOARD, THEN TAP IMBUE", viewWidth * 0.5f, viewHeight * 0.50f, dp(12f), Color.rgb(178, 194, 183), true)
+                    drawCenteredText(canvas, "SELECT A LV 3 STRUCTURE, THEN IMBUE", viewWidth * 0.5f, viewHeight * 0.50f, dp(12f), Color.rgb(202, 216, 205), true)
                 } else {
-                    drawCenteredText(canvas, "TARGET ${targetName.uppercase()} • 120 BLOCKS + 1 ESSENCE + 1 SIGIL${if (currentImbuement != null) " • REPLACES ${currentImbuement.title.uppercase()}" else ""}", viewWidth * 0.5f, viewHeight * 0.265f, dp(9f), Color.rgb(213, 182, 255), true)
+                    drawCenteredText(canvas, "${targetName.uppercase()}  •  120B + 1G + 1 SIGIL${if (currentImbuement != null) "  •  REPLACES ${currentImbuement.title.uppercase()}" else ""}", viewWidth * 0.5f, viewHeight * 0.265f, dp(9f), Color.rgb(226, 205, 250), true)
                     Imbuement.values().drop(start).take(4).forEachIndexed { local, imbuement -> drawImbuementCard(canvas, workshopCardRects[local], imbuement) }
                 }
             }
         }
         val totalEntries = if (workshopTab == WorkshopTab.IMBUE) Imbuement.values().size else CraftedItem.values().size
         val pages = max(1, (totalEntries + 3) / 4)
-        drawRoundedRect(canvas, workshopPreviousRect.left, workshopPreviousRect.top, workshopPreviousRect.right, workshopPreviousRect.bottom, dp(10f), Color.rgb(31, 45, 36))
-        drawCenteredText(canvas, "PREVIOUS", workshopPreviousRect.centerX(), workshopPreviousRect.centerY(), dp(9f), Color.WHITE, true)
-        drawRoundedRect(canvas, workshopNextRect.left, workshopNextRect.top, workshopNextRect.right, workshopNextRect.bottom, dp(10f), Color.rgb(31, 45, 36))
-        drawCenteredText(canvas, "NEXT  ${workshopPageIndex + 1}/$pages", workshopNextRect.centerX(), workshopNextRect.centerY(), dp(9f), Color.WHITE, true)
-        if (bannerTimer > 0f) drawCenteredText(canvas, bannerText, viewWidth * 0.5f, viewHeight * 0.94f, dp(10f), Color.rgb(190, 244, 78), true)
+        drawUiButton(canvas, workshopPreviousRect, "", sprites.uiIconPrevious, UiControlTone.SECONDARY)
+        drawUiButton(canvas, workshopNextRect, "${workshopPageIndex + 1}/$pages", sprites.uiIconNext, UiControlTone.SECONDARY, textSize = min(dp(9f), workshopNextRect.height() * 0.25f))
+        if (bannerTimer > 0f) drawCenteredText(canvas, bannerText, viewWidth * 0.5f, viewHeight * 0.94f, dp(10f), Color.rgb(220, 244, 196), true)
     }
 
     private fun drawCraftCard(canvas: Canvas, rect: RectF, item: CraftedItem) {
         val unlocked = workshopLevel() >= item.workshopLevel
         val blockCost = craftedBlockCost(item)
         val affordable = unlocked && gold >= blockCost && salvageParts >= item.partCost && growthEssence >= item.essenceCost && supplyCount(item) < item.maxStack
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(12f), if (affordable) Color.rgb(30, 48, 37) else Color.rgb(27, 35, 30))
+        drawUiCard(canvas, rect, active = affordable)
         strokePaint.strokeWidth = dp(1.5f)
         strokePaint.color = if (affordable) Color.rgb(255, 183, 105) else Color.rgb(65, 77, 68)
         canvas.drawRoundRect(rect, dp(12f), dp(12f), strokePaint)
@@ -4428,7 +4454,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun drawSupplyCard(canvas: Canvas, rect: RectF, item: CraftedItem) {
         val count = supplyCount(item)
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(12f), if (count > 0) Color.rgb(30, 48, 37) else Color.rgb(25, 34, 29))
+        drawUiCard(canvas, rect, active = count > 0)
         spritePaint.alpha = if (count > 0) 255 else 90
         drawBitmapCentered(canvas, sprites.craftedItem(item), rect.left + rect.height() * 0.22f, rect.top + rect.height() * 0.23f, rect.height() * 0.31f)
         spritePaint.alpha = 255
@@ -4440,8 +4466,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun drawImbuementCard(canvas: Canvas, rect: RectF, imbuement: Imbuement) {
         val compatible = imbuementCompatible(imbuement)
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(12f), if (compatible) Color.rgb(30, 41, 35) else Color.rgb(25, 30, 27))
-        strokePaint.strokeWidth = dp(2f)
+        drawUiCard(canvas, rect, active = compatible)
+        strokePaint.strokeWidth = dp(1.5f)
         strokePaint.color = if (compatible) imbuement.accent else Color.rgb(64, 72, 67)
         canvas.drawRoundRect(rect, dp(12f), dp(12f), strokePaint)
         spritePaint.alpha = if (compatible) 255 else 70
@@ -4450,32 +4476,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, imbuement.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.24f, dp(12f), if (compatible) imbuement.accent else Color.rgb(105, 116, 109), true)
         drawWrappedText(canvas, imbuement.description, rect.centerX(), rect.top + rect.height() * 0.55f, rect.width() * 0.86f, dp(8f), if (compatible) Color.rgb(179, 194, 183) else Color.rgb(103, 114, 107), 3)
         drawCenteredText(canvas, if (compatible) "BIND SIGIL" else "NO EFFECT ON TARGET", rect.centerX(), rect.top + rect.height() * 0.84f, dp(8f), if (compatible) Color.WHITE else Color.rgb(126, 137, 130), true)
-    }
-
-    private fun drawTitleGrid(canvas: Canvas) {
-        val block = max(dp(54f), viewHeight * 0.115f)
-        val offset = (ambientTime * dp(5f)) % block
-        var row = -1
-        var y = -block + offset
-        while (y < viewHeight + block) {
-            var col = -1
-            var x = -block
-            while (x < viewWidth + block) {
-                paint.style = Paint.Style.FILL
-                paint.color = if ((col + row) % 2 == 0) Color.rgb(14, 25, 19) else Color.rgb(12, 22, 17)
-                canvas.drawRect(x + 1f, y + 1f, x + block - 1f, y + block - 1f, paint)
-                if (abs((col * 31 + row * 17) % 7) == 2) {
-                    paint.color = Color.rgb(21, 38, 28)
-                    canvas.drawRect(x + block * 0.22f, y + block * 0.24f, x + block * 0.31f, y + block * 0.33f, paint)
-                }
-                x += block
-                col += 1
-            }
-            y += block
-            row += 1
-        }
-        paint.color = Color.argb(135, 8, 14, 11)
-        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
     }
 
     private fun drawBoard(canvas: Canvas) {
@@ -4627,7 +4627,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val x = (x1 + x2) * 0.5f
             val y = (y1 + y2) * 0.5f
             val width = min(tileSize * 2.8f, paint.measureText(name) + dp(10f))
-            drawRoundedRect(canvas, x - width * 0.5f, y - dp(9f), x + width * 0.5f, y + dp(9f), dp(7f), Color.argb(220, 15, 28, 20))
+            drawBitmapInRect(canvas, sprites.uiBanner, RectF(x - width * 0.5f, y - dp(9f), x + width * 0.5f, y + dp(9f)), 220)
             drawCenteredText(canvas, name, x, y, max(dp(6f), tileSize * 0.10f), Color.rgb(190, 244, 78), true)
         }
     }
@@ -5248,33 +5248,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawTopBar(canvas: Canvas) {
-        paint.color = Color.rgb(13, 22, 17)
-        canvas.drawRect(0f, 0f, viewWidth, topBarHeight, paint)
-        paint.color = Color.rgb(190, 244, 78)
-        canvas.drawRect(0f, topBarHeight - max(2f, dp(2f)), viewWidth, topBarHeight, paint)
+        // A continuous forged rail replaces the former flat HUD strip; information remains live
+        // text so the values never become stale baked art.
+        drawBitmapInRect(canvas, sprites.hudTopRail, RectF(0f, 0f, viewWidth, topBarHeight))
+        drawBitmapCentered(canvas, sprites.uiIconCore, dp(29f), topBarHeight * 0.50f, min(dp(38f), topBarHeight * 0.70f))
+        drawText(canvas, phaseLabel(), dp(57f), topBarHeight * 0.43f, min(dp(13f), topBarHeight * 0.25f), Color.WHITE, Paint.Align.LEFT, true, true)
+        val forgeResources = if (phase == GamePhase.WAVE) "F$forgeCharges  E$evolutionCores" else "F$forgeCharges  E$evolutionCores  P$salvageParts  G$growthEssence"
+        val stackLabel = if (phase == GamePhase.WAVE && activeWaveNumbers.size > 1) "  ×${activeWaveNumbers.size}" else ""
+        drawText(canvas, "$forgeResources$stackLabel", dp(57f), topBarHeight * 0.72f, min(dp(7.5f), topBarHeight * 0.16f), Color.rgb(183, 198, 185), Paint.Align.LEFT, true)
 
-        drawRoundedRect(canvas, dp(10f), dp(8f), dp(48f), topBarHeight - dp(8f), dp(10f), Color.rgb(190, 244, 78))
-        drawCenteredText(canvas, "B", dp(29f), topBarHeight * 0.5f, min(dp(21f), topBarHeight * 0.42f), Color.rgb(13, 22, 17), true, true)
-        drawText(canvas, "BLOCKHOLD", dp(58f), topBarHeight * 0.43f, min(dp(14f), topBarHeight * 0.27f), Color.WHITE, Paint.Align.LEFT, true, true)
-        val forgeResources = if (phase == GamePhase.WAVE) "F$forgeCharges E$evolutionCores" else "F$forgeCharges E$evolutionCores P$salvageParts G$growthEssence"
-        val stackLabel = if (phase == GamePhase.WAVE && activeWaveNumbers.size > 1) " • STACK ${activeWaveNumbers.size}" else ""
-        drawText(canvas, "${phaseLabel()}$stackLabel • $forgeResources", dp(58f), topBarHeight * 0.72f, min(dp(7.5f), topBarHeight * 0.16f), Color.rgb(139, 157, 144), Paint.Align.LEFT, true)
-
-        val statStart = min(viewWidth * 0.27f, dp(265f))
-        val statGap = min(dp(102f), viewWidth * 0.115f)
-        drawStat(canvas, statStart, "BLOCKS", formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
-        drawStat(canvas, statStart + statGap, "CORE", "$lives/$maxCore", Color.rgb(255, 111, 100))
-        drawStat(canvas, statStart + statGap * 2f, "WAVE", waveNumber.toString(), Color.rgb(93, 220, 255))
-        // Forge charge pulse on the resource strip under the title
-        if (forgePulse > 0.02f) {
-            paint.color = Color.argb((forgePulse * 90f).toInt().coerceIn(0, 255), 255, 187, 116)
-            canvas.drawCircle(dp(72f), topBarHeight * 0.72f, dp(14f) * forgePulse, paint)
-        }
+        drawTopStats(canvas)
+        val compactControls = primaryActionRect.width() <= dp(92f)
 
         when {
-            phase == GamePhase.REFORGE -> drawTopButton(canvas, resetPathRect, "CANCEL", Color.rgb(67, 42, 37), Color.rgb(255, 188, 126), true)
-            waveNumber == 0 && (phase == GamePhase.DIG || phase == GamePhase.BUILD) -> drawTopButton(canvas, resetPathRect, "RESET", Color.rgb(36, 50, 40), Color.rgb(214, 224, 216), true)
-            phase == GamePhase.BUILD -> drawTopButton(canvas, resetPathRect, "REFORGE $forgeCharges", Color.rgb(53, 43, 68), Color.rgb(213, 182, 255), true)
+            phase == GamePhase.REFORGE -> drawUiButton(canvas, resetPathRect, if (compactControls) "" else "CANCEL", sprites.uiIconBack, UiControlTone.WARNING, textColor = Color.rgb(255, 225, 201), textSize = min(dp(8f), resetPathRect.height() * 0.25f))
+            waveNumber == 0 && (phase == GamePhase.DIG || phase == GamePhase.BUILD) -> drawUiButton(canvas, resetPathRect, if (compactControls) "" else "RESET", sprites.uiIconReset, UiControlTone.SECONDARY, textSize = min(dp(8f), resetPathRect.height() * 0.25f))
+            phase == GamePhase.BUILD -> drawUiButton(canvas, resetPathRect, if (compactControls) "" else "REFORGE", sprites.uiIconReforge, UiControlTone.ACCENT, textColor = Color.rgb(237, 217, 255), textSize = min(dp(8f), resetPathRect.height() * 0.25f))
         }
         val canStart = when {
             phase == GamePhase.BUILD && pathComplete -> true
@@ -5283,36 +5272,72 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             else -> false
         }
         val actionLabel = when (phase) {
-            GamePhase.DIG -> "CONNECT CORE"
-            GamePhase.BUILD -> if (nextWaveTimer > 0f) "NEXT WAVE" else "START WAVE ${waveNumber + 1}"
-            GamePhase.REFORGE -> "CONFIRM F${effectiveReforgeCost()}  B${reforgeRecoveryCost()}"
-            GamePhase.WAVE -> "NEXT WAVE"
-            else -> "STANDBY"
+            GamePhase.DIG -> if (compactControls) "ROUTE" else "FORGE ROUTE"
+            GamePhase.BUILD -> if (compactControls) "W${waveNumber + 1}" else if (nextWaveTimer > 0f) "LAUNCH W${waveNumber + 1}" else "START W${waveNumber + 1}"
+            GamePhase.REFORGE -> if (compactControls) "" else "CONFIRM"
+            GamePhase.WAVE -> if (compactControls) "" else "STACK"
+            else -> if (compactControls) "" else "WAIT"
         }
-        drawTopButton(canvas, primaryActionRect, actionLabel, if (canStart) Color.rgb(190, 244, 78) else Color.rgb(31, 44, 35), if (canStart) Color.rgb(13, 22, 17) else Color.rgb(104, 123, 110), canStart)
-        drawTopButton(canvas, soundRect, if (audio.isEnabled()) "SFX" else "OFF", Color.rgb(31, 44, 35), Color.WHITE, true)
-        drawTopButton(canvas, feedbackToggleRect, if (feedbackEnabled) "TXT" else "OFF", Color.rgb(31, 44, 35), if (feedbackEnabled) Color.rgb(190, 244, 78) else Color.rgb(104, 123, 110), true)
-        drawTopButton(canvas, pauseRect, "II", Color.rgb(31, 44, 35), Color.WHITE, true)
+        val actionIcon = when (phase) {
+            GamePhase.DIG -> sprites.uiIconRoute
+            GamePhase.REFORGE -> sprites.uiIconReforge
+            GamePhase.WAVE -> sprites.uiIconStack
+            else -> sprites.uiIconLaunch
+        }
+        val actionTone = if (phase == GamePhase.WAVE) UiControlTone.ACCENT else UiControlTone.PRIMARY
+        drawUiButton(
+            canvas,
+            primaryActionRect,
+            actionLabel,
+            actionIcon,
+            actionTone,
+            canStart,
+            if (canStart) Color.rgb(240, 255, 214) else Color.rgb(124, 140, 129),
+            min(dp(9f), primaryActionRect.height() * 0.26f)
+        )
+        drawUiButton(canvas, soundRect, "", if (audio.isEnabled()) sprites.menuIconSoundOn else sprites.menuIconSoundOff, UiControlTone.SECONDARY)
+        drawUiButton(canvas, feedbackToggleRect, "", sprites.uiIconFeedback, if (feedbackEnabled) UiControlTone.SECONDARY else UiControlTone.WARNING)
+        drawUiButton(canvas, pauseRect, "", sprites.uiIconPause, UiControlTone.SECONDARY)
     }
 
-    private fun drawStat(canvas: Canvas, x: Float, label: String, value: String, accent: Int, pulse: Float = 0f) {
-        drawText(canvas, label, x, topBarHeight * 0.37f, min(dp(8f), topBarHeight * 0.16f), Color.rgb(115, 135, 121), Paint.Align.LEFT, true)
-        val valueSize = min(dp(15f), topBarHeight * 0.30f) * (1f + pulse * 0.18f)
+    /**
+     * Fit the live resource chips between the phase label and right-side actions. At compact
+     * widths this intentionally keeps Blocks/Core first and lets the launch control convey wave
+     * number, rather than allowing tightly packed labels to collide with an action button.
+     */
+    private fun drawTopStats(canvas: Canvas) {
+        val left = max(dp(104f), min(viewWidth * 0.22f, dp(210f)))
+        val right = resetPathRect.left - dp(6f)
+        val available = right - left
+        val gap = min(dp(7f), max(dp(3f), available * 0.025f))
+        val minWidth = dp(42f)
+        val count = when {
+            available >= minWidth * 3f + gap * 2f -> 3
+            available >= minWidth * 2f + gap -> 2
+            available >= minWidth -> 1
+            else -> 0
+        }
+        if (count == 0) return
+        val width = min(dp(88f), (available - gap * (count - 1)).coerceAtLeast(minWidth) / count)
+        fun statRect(index: Int): RectF {
+            val statLeft = left + index * (width + gap)
+            return RectF(statLeft, dp(7f), statLeft + width, topBarHeight - dp(7f))
+        }
+        drawStat(canvas, statRect(0), sprites.uiIconBlocks, formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
+        if (count >= 2) drawStat(canvas, statRect(1), sprites.uiIconCore, "$lives/$maxCore", Color.rgb(255, 111, 100))
+        if (count >= 3) drawStat(canvas, statRect(2), sprites.uiIconWave, waveNumber.toString(), Color.rgb(93, 220, 255))
+    }
+
+    private fun drawStat(canvas: Canvas, rect: RectF, icon: Bitmap, value: String, accent: Int, pulse: Float = 0f) {
+        drawBitmapInRect(canvas, sprites.uiStatFrame, rect)
+        val iconSize = min(rect.height() * 0.57f, rect.width() * 0.35f)
+        drawBitmapCentered(canvas, icon, rect.left + rect.width() * 0.25f, rect.centerY(), iconSize)
+        val valueSize = min(min(dp(15f), topBarHeight * 0.30f), rect.width() * 0.25f) * (1f + pulse * 0.18f)
         if (pulse > 0.02f) {
             paint.color = Color.argb((pulse * 70f).toInt().coerceIn(0, 255), Color.red(accent), Color.green(accent), Color.blue(accent))
-            canvas.drawCircle(x + dp(22f), topBarHeight * 0.62f, dp(16f) * pulse, paint)
+            canvas.drawCircle(rect.centerX(), rect.centerY(), rect.height() * 0.44f * pulse, paint)
         }
-        drawText(canvas, value, x, topBarHeight * 0.70f, valueSize, accent, Paint.Align.LEFT, true, true)
-    }
-
-    private fun drawTopButton(canvas: Canvas, rect: RectF, label: String, background: Int, foreground: Int, active: Boolean) {
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(10f), background)
-        if (active) {
-            strokePaint.strokeWidth = max(1f, dp(1f))
-            strokePaint.color = Color.argb(55, 255, 255, 255)
-            canvas.drawRoundRect(rect, dp(10f), dp(10f), strokePaint)
-        }
-        drawCenteredText(canvas, label, rect.centerX(), rect.centerY(), min(dp(9f), rect.height() * 0.27f), foreground, true)
+        drawCenteredText(canvas, value, rect.left + rect.width() * 0.66f, rect.centerY(), valueSize, accent, true, true)
     }
 
     private fun phaseLabel(): String {
@@ -5330,10 +5355,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun drawBottomBar(canvas: Canvas) {
         val top = viewHeight - bottomBarHeight
-        paint.color = Color.rgb(13, 22, 17)
-        canvas.drawRect(0f, top, viewWidth, viewHeight, paint)
-        paint.color = Color.rgb(32, 47, 37)
-        canvas.drawRect(0f, top, viewWidth, top + max(1f, dp(1f)), paint)
+        drawBitmapInRect(canvas, sprites.hudBottomRail, RectF(0f, top, viewWidth, viewHeight))
         when {
             phase == GamePhase.DIG || phase == GamePhase.REFORGE -> drawPathForgePanel(canvas)
             selectedCorruption != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawCorruptionPanel(canvas)
@@ -5348,41 +5370,46 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val bottom = viewHeight - dp(13f)
         val width = min(viewWidth - dp(28f), dp(650f))
         val left = (viewWidth - width) * 0.5f
-        drawRoundedRect(canvas, left, top, left + width, bottom, dp(14f), Color.rgb(24, 38, 29))
         val reforging = phase == GamePhase.REFORGE
-        drawCenteredText(canvas, if (reforging) "PREVIEW THE NEW ROUTE" else "DRAW THE ONLY ROUTE", left + width * 0.31f, top + (bottom - top) * 0.38f, min(dp(15f), bottomBarHeight * 0.16f), Color.rgb(190, 244, 78), true, true)
-        drawCenteredText(canvas, if (reforging) "STRUCTURES BLOCK THE PATH • F${effectiveReforgeCost()} • RECOVERY ${reforgeRecoveryCost()} B • ${displacedReforgeTraps().size} TRAPS" else "DRAG BLOCK BY BLOCK • BACKTRACK TO UNDO", left + width * 0.31f, top + (bottom - top) * 0.69f, min(dp(9f), bottomBarHeight * 0.095f), Color.rgb(172, 188, 177), true)
-        drawBitmapCentered(canvas, sprites.path, left + width * 0.72f, (top + bottom) * 0.5f, min(bottom - top, dp(76f)))
+        drawUiPanel(canvas, left, top, left + width, bottom, active = reforging)
+        drawBitmapCentered(canvas, sprites.uiIconRoute, left + width * 0.13f, (top + bottom) * 0.5f, min(bottom - top, dp(58f)))
+        drawCenteredText(canvas, if (reforging) "REFORGE ROUTE" else "DRAW ROUTE", left + width * 0.45f, top + (bottom - top) * 0.37f, min(dp(15f), bottomBarHeight * 0.16f), Color.rgb(232, 248, 212), true, true)
+        val routeDetail = if (reforging) {
+            "F${effectiveReforgeCost()}  •  B${reforgeRecoveryCost()}  •  ${displacedReforgeTraps().size} TRAPS"
+        } else {
+            "DRAG  •  BACKTRACK TO UNDO"
+        }
+        drawCenteredText(canvas, routeDetail, left + width * 0.45f, top + (bottom - top) * 0.69f, min(dp(9f), bottomBarHeight * 0.095f), Color.rgb(190, 207, 193), true)
+        drawBitmapCentered(canvas, sprites.path, left + width * 0.74f, (top + bottom) * 0.5f, min(bottom - top, dp(64f)))
         val limit = currentPathLimit()
         drawCenteredText(canvas, "${pathCells.size}/$limit", left + width * 0.89f, (top + bottom) * 0.5f, dp(13f), Color.WHITE, true)
     }
 
     private fun drawToolBar(canvas: Canvas) {
-        drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR ${towerPageIndex + 1}/4", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
-        drawPageTab(canvas, trapPageRect, if (challengeModifier == ChallengeModifier.TOWERS_ONLY) "LOCK" else "TRAP", buildPage == BuildPage.TRAPS, Color.rgb(93, 220, 255))
-        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/5", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
-        drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, Color.rgb(195, 120, 255))
+        val towersLocked = challengeModifier == ChallengeModifier.TRAPS_ONLY
+        val trapsLocked = challengeModifier == ChallengeModifier.TOWERS_ONLY
+        drawPageTab(canvas, towerPageRect, if (towersLocked) "LOCK" else "TWR ${towerPageIndex + 1}/4", buildPage == BuildPage.TOWERS, if (towersLocked) sprites.uiIconLock else sprites.uiIconTowers, towersLocked)
+        drawPageTab(canvas, trapPageRect, if (trapsLocked) "LOCK" else "TRAPS", buildPage == BuildPage.TRAPS, if (trapsLocked) sprites.uiIconLock else sprites.uiIconTraps, trapsLocked)
+        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/5", buildPage == BuildPage.UTILITIES, sprites.uiIconUtilities)
+        drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, sprites.uiIconCache)
         for ((tool, rect) in toolRects) {
             val selected = selectedTool == tool && ((buildPage == BuildPage.TOWERS && tool.ordinal < BuildTool.SPIKES.ordinal) || (buildPage == BuildPage.TRAPS && tool.ordinal >= BuildTool.SPIKES.ordinal))
             val toolCost = toolPlacementCost(tool)
             val affordable = gold >= toolCost
-            val accent = toolAccent(tool)
-            val background = if (selected) Color.argb(220, Color.red(accent), Color.green(accent), Color.blue(accent)) else Color.rgb(25, 38, 30)
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), background)
-            if (selected) {
-                strokePaint.strokeWidth = max(2f, dp(2f))
-                strokePaint.color = Color.WHITE
-                canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint)
-            }
-            drawToolIcon(canvas, tool, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.32f, if (selected) Color.rgb(13, 22, 17) else accent)
+            drawBitmapInRect(canvas, if (selected) sprites.uiBuildSlotSelected else sprites.uiBuildSlot, rect, if (affordable || selected) 255 else 205)
+            drawToolIcon(canvas, tool, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.32f)
             drawCenteredText(canvas, tool.title, rect.centerX(), rect.top + rect.height() * 0.68f, min(dp(9f), rect.width() * 0.12f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
             drawCenteredText(canvas, toolCost.toString(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(8f), rect.width() * 0.105f), if (selected) Color.rgb(22, 38, 27) else if (affordable) Color.rgb(190, 244, 78) else Color.rgb(255, 105, 94), true)
         }
         for ((kind, rect) in utilityRects) {
             val selected = selectedUtilityKind == kind
             val unlocked = utilityUnlocked(kind)
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) kind.accent else Color.rgb(25, 38, 30))
-            if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
+            val slotSkin = when {
+                selected -> sprites.uiBuildSlotSelected
+                !unlocked -> sprites.uiBuildSlotDisabled
+                else -> sprites.uiBuildSlot
+            }
+            drawBitmapInRect(canvas, slotSkin, rect)
             spritePaint.alpha = if (unlocked) 255 else 95
             drawSpriteFrameCentered(
                 canvas,
@@ -5412,8 +5439,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         for ((index, rect) in cacheRects) {
             val stored = storedTraps[index]
             val selected = selectedStoredTrapIndex == index
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) stored.kind.accent else Color.rgb(25, 38, 30))
-            if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
+            drawBitmapInRect(canvas, if (selected) sprites.uiBuildSlotSelected else sprites.uiBuildSlot, rect)
             drawSpriteFrameCentered(canvas, sprites.trap(stored.kind), 0, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
             drawCenteredText(canvas, stored.kind.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
             drawCenteredText(canvas, stored.rankLabel(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(7f), rect.width() * 0.08f), if (stored.imbuement != null) stored.imbuement!!.accent else Color.rgb(190, 244, 78), true)
@@ -5421,35 +5447,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (buildPage == BuildPage.CACHE && storedTraps.isEmpty()) drawCenteredText(canvas, "CACHE EMPTY  •  STORE A PLACED TRAP", (cachePageRect.right + viewWidth) * 0.5f, viewHeight - bottomBarHeight * 0.5f, dp(11f), Color.rgb(137, 153, 142), true)
     }
 
-    private fun drawPageTab(canvas: Canvas, rect: RectF, label: String, selected: Boolean, accent: Int) {
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(9f), if (selected) accent else Color.rgb(27, 42, 33))
-        drawCenteredText(canvas, label, rect.centerX(), rect.centerY(), min(dp(9f), rect.width() * 0.12f), if (selected) Color.rgb(12, 22, 17) else Color.rgb(177, 192, 181), true)
-    }
-
-    private fun toolAccent(tool: BuildTool): Int {
-        return when (tool) {
-            BuildTool.BOLT -> TowerKind.BOLT.accent
-            BuildTool.FROST -> TowerKind.FROST.accent
-            BuildTool.CANNON -> TowerKind.CANNON.accent
-            BuildTool.EMBER -> TowerKind.EMBER.accent
-            BuildTool.BEACON -> TowerKind.BEACON.accent
-            BuildTool.THORN -> TowerKind.THORN.accent
-            BuildTool.LANCE -> TowerKind.LANCE.accent
-            BuildTool.MIRE -> TowerKind.MIRE.accent
-            BuildTool.GALE -> TowerKind.GALE.accent
-            BuildTool.SUNFORGE -> TowerKind.SUNFORGE.accent
-            BuildTool.LODESTONE -> TowerKind.LODESTONE.accent
-            BuildTool.HOWL -> TowerKind.HOWL.accent
-            BuildTool.VITRIOL -> TowerKind.VITRIOL.accent
-            BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT.accent
-            BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM.accent
-            BuildTool.SPIKES -> TrapKind.SPIKE.accent
-            BuildTool.ROOT -> TrapKind.ROOT.accent
-            BuildTool.RUNE -> TrapKind.EMBER.accent
-            BuildTool.ARC -> TrapKind.ARC.accent
-            BuildTool.CRUSHER -> TrapKind.CRUSHER.accent
-            BuildTool.DIG -> Color.rgb(153, 125, 82)
-        }
+    private fun drawPageTab(canvas: Canvas, rect: RectF, label: String, selected: Boolean, icon: Bitmap, locked: Boolean = false) {
+        val skin = if (selected && !locked) sprites.uiTabSelected else sprites.uiTab
+        drawBitmapInRect(canvas, skin, rect, if (locked) 160 else 255)
+        spritePaint.alpha = if (locked) 92 else 255
+        drawBitmapCentered(canvas, icon, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.38f)
+        spritePaint.alpha = 255
+        drawCenteredText(canvas, label, rect.centerX(), rect.top + rect.height() * 0.72f, min(dp(8f), rect.width() * 0.105f), if (selected && !locked) Color.rgb(12, 22, 17) else Color.rgb(214, 225, 216), true)
     }
 
     private fun toolTrapKind(tool: BuildTool): TrapKind? {
@@ -5489,7 +5493,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
-    private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float, color: Int) {
+    private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float) {
         val towerLayers: Pair<Bitmap, SpriteStrip>? = when (tool) {
             BuildTool.BOLT -> Pair(sprites.towerBase, sprites.greenTurret)
             BuildTool.FROST -> Pair(sprites.frostBase, sprites.paleTurret)
@@ -5526,8 +5530,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawSpriteFrameCentered(canvas, sprites.trap(trapKind), 0, x, y, size * 2.1f)
             return
         }
-        paint.color = color
-        canvas.drawRect(x - size * 0.45f, y - size * 0.14f, x + size * 0.45f, y + size * 0.14f, paint)
+        drawBitmapCentered(canvas, sprites.uiIconRoute, x, y, size * 2.1f)
     }
 
     private fun drawDefensePanel(canvas: Canvas) {
@@ -5543,82 +5546,83 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val rank = tower?.rankLabel() ?: trap?.rankLabel().orEmpty()
         val sellValue = tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: 0
         val definition = tower?.evolution?.description ?: tower?.kind?.description ?: trap?.kind?.description ?: ""
-        drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
-        drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(11f), Color.WHITE, true)
-        val upgradeColor = if (canBuy) accent else Color.rgb(27, 42, 33)
-        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), upgradeColor)
-        val titleColor = if (canBuy) Color.rgb(12, 21, 16) else Color.rgb(150, 168, 156)
+        drawUiButton(canvas, backRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), backRect.height() * 0.34f))
+        drawUiPanel(canvas, upgradeRect, active = canBuy)
+        drawBitmapCentered(canvas, sprites.uiIconUpgrade, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.27f, min(upgradeRect.height() * 0.24f, dp(27f)))
+        val titleColor = if (canBuy) Color.rgb(238, 252, 222) else Color.rgb(150, 168, 156)
         drawCenteredText(canvas, "UPGRADE ${title.uppercase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
         drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.50f, upgradeRect.width() * 0.90f, dp(8f), titleColor, 2)
-        val stats = if (range != null) "DMG ${damage.toInt()}  RANGE ${oneDecimal(range)}  •  $cost BLOCKS" else "DMG ${damage.toInt()}  •  $cost BLOCKS"
+        val stats = if (range != null) "DMG ${damage.toInt()}  •  RNG ${oneDecimal(range)}  •  ${cost}B" else "DMG ${damage.toInt()}  •  ${cost}B"
         drawCenteredText(canvas, stats, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.81f, min(dp(9f), upgradeRect.width() * 0.026f), titleColor, true)
         val canEvolve = tower?.canEvolve() == true
-        val storeLabel = when { canEvolve -> "EVOLVE • $evolutionCores CORE"; trap != null -> "STORE • ${trapStorageCost(trap)} B"; else -> "EVOLUTION LOCKED" }
-        drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (canEvolve) Color.rgb(68, 55, 30) else if (trap != null) Color.rgb(35, 54, 68) else Color.rgb(31, 40, 34))
-        drawCenteredText(canvas, storeLabel, storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (canEvolve) Color.rgb(255, 222, 126) else Color.rgb(186, 221, 241), true)
+        val storeLabel = when { canEvolve -> "EVOLVE  •  $evolutionCores CORE"; trap != null -> "STORE  •  ${trapStorageCost(trap)}B"; else -> "EVOLUTION LOCKED" }
+        val storeIcon = when { canEvolve -> sprites.uiIconEvolve; trap != null -> sprites.uiIconStore; else -> sprites.uiIconLock }
+        drawUiButton(canvas, storeRect, storeLabel, storeIcon, if (canEvolve) UiControlTone.ACCENT else UiControlTone.SECONDARY, canEvolve || trap != null, if (canEvolve) Color.rgb(240, 224, 255) else Color.rgb(190, 220, 240), min(dp(7.5f), storeRect.height() * 0.34f))
         val existingImbuement = tower?.imbuement ?: trap?.imbuement
-        drawRoundedRect(canvas, imbueRect.left, imbueRect.top, imbueRect.right, imbueRect.bottom, dp(7f), Color.rgb(53, 43, 68))
-        drawCenteredText(canvas, if (existingImbuement == null) "IMBUE" else "IMBUED • ${existingImbuement.title.uppercase()}", imbueRect.centerX(), imbueRect.centerY(), min(dp(8f), imbueRect.height() * 0.43f), existingImbuement?.accent ?: Color.rgb(213, 182, 255), true)
+        drawUiButton(canvas, imbueRect, if (existingImbuement == null) "IMBUE" else "IMBUED  •  ${existingImbuement.title.uppercase()}", sprites.uiIconImbue, UiControlTone.ACCENT, textColor = existingImbuement?.accent ?: Color.rgb(232, 216, 255), textSize = min(dp(7.5f), imbueRect.height() * 0.34f))
         val recycleLocked = challengeModifier == ChallengeModifier.NO_RECYCLING
-        drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(7f), if (recycleLocked) Color.rgb(35, 36, 34) else Color.rgb(50, 37, 32))
-        drawCenteredText(canvas, if (recycleLocked) "NO RECYCLING" else "RECYCLE • +$sellValue", sellRect.centerX(), sellRect.centerY(), min(dp(8f), sellRect.height() * 0.43f), Color.rgb(255, 188, 126), true)
+        drawUiButton(canvas, sellRect, if (recycleLocked) "NO RECYCLING" else "RECYCLE  •  +$sellValue", sprites.uiIconRecycle, UiControlTone.WARNING, !recycleLocked, Color.rgb(255, 217, 193), min(dp(7.5f), sellRect.height() * 0.34f))
     }
 
     private fun drawUtilityPanel(canvas: Canvas) {
         val utility = selectedUtility ?: return
         val cost = if (utility.level < utility.maxLevel()) utility.upgradeCost() else 0
         val canUpgrade = utility.level < utility.maxLevel() && gold >= cost
-        val utilityTextColor = if (canUpgrade) Color.rgb(12, 21, 16) else Color.WHITE
-        drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
-        drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(10f), Color.WHITE, true)
-        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (canUpgrade) utility.kind.accent else Color.rgb(31, 43, 35))
-        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LEVEL ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.03f), utilityTextColor, true)
+        val utilityTextColor = if (canUpgrade) Color.rgb(238, 252, 222) else Color.rgb(190, 204, 194)
+        drawUiButton(canvas, backRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), backRect.height() * 0.34f))
+        drawUiPanel(canvas, upgradeRect, active = canUpgrade)
+        drawBitmapCentered(canvas, sprites.uiIconUpgrade, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.27f, min(upgradeRect.height() * 0.24f, dp(27f)))
+        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LV ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.03f), utilityTextColor, true)
         val definition = if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
-            "Produces ${utility.blockOutput()} Blocks after every cleared wave"
+            "+${utility.blockOutput()} BLOCKS AFTER EACH WAVE"
         } else {
             utility.kind.description
         }
-        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), 2)
+        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), utilityTextColor, 2)
+        val upgradeFooter = if (utility.level < utility.maxLevel()) "UPGRADE  •  ${cost}B" else "MAX LEVEL"
         if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
             val activeGenerators = utilities.count { it.kind == UtilityKind.BLOCK_GENERATOR }
-            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  ${if (utility.level < utility.maxLevel()) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL"}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  $upgradeFooter", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), utilityTextColor, true)
         } else {
-            drawCenteredText(canvas, if (utility.level < utility.maxLevel()) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+            drawCenteredText(canvas, upgradeFooter, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), utilityTextColor, true)
         }
-        drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(81, 49, 31) else Color.rgb(31, 40, 34))
-        drawCenteredText(canvas, if (utility.kind == UtilityKind.FORGE_WORKSHOP) "OPEN FORGEWORKS" else "PASSIVE UTILITY", storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(255, 187, 116) else Color.rgb(137, 153, 142), true)
-        drawRoundedRect(canvas, imbueRect.left, imbueRect.top, imbueRect.right, imbueRect.bottom, dp(7f), Color.rgb(53, 43, 68))
-        drawCenteredText(canvas, if (utility.imbuement == null) "IMBUE" else "IMBUED • ${utility.imbuement!!.title.uppercase()}", imbueRect.centerX(), imbueRect.centerY(), min(dp(8f), imbueRect.height() * 0.43f), utility.imbuement?.accent ?: Color.rgb(213, 182, 255), true)
-        drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(7f), Color.rgb(50, 37, 32))
-        drawCenteredText(canvas, if (challengeModifier == ChallengeModifier.NO_RECYCLING) "NO RECYCLING" else "RECYCLE UTILITY", sellRect.centerX(), sellRect.centerY(), min(dp(8f), sellRect.height() * 0.43f), Color.rgb(255, 188, 126), true)
+        val workshop = utility.kind == UtilityKind.FORGE_WORKSHOP
+        drawUiButton(canvas, storeRect, if (workshop) "FORGEWORKS" else "PASSIVE", if (workshop) sprites.uiIconStore else sprites.uiIconLock, if (workshop) UiControlTone.PRIMARY else UiControlTone.SECONDARY, workshop, if (workshop) Color.rgb(239, 250, 211) else Color.rgb(131, 145, 136), min(dp(7.5f), storeRect.height() * 0.34f))
+        drawUiButton(canvas, imbueRect, if (utility.imbuement == null) "IMBUE" else "IMBUED  •  ${utility.imbuement!!.title.uppercase()}", sprites.uiIconImbue, UiControlTone.ACCENT, textColor = utility.imbuement?.accent ?: Color.rgb(232, 216, 255), textSize = min(dp(7.5f), imbueRect.height() * 0.34f))
+        val recycleLocked = challengeModifier == ChallengeModifier.NO_RECYCLING
+        drawUiButton(canvas, sellRect, if (recycleLocked) "NO RECYCLING" else "RECYCLE", sprites.uiIconRecycle, UiControlTone.WARNING, !recycleLocked, Color.rgb(255, 217, 193), min(dp(7.5f), sellRect.height() * 0.34f))
     }
 
     private fun drawCorruptionPanel(canvas: Canvas) {
         val corruption = selectedCorruption ?: return
         val cost = corruptionCleanseCost(corruption)
         val vial = corruptionUsesVial(corruption)
-        drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
-        drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(11f), Color.WHITE, true)
-        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (forgeCharges >= cost) corruption.kind.accent else Color.rgb(42, 37, 42))
-        drawCenteredText(canvas, "CLEANSE ${corruption.kind.title.uppercase()}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, dp(10f), Color.WHITE, true)
+        val canCleanse = forgeCharges >= cost
+        drawUiButton(canvas, backRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), backRect.height() * 0.34f))
+        drawUiPanel(canvas, upgradeRect, active = canCleanse)
+        drawBitmapCentered(canvas, sprites.uiIconRecycle, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.31f, min(upgradeRect.height() * 0.24f, dp(27f)))
+        drawCenteredText(canvas, "CLEANSE ${corruption.kind.title.uppercase()}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, dp(10f), if (canCleanse) Color.rgb(240, 252, 227) else Color.rgb(177, 188, 180), true)
         drawWrappedText(canvas, corruption.kind.description, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.69f, upgradeRect.width() * 0.90f, dp(8f), Color.rgb(224, 230, 225), 2)
-        drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(12f), Color.rgb(53, 43, 68))
-        drawCenteredText(canvas, "$cost FORGE${if (vial) " + VIAL" else ""}", sellRect.centerX(), sellRect.top + sellRect.height() * 0.40f, dp(10f), Color.rgb(213, 182, 255), true)
-        drawCenteredText(canvas, "YOU HAVE $forgeCharges", sellRect.centerX(), sellRect.top + sellRect.height() * 0.70f, dp(8f), Color.rgb(175, 157, 194), true)
+        drawUiPanel(canvas, sellRect, active = canCleanse)
+        drawBitmapCentered(canvas, sprites.uiIconImbue, sellRect.left + sellRect.width() * 0.18f, sellRect.centerY(), min(sellRect.height() * 0.52f, dp(22f)))
+        drawCenteredText(canvas, "${cost} FORGE${if (vial) " + VIAL" else ""}", sellRect.left + sellRect.width() * 0.60f, sellRect.top + sellRect.height() * 0.40f, dp(10f), Color.rgb(232, 216, 255), true)
+        drawCenteredText(canvas, "YOU HAVE $forgeCharges", sellRect.left + sellRect.width() * 0.60f, sellRect.top + sellRect.height() * 0.70f, dp(8f), Color.rgb(190, 174, 208), true)
     }
 
     private fun drawBanner(canvas: Canvas) {
         if (!feedbackEnabled) return
         val timed = bannerTimer > 0f
+        // Keep the live guidance readable at a glance. Detailed one-shot outcome messages still
+        // flow through bannerText, while the recurring Next Wave state is now a compact status.
         val instruction = when {
             timed -> bannerText
-            phase == GamePhase.DIG -> "DRAG ONE BLOCK AT A TIME  •  BACKTRACK TO UNDO  •  MAX ${currentPathLimit()}"
-            phase == GamePhase.REFORGE -> "PREVIEW • CONFIRM/CANCEL • F${effectiveReforgeCost()}/$forgeCharges • RECOVERY ${reforgeRecoveryCost()} B • CACHE ${storedTraps.size + displacedReforgeTraps().size}/${cacheCapacity()}"
-            phase == GamePhase.BUILD && nextWaveTimer > 0f -> "NEXT WAVE IN ${nextWaveCountdownSeconds()}S  •  TAP NEXT WAVE TO LAUNCH NOW"
-            phase == GamePhase.BUILD && waveNumber == 0 && towers.isEmpty() -> "CHOOSE A DEFENSE BELOW  •  TAP A FREE BLOCK TO BUILD"
+            phase == GamePhase.DIG -> "DRAW ROUTE  •  ${pathCells.size}/${currentPathLimit()}"
+            phase == GamePhase.REFORGE -> "REFORGE  •  F${effectiveReforgeCost()}  •  B${reforgeRecoveryCost()}"
+            phase == GamePhase.BUILD && nextWaveTimer > 0f -> "WAVE ${waveNumber + 1}  •  ${nextWaveCountdownSeconds()}S"
+            phase == GamePhase.BUILD && waveNumber == 0 && towers.isEmpty() -> "SELECT A BUILD CARD"
             phase == GamePhase.BUILD && surveyAvailable() -> surveyPreviewText(waveNumber + 1)
-            phase == GamePhase.BUILD -> "BUILD DEFENSES AND INFRASTRUCTURE  •  NEXT WAVE AUTO-LAUNCHES IN 10S"
-            phase == GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "$waveTheme  •  ${activeWaveNumbers.size} WAVES STACKED  •  TOWERS ARE AUTONOMOUS" else "$waveTheme  •  TAP NEXT WAVE TO STACK"
+            phase == GamePhase.BUILD -> "BUILD READY  •  WAVE ${waveNumber + 1}"
+            phase == GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "${activeWaveNumbers.size} WAVES ACTIVE" else "WAVE $waveNumber LIVE  •  STACK READY"
             else -> ""
         }
         if (instruction.isEmpty()) return
@@ -5626,8 +5630,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val enter = if (timed) (elapsed / 0.22f).coerceIn(0f, 1f) else 1f
         val enterEase = 1f - (1f - enter) * (1f - enter)
         val fadeOut = if (timed && bannerTimer in 0f..0.38f) (bannerTimer / 0.38f) else 1f
-        val alpha = (if (timed) 235f * fadeOut else 200f).toInt().coerceIn(0, 255)
-        val baseWidth = min(viewWidth * 0.34f, dp(310f))
+        val alpha = (if (timed) 235f * fadeOut else 212f).toInt().coerceIn(0, 255)
+        val baseWidth = min(viewWidth * 0.31f, dp(290f))
         val baseHeight = min(dp(54f), max(dp(42f), tileSize * 0.78f))
         val widthScale = if (timed) 0.82f + 0.18f * enterEase else 1f
         val heightScale = if (timed) 0.88f + 0.20f * enterEase else 1f
@@ -5635,58 +5639,64 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val height = baseHeight * heightScale
         val left = dp(12f)
         val top = topBarHeight + dp(9f) - (1f - enterEase) * dp(8f)
-        if (timed) {
-            val rim = Color.argb((alpha * 0.55f).toInt().coerceIn(0, 255), 190, 244, 78)
-            drawRoundedRect(canvas, left - dp(2f), top - dp(2f), left + width + dp(2f), top + height + dp(2f), dp(10f), rim)
-            paint.color = Color.argb((alpha * 0.18f).toInt().coerceIn(0, 255), 190, 244, 78)
-            canvas.drawRoundRect(left, top + height * 0.35f, left + width, top + height + dp(6f), dp(12f), dp(12f), paint)
+        drawBitmapInRect(canvas, sprites.uiBanner, RectF(left, top, left + width, top + height), alpha)
+        val icon = when (phase) {
+            GamePhase.DIG, GamePhase.REFORGE -> sprites.uiIconRoute
+            GamePhase.WAVE -> sprites.uiIconStack
+            else -> sprites.uiIconLaunch
         }
-        drawRoundedRect(canvas, left, top, left + width, top + height, dp(10f), Color.argb(alpha, 14, 23, 18))
+        spritePaint.alpha = alpha
+        drawBitmapCentered(canvas, icon, left + width * 0.105f, top + height * 0.47f, min(height * 0.52f, dp(26f)))
+        spritePaint.alpha = 255
         val textSize = min(dp(9f), height * 0.24f) * (if (timed) 0.92f + 0.12f * enterEase else 1f)
         drawWrappedText(
             canvas,
             instruction,
-            left + width * 0.5f,
+            left + width * 0.56f,
             top + height * 0.47f,
-            width - dp(18f),
+            width * 0.77f,
             textSize,
-            Color.argb(min(255, alpha + 25), 224, 232, 226),
+            Color.argb(min(255, alpha + 25), 234, 240, 226),
             2,
             true
         )
         if (timed && bannerDuration > 0.01f) {
             val progress = (bannerTimer / bannerDuration).coerceIn(0f, 1f)
             paint.color = Color.argb((alpha * 0.85f).toInt().coerceIn(0, 255), 190, 244, 78)
-            canvas.drawRect(left + dp(8f), top + height - dp(3f), left + dp(8f) + (width - dp(16f)) * progress, top + height - dp(1f), paint)
+            canvas.drawRect(left + dp(18f), top + height - dp(4f), left + dp(18f) + (width - dp(36f)) * progress, top + height - dp(2f), paint)
         }
     }
 
     private fun drawPauseOverlay(canvas: Canvas) {
         paint.color = Color.argb(218, 7, 13, 10)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-        drawCenteredText(canvas, "RUN PAUSED", viewWidth * 0.5f, viewHeight * 0.34f, min(dp(43f), viewHeight * 0.10f), Color.WHITE, true, true)
-        val note = if (phaseBeforePause == GamePhase.WAVE) "RESUME THIS WAVE  •  MENU RETURNS TO LAST CHECKPOINT" else "PATH, DEFENSES, SCORE, AND WAVE ARE SAVED"
-        drawCenteredText(canvas, note, viewWidth * 0.5f, viewHeight * 0.44f, dp(11f), Color.rgb(153, 171, 159), true)
-        drawEndButtons(canvas, "RESUME", "MAIN MENU")
+        drawUiModal(canvas, RectF(viewWidth * 0.18f, viewHeight * 0.18f, viewWidth * 0.82f, viewHeight * 0.84f), 248)
+        drawBitmapCentered(canvas, sprites.uiIconPause, viewWidth * 0.5f, viewHeight * 0.28f, min(dp(46f), viewHeight * 0.09f))
+        drawCenteredText(canvas, "RUN PAUSED", viewWidth * 0.5f, viewHeight * 0.37f, min(dp(37f), viewHeight * 0.085f), Color.WHITE, true, true)
+        val note = if (phaseBeforePause == GamePhase.WAVE) "RESUME WAVE  •  MENU RETURNS TO CHECKPOINT" else "PROGRESS SAVED"
+        drawCenteredText(canvas, note, viewWidth * 0.5f, viewHeight * 0.46f, dp(11f), Color.rgb(192, 207, 195), true)
+        drawEndButtons(canvas, "RESUME", "MENU")
     }
 
     private fun drawEndOverlay(canvas: Canvas) {
         paint.color = Color.argb(226, 7, 13, 10)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        drawUiModal(canvas, RectF(viewWidth * 0.15f, viewHeight * 0.14f, viewWidth * 0.85f, viewHeight * 0.88f), 248)
         val victory = phase == GamePhase.VICTORY
         val accent = if (victory) Color.rgb(190, 244, 78) else Color.rgb(255, 102, 92)
+        drawBitmapCentered(canvas, if (victory) sprites.uiIconCore else sprites.uiIconRecycle, viewWidth * 0.5f, viewHeight * 0.20f, min(dp(44f), viewHeight * 0.08f))
         drawCenteredText(canvas, if (victory) "CORE SECURED" else "CORE BREACHED", viewWidth * 0.5f, viewHeight * 0.28f, min(dp(48f), viewHeight * 0.105f), accent, true, true)
-        drawCenteredText(canvas, if (victory) "ENDLESS MODE COMPLETE" else "THE RUN ENDS  THE HIGH WAVE REMAINS", viewWidth * 0.5f, viewHeight * 0.39f, dp(12f), Color.rgb(184, 198, 188), true)
+        drawCenteredText(canvas, if (victory) "RUN COMPLETE" else "HIGH WAVE RECORDED", viewWidth * 0.5f, viewHeight * 0.39f, dp(12f), Color.rgb(202, 214, 204), true)
         val cardWidth = min(dp(400f), viewWidth * 0.60f)
         val cardLeft = (viewWidth - cardWidth) * 0.5f
         val cardTop = viewHeight * 0.47f
         val cardBottom = viewHeight * 0.63f
-        drawRoundedRect(canvas, cardLeft, cardTop, cardLeft + cardWidth, cardBottom, dp(14f), Color.rgb(20, 32, 25))
+        drawUiPanel(canvas, cardLeft, cardTop, cardLeft + cardWidth, cardBottom, active = victory)
         drawResultStat(canvas, cardLeft + cardWidth * 0.18f, cardTop, cardBottom, "SCORE", formatNumber(score), accent)
         drawResultStat(canvas, cardLeft + cardWidth * 0.50f, cardTop, cardBottom, "WAVE", waveNumber.toString(), Color.rgb(93, 220, 255))
         val modeBest = when (gameMode) { GameMode.ENDLESS -> bestWave; GameMode.DAILY -> bestDailyWave; GameMode.CUSTOM -> bestCustomWave }
-        drawResultStat(canvas, cardLeft + cardWidth * 0.82f, cardTop, cardBottom, "BEST WAVE", modeBest.toString(), Color.rgb(255, 188, 96))
-        drawEndButtons(canvas, if (gameMode == GameMode.ENDLESS) "NEW RUN" else "RETRY SEED", "MAIN MENU")
+        drawResultStat(canvas, cardLeft + cardWidth * 0.82f, cardTop, cardBottom, "BEST", modeBest.toString(), Color.rgb(255, 188, 96))
+        drawEndButtons(canvas, if (gameMode == GameMode.ENDLESS) "NEW RUN" else "RETRY", "MENU")
     }
 
     private fun drawResultStat(canvas: Canvas, x: Float, top: Float, bottom: Float, label: String, value: String, color: Int) {
@@ -5695,10 +5705,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawEndButtons(canvas: Canvas, primary: String, secondary: String) {
-        drawRoundedRect(canvas, endPrimaryRect.left, endPrimaryRect.top, endPrimaryRect.right, endPrimaryRect.bottom, dp(14f), Color.rgb(190, 244, 78))
-        drawCenteredText(canvas, primary, endPrimaryRect.centerX(), endPrimaryRect.centerY(), dp(13f), Color.rgb(12, 21, 16), true)
-        drawRoundedRect(canvas, endSecondaryRect.left, endSecondaryRect.top, endSecondaryRect.right, endSecondaryRect.bottom, dp(14f), Color.rgb(29, 43, 34))
-        drawCenteredText(canvas, secondary, endSecondaryRect.centerX(), endSecondaryRect.centerY(), dp(13f), Color.WHITE, true)
+        drawUiButton(canvas, endPrimaryRect, primary, sprites.uiIconLaunch, UiControlTone.PRIMARY, textColor = Color.rgb(240, 255, 214), textSize = min(dp(12f), endPrimaryRect.height() * 0.30f))
+        drawUiButton(canvas, endSecondaryRect, secondary, sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(12f), endSecondaryRect.height() * 0.30f))
     }
 
     /** Draw a menu/environment bitmap into a responsive rectangle without changing its crop ratio. */
@@ -5723,6 +5731,69 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         spritePaint.alpha = alpha.coerceIn(0, 255)
         canvas.drawBitmap(bitmap, null, destination, spritePaint)
         spritePaint.alpha = previousAlpha
+    }
+
+    /** Shared sprite surfaces replace the former flat rounded Canvas panels throughout live play. */
+    private fun drawUiPanel(canvas: Canvas, rect: RectF, active: Boolean = false, alpha: Int = 255) {
+        drawBitmapInRect(canvas, if (active) sprites.uiPanelActive else sprites.uiPanel, rect, alpha)
+    }
+
+    private fun drawUiPanel(canvas: Canvas, left: Float, top: Float, right: Float, bottom: Float, active: Boolean = false, alpha: Int = 255) {
+        drawUiPanel(canvas, RectF(left, top, right, bottom), active, alpha)
+    }
+
+    private fun drawUiCard(canvas: Canvas, rect: RectF, active: Boolean = false, alpha: Int = 255) {
+        drawBitmapInRect(canvas, if (active) sprites.uiCardActive else sprites.uiCard, rect, alpha)
+    }
+
+    private fun drawUiModal(canvas: Canvas, rect: RectF, alpha: Int = 255) {
+        drawBitmapInRect(canvas, sprites.uiModal, rect, alpha)
+    }
+
+    /**
+     * Draw a labeled, art-backed in-game control. Text stays live so costs, wave numbers, and
+     * save-state labels remain accurate while the button, framing, and icon are authored sprites.
+     */
+    private fun drawUiButton(
+        canvas: Canvas,
+        rect: RectF,
+        label: String,
+        icon: Bitmap? = null,
+        tone: UiControlTone = UiControlTone.SECONDARY,
+        enabled: Boolean = true,
+        textColor: Int = Color.WHITE,
+        textSize: Float = min(dp(10f), rect.height() * 0.28f),
+        pressed: Boolean = false
+    ) {
+        val held = enabled && (pressed || (uiTouchActive && rect.contains(uiTouchX, uiTouchY)))
+        val skin = if (!enabled) {
+            sprites.uiButtonDisabled
+        } else {
+            when (tone) {
+                UiControlTone.PRIMARY -> if (held) sprites.uiButtonPrimaryPressed else sprites.uiButtonPrimary
+                UiControlTone.SECONDARY -> if (held) sprites.uiButtonSecondaryPressed else sprites.uiButtonSecondary
+                UiControlTone.ACCENT -> if (held) sprites.uiButtonAccentPressed else sprites.uiButtonAccent
+                UiControlTone.WARNING -> if (held) sprites.uiButtonWarningPressed else sprites.uiButtonWarning
+            }
+        }
+        drawBitmapInRect(canvas, skin, rect, if (enabled) 255 else 175)
+        if (icon != null) {
+            val iconOnly = label.isEmpty()
+            val iconSize = if (iconOnly) {
+                min(rect.width(), rect.height()) * 0.66f
+            } else {
+                min(rect.height() * 0.54f, rect.width() * 0.20f)
+            }
+            val iconX = if (iconOnly) rect.centerX() else rect.left + rect.width() * 0.19f
+            spritePaint.alpha = if (enabled) 255 else 105
+            drawBitmapCentered(canvas, icon, iconX, rect.centerY(), iconSize)
+            spritePaint.alpha = 255
+            if (!iconOnly) {
+                drawCenteredText(canvas, label, rect.left + rect.width() * 0.60f, rect.centerY(), textSize, textColor, true)
+            }
+        } else {
+            drawCenteredText(canvas, label, rect.centerX(), rect.centerY(), textSize, textColor, true)
+        }
     }
 
     private fun drawSpriteFrameCentered(canvas: Canvas, strip: SpriteStrip, frame: Int, x: Float, y: Float, size: Float, rotation: Float = 0f) {
@@ -5755,12 +5826,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         } else {
             canvas.drawBitmap(bitmap, null, destination, spritePaint)
         }
-    }
-
-    private fun drawRoundedRect(canvas: Canvas, left: Float, top: Float, right: Float, bottom: Float, radius: Float, color: Int) {
-        paint.style = Paint.Style.FILL
-        paint.color = color
-        canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint)
     }
 
     private fun drawText(

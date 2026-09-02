@@ -6,7 +6,7 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-**The current source targets v1.4.3 / `versionCode 17`.** It includes the completed gameplay art overhaul and the new sprite-led Fantasy Machinery title-menu pass described below. The retained signed v1.4.3 artifact was built before this title-menu pass, so it must **not** be described as containing the current menu refresh.
+**The current source targets v1.4.3 / `versionCode 17`.** It includes the completed gameplay art overhaul plus the sprite-led Fantasy Machinery title and playable-interface passes described below. The retained signed v1.4.3 artifact was built before both interface passes, so it must **not** be described as containing the current UI refresh.
 
 `artifacts/Blockhold-Defense-v1.4.3-installable.apk` is the latest built and retained installable package (SHA-256 `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee`). It passed the recorded APK/Dex verification, but it is a previous v1.4.3 source snapshot. This checkout has no release-signing material, so a new release-signed artifact cannot be made here; CI can build and verify a current debug APK. See `artifacts/README.md` for the retained artifact's signing history and `docs/SIGNING.md` before producing a new distributable package.
 
@@ -15,7 +15,7 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 | Public name | Blockhold Defense |
 | Modes | Endless Pathforge, daily challenge, custom seed |
 | Application ID | `ai.techtroy.blockhold` |
-| Version | `1.4.3` (`17`) — current source; retained signed APK predates the title-menu refresh |
+| Version | `1.4.3` (`17`) — current source; retained signed APK predates the interface refresh |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |
@@ -185,6 +185,14 @@ The title screen begins the same UI treatment: a forge-room cover background, fr
 
 The title assets are loaded by `SpriteCatalog.kt` from `drawable-nodpi` and scale as an aspect-preserving group inside the central plate on landscape devices. Canonical source/review material and the deterministic UI generator live in `artwork/menu-production/`; `title-menu-preview.png` is a 1920×1080 review composition made from the exact packaged PNGs.
 
+### Sprite-led playable interface
+
+The playable screen now uses the same forged visual language rather than flat code-drawn chrome: continuous top/bottom rails, framed live-resource slots, compact category tabs, build-slot skins, contextual banner, selection panels, craft/supply/sigil cards, modal shells, and action controls are all authored sprites. The reusable button family supplies normal, held, and disabled skins; category and action icons keep common controls readable without adding explanatory copy.
+
+The revised Next Wave state is concise and visual. The top-right control keeps its existing behavior—start a build-phase wave, stack an active wave, or confirm a reforge—but now pairs a launch/stack/forge icon with a short live label. Its recurring contextual panel reads `WAVE <n> • <seconds>S` during the automatic countdown instead of repeating a tutorial sentence. One-shot gameplay outcomes still use the same art-backed banner when detail matters.
+
+`GameView.kt` retains Canvas text only for live values such as costs, waves, inventory, and stats; `SpriteCatalog.kt` loads 49 dedicated HUD/interface PNGs from `drawable-nodpi`. Existing hit rectangles, gameplay dispatch, seeded challenge input, Forgeworks logic, and pause/end behavior remain unchanged. The deterministic producer and review contact sheet live in `artwork/hud-production/` and `tools/generate_game_ui_sprites.py`.
+
 | Family | Count | Size | Notes |
 | --- | --- | --- | --- |
 | Tower bases | 15 | 64×64 | Octagonal gear-ring foundation pads, per-element rune accent |
@@ -203,6 +211,7 @@ The title assets are loaded by `SpriteCatalog.kt` from `drawable-nodpi` and scal
 | **Enemies** | **30** | 192×64 | **True 3-keyframe animation** |
 | Terrain tiles | 2 | 128×128 | Seamless full-bleed grass and road |
 | Landmarks | 2 | 192×64 | Animated spawn gate and core reactor |
+| **HUD and in-game interface** | **49** | **128×128 to 1024×256** | **Rails, surfaces, controls, slots, tabs, banner, and icons** |
 
 ### True enemy animation
 
@@ -238,7 +247,7 @@ Two rules matter when adding art. Pale or bright-neutral subjects (bone, salt, s
 
 ## Visual and audio assets
 
-The game uses a coherent top-down sprite layer instead of color-only entities. Forgeworks adds 40 Utility, corruption, evolution, Supply, imbuement, material, and Cache images. A fully original dark industrial forge-fantasy revision is now replacing the earlier mixed layer in reviewed batches; the completed original roster covers all five base towers, all ten tower evolutions, all eight crafted supplies, all six bound sigils, all three resources, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, terrain, gate, and core. Every packaged gameplay drawable is active original Blockhold Defense artwork. Limited animation production now includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. High-resolution sources and processing records live under `artwork/prototype/` and `artwork/style-production/`. No Kenney or other third-party visuals remain in the packaged runtime assets; the historical CC0 record is retained in `docs/ASSET_LICENSES.md`.
+The game uses a coherent top-down sprite layer instead of color-only entities or flat interface chrome. Forgeworks adds Utility, corruption, evolution, Supply, imbuement, material, and Cache images; the Fantasy Machinery pass adds a title family plus 49 playable HUD/interface exports. The fully original dark industrial forge-fantasy roster covers all towers, evolutions, crafted supplies, sigils, resources, traps, enemies, Utilities, corruption mutations, terrain, landmarks, and the full player-facing interface. Limited animation production includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. Gameplay source/processing records live under `artwork/prototype/` and `artwork/style-production/`; interface generators and visual QA live under `artwork/menu-production/` and `artwork/hud-production/`. No Kenney or other third-party visuals remain in the packaged runtime assets; the historical CC0 record is retained in `docs/ASSET_LICENSES.md`.
 
 All sound effects are original deterministic synthesis. Regenerate them with:
 
@@ -282,9 +291,11 @@ docs/ASSET_LICENSES.md                                   Source/license audit
 docs/SIGNING.md                                          Permanent signing procedure
 artwork/                                                 Original source art, processing records, and review boards
 artwork/menu-production/                                 Title-menu source and 1920×1080 visual QA preview
+artwork/hud-production/                                  Playable-interface source record and sprite review sheet
 tools/generate_sfx.py                                    Reproducible original audio
 tools/generate_forgeworks_art.sh                         Reproducible Forgeworks art
 tools/generate_menu_ui_sprites.py                        Deterministic title-menu UI sprite exports
+tools/generate_game_ui_sprites.py                        Deterministic playable HUD/interface sprite exports
 ```
 
 ## Testing note
