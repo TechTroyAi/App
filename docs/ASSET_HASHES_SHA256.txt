@@ -1,5 +1,5 @@
 # SHA-256 asset manifest for Blockhold Defense visual production
-# Updated 2026-08-27; paths are repository-relative.
+# Updated 2026-09-02; paths are repository-relative.
 0ccfce222d3747caa79e5450ea9daddb66ae2343adc5f4206c833cc9d2d40110  app/src/main/assets/licenses/KENNEY_TOPDOWN_SHOOTER_CC0.txt
 b01f57bbeebed0f3766e033cc8ac510b6203eee10073b6a1d46a88668a7d8166  app/src/main/assets/licenses/KENNEY_TOWER_DEFENSE_CC0.txt
 ba797a044c36661d4e2897ed0a2964b232319e7ad76444a94ede5f12da17fb0e  app/src/main/res/drawable-nodpi/corruption_blink_root.png
@@ -446,3 +446,36 @@ e1c5805704cc083d3efc28e002640f391c14222d1e79a67c366c216238066144  artwork/style-
 c7f2e984a13ffe3401adeb7b70bac9d718a150e2f621691fe103f6d45beeba70  artwork/style-production/terrain_path_source.png
 7ddd885cd07cf650935d55986d1158a58a4c85c7cb0ebb39c29ec30f322d832f  artwork/style-production/tower_bolt_base_source.png
 d17368c3c73b8d1e0822c541a59df2806ffb706c6c222d3e5b8be7c8ba690779  artwork/style-production/tower_bolt_turret_source.png
+
+# v1.4.4 HUD batch 01
+8656c8988a273cc5f63d9f7f09851945605718ff4d7409fa17d80178b3393fdd  app/src/main/res/drawable-nodpi/hud_back.png
+79ce4fae40ce673cf5b7ccddf5a30bc2a2030e349ad5082119af90b61d5cd5c7  app/src/main/res/drawable-nodpi/hud_challenge.png
+e4f64dabdb3e414f2a545a97b4b607f8c9a2ecca0673279b91d837e9a5230104  app/src/main/res/drawable-nodpi/hud_confirm.png
+66a4567e2e99620f7a3903d162e4e5847719fa2fce83958670889e97dda72254  app/src/main/res/drawable-nodpi/hud_continue.png
+752bc4ac17d7a94f9cb427091077daf91bca792be6920d629f879a4e674681e9  app/src/main/res/drawable-nodpi/hud_menu.png
+4e15eb77dfbb751976860296ff12f0368b007c971f9875a5a3668d93492c8ec4  app/src/main/res/drawable-nodpi/hud_pause.png
+b34c812c67a9a88ba122c13d99ff398b7525d65a4546be31befbc473532bea0e  app/src/main/res/drawable-nodpi/hud_play.png
+2399e44f092887df3ce513d03df6629d8561afd34775503f8e3ac2875aeb1f7e  app/src/main/res/drawable-nodpi/hud_reforge.png
+1f8b684d2744d7b69326bd22351118b355ac00d1dfc74868b033fab6c9ada0ce  app/src/main/res/drawable-nodpi/hud_sound_off.png
+1380152cc1c46c22773815e85361d9c78a02a91d45cbb85bcd49fc9c02a53360  app/src/main/res/drawable-nodpi/hud_sound_on.png
+8656c8988a273cc5f63d9f7f09851945605718ff4d7409fa17d80178b3393fdd  artwork/ui-production/v1.4.4/processed/ui_back.png
+79ce4fae40ce673cf5b7ccddf5a30bc2a2030e349ad5082119af90b61d5cd5c7  artwork/ui-production/v1.4.4/processed/ui_challenge.png
+e4f64dabdb3e414f2a545a97b4b607f8c9a2ecca0673279b91d837e9a5230104  artwork/ui-production/v1.4.4/processed/ui_confirm.png
+66a4567e2e99620f7a3903d162e4e5847719fa2fce83958670889e97dda72254  artwork/ui-production/v1.4.4/processed/ui_continue.png
+752bc4ac17d7a94f9cb427091077daf91bca792be6920d629f879a4e674681e9  artwork/ui-production/v1.4.4/processed/ui_menu.png
+4e15eb77dfbb751976860296ff12f0368b007c971f9875a5a3668d93492c8ec4  artwork/ui-production/v1.4.4/processed/ui_pause.png
+b34c812c67a9a88ba122c13d99ff398b7525d65a4546be31befbc473532bea0e  artwork/ui-production/v1.4.4/processed/ui_play.png
+2399e44f092887df3ce513d03df6629d8561afd34775503f8e3ac2875aeb1f7e  artwork/ui-production/v1.4.4/processed/ui_reforge.png
+1f8b684d2744d7b69326bd22351118b355ac00d1dfc74868b033fab6c9ada0ce  artwork/ui-production/v1.4.4/processed/ui_sound_off.png
+1380152cc1c46c22773815e85361d9c78a02a91d45cbb85bcd49fc9c02a53360  artwork/ui-production/v1.4.4/processed/ui_sound_on.png
+1ba70b64a0ad69e2a2a98ca1a124fdf261b20699efa72dcf2ea4e47f7f9b66c7  artwork/ui-production/v1.4.4/source/ui_back_source.png
+147e4a3f17d56949d9c78e8d2d646e430875275fc2a3c6544e608b5bab1f4023  artwork/ui-production/v1.4.4/source/ui_challenge_source.png
+d73cb6541a1dea8df4de4d2cc22abd848519adad425649cdb8608f74efb753fb  artwork/ui-production/v1.4.4/source/ui_confirm_source.png
+3d6c29dc7862ff3feecb38746643918bdd313a9c4f7e134362542b9d8077b3d7  artwork/ui-production/v1.4.4/source/ui_continue_source.png
+0e349be82968ea02b36536ba21b708f8300ed6727166c7deb64152801dba5e18  artwork/ui-production/v1.4.4/source/ui_menu_source.png
+783b530acfdb59b9f3a7f7992101c4bb9641afaead27bdf6d21004d96ee1cc7c  artwork/ui-production/v1.4.4/source/ui_pause_source.png
+9db03565c5be0328616085c353a96306a4865722949654add3b92d1cc79d99b8  artwork/ui-production/v1.4.4/source/ui_play_source.png
+314dc085e87257693d9575b94ecb2586e225ab308f16bca01ca79106998171b6  artwork/ui-production/v1.4.4/source/ui_reforge_source.png
+bc530e956749cfdd9bde0f9c41c0f3a6645309a8b58b42770346a5dff298c4b6  artwork/ui-production/v1.4.4/source/ui_sound_off_source.png
+5e779bf495d41c311b70dec056f16e2e51ff2f5033cf711d070b37c0ba93ffab  artwork/ui-production/v1.4.4/source/ui_sound_on_source.png
+0ea3c2d6ab0b51fc4cfce9a39ba69364574b0e7cafea409e057fc8e6eb6f28df  docs/V1.4.4_HUD_PREVIEW.png

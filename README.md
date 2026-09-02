@@ -6,16 +6,16 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-**v1.4.3 is a complete art release: the source is finished but not yet built.** The whole sprite set has been recreated in a unified *fantasy × machinery* style (see "v1.4.3 art overhaul" below) and the manifest is stamped `1.4.3` / `versionCode 17`. The APK has **not** been produced yet — the build session had no JDK and no reachable Android SDK, Gradle, or Maven mirror, so `scripts/build-apk.sh` could not run. Build it on a machine with JDK 17 + the Android SDK; the retained v1.4.2 release key must be reused so the update installs over v1.4.2 without an uninstall.
+**v1.4.4 is the source-ready HUD refit.** The app is stamped `1.4.4` / `versionCode 18`; its title screen, challenge screen, in-game top dock, build dock, selection panels, Forgeworks, perk/evolution cards, pause screen, and result screen now share one compact sprite-first interface. Batch 01 adds exactly ten AI-generated control sprites in the existing *fantasy × machinery* art direction.
 
-The last **built and retained** artifact remains `artifacts/Blockhold-Defense-v1.4.2-installable.apk` (versionName `1.4.2`, versionCode `16`), which passes the hosted Android debug build, `scripts/verify-apk.py`, and `scripts/verify-dex-shape.py` with zero failures. It is signed with a **new** release key (the v1.4.1 private key was lost), so installing it over v1.4.1 requires a one-time uninstall; the v1.4.2 key is backed up for reuse by all future releases — see `artifacts/README.md`.
+A v1.4.4 APK has not been produced locally: the runner had no preinstalled build toolchain, and direct Gradle 8.9 acquisition is blocked by its TLS connection. The repository's `Build APK` workflow is the compilation path for this source revision. The latest **built and retained** artifact is `artifacts/Blockhold-Defense-v1.4.3-installable.apk` (`1.4.3`, code `17`), which passes both APK verification scripts. See `artifacts/README.md` for its hash and signing-key warning; build v1.4.4 with JDK 17 + Android SDK 35 and reuse the v1.4.3 signing key for an in-place update.
 
 | Item | Value |
 | --- | --- |
 | Public name | Blockhold Defense |
 | Modes | Endless Pathforge, daily challenge, custom seed |
 | Application ID | `ai.techtroy.blockhold` |
-| Version | `1.4.3` (`17`) — source; latest built APK is `1.4.2` (`16`) |
+| Version | `1.4.4` (`18`) — source; latest built APK is `1.4.3` (`17`) |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |
@@ -23,6 +23,19 @@ The last **built and retained** artifact remains `artifacts/Blockhold-Defense-v1
 | Network requirement | None; fully offline |
 
 See `artifacts/README.md` for artifact hashes and signing status, `docs/VERIFICATION.md` for static verification, and `docs/SIGNING.md` for permanent-key handling.
+
+## v1.4.4 HUD refit
+
+![v1.4.4 title-menu, in-game HUD, and first ten control sprites](docs/V1.4.4_HUD_PREVIEW.png)
+
+> This is a source-generated layout reference built from the packaged sprites, not a device screenshot. Regenerate it with `tools/generate_hud_preview_v144.sh`.
+
+- Reclaims battlefield space with slimmer fixed top and bottom docks.
+- Replaces the old text-heavy title actions, top controls, category tabs, selection actions, workshop navigation, pause actions, and end-screen actions with sprite-led controls.
+- Keeps only decision-critical copy: values, costs, levels, wave countdown, short action names, and brief timed feedback. Persistent tutorial banners and repeated descriptions no longer cover the board.
+- Uses existing tower, trap, utility, item, sigil, corruption, evolution, and resource art inside their matching buttons.
+- Adds ten new AI-generated controls: play, continue, challenge, sound on, sound off, pause, reforge, confirm, back, and menu.
+- Stores high-resolution generation sources under `artwork/ui-production/v1.4.4/source/`; `tools/process_hud_sprites_v144.sh` isolates and publishes the 128×128 Android drawables.
 
 ## How to play
 
@@ -41,7 +54,7 @@ See `artifacts/README.md` for artifact hashes and signing status, `docs/VERIFICA
 
 ### Towers
 
-Every tower definition is also shown when its build card or placed tower is selected:
+The HUD keeps tower cards compact; the full role definitions are listed here:
 
 - **Bolt Tower — 70 Blocks:** fast single-target bolts with balanced damage and range
 - **Frost Prism — 90 Blocks:** slows enemies on impact and punishes frozen targets
@@ -77,7 +90,7 @@ Only traps already placed on the battlefield can be stored. **Store** pays a Blo
 
 ### Utilities
 
-Utilities never attack, occupy clean free terrain, and have three upgrade levels. v1.4.2 has no global active-utility capacity limit: each utility kind is unique, while up to **five Block Generators** may be placed at once. Selecting a utility shows its definition and upgrade action:
+Utilities never attack and occupy clean free terrain. There is no global active-utility capacity limit: each utility kind is unique, while up to **five Block Generators** may be placed at once and Block Generators can continue upgrading to level 99. Their full role definitions are:
 
 - **Block Generator:** produces Blocks after every cleared wave; upgrades increase output
 - **Cache Depot:** expands trap storage and lowers recovery fees

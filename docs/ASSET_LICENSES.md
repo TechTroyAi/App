@@ -36,7 +36,9 @@ The Blockhold route-and-core icon family, store icon, interface composition, tar
 
 The initial v1.2 Forgeworks pass added 33 repository-generated vector-style PNG compositions through `tools/generate_forgeworks_art.sh`. Those placeholders and the seven former CC0-derived Utility compositions have since been replaced by the reviewed original sprite-production batches retained under `artwork/style-production/`.
 
-`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `140d418d9a907132e9cfd74a532ad31b1511994254b42f3b4721865425967c2c`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
+v1.4.4 adds ten project-specific image-model control concepts (play, continue, challenge, sound on/off, pause, reforge, confirm, back, and menu). The high-resolution outputs and reviewed 128-pixel derivatives are retained under `artwork/ui-production/v1.4.4/`; `tools/process_hud_sprites_v144.sh` records the isolation and publishing step. They were generated specifically for Blockhold Defense and contain no third-party sprite-pack pixels.
+
+`docs/ASSET_HASHES_SHA256.txt` records the established bundled-art baseline by repository path and SHA-256. The original upstream ZIP archives were not retained in Git; bundled license hashes, retained generation sources, and per-output repository history form the release audit baseline.
 
 ## Original sprite-revision production
 
@@ -44,13 +46,13 @@ The approved 2026-08-27 visual revision is produced specifically for Blockhold D
 
 The completed roster covers all five base towers, all ten tower evolutions, all eight crafted supplies, all six bound sigils, all three resource icons, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, grass terrain, route terrain, enemy gate, and player core. Layered towers preserve gameplay rotation and animation. `tools/process_sprite_prototypes.py` and the numbered batch processors provide the reproducible processing stage; opposite terrain edges are checked pixel-for-pixel before integration.
 
-All 70 PNGs under `app/src/main/res/drawable-nodpi/` are active original Blockhold Defense assets. Every `SpriteCatalog` runtime load maps to one of those files, and no obsolete third-party drawable is packaged.
+All PNGs under `app/src/main/res/drawable-nodpi/` are active original Blockhold Defense assets. Every `SpriteCatalog` runtime load maps to one of those files, and no obsolete third-party drawable is packaged.
 
 The limited-animation extension is retained under `artwork/animation-production/`. It uses the approved project-specific high-resolution concepts and neutral gameplay sprites as identity references, then packages reviewed poses into anchored horizontal strips. Animation Batches 01–06 add original movement poses for all five regular enemies, all five elites, and The Overgrowth, ambient states for both landmarks, trigger states for all five traps, and firing states for the Bolt, Frost, and Cannon tower tops without introducing third-party source pixels.
 
 ## Audio
 
-All ten WAV effects in `app/src/main/res/raw/` are original deterministic synthesis produced by `tools/generate_sfx.py`. They contain no third-party samples and can be regenerated from source.
+All WAV effects in `app/src/main/res/raw/` are original deterministic synthesis produced by `tools/generate_sfx.py`. They contain no third-party samples and can be regenerated from source.
 
 ## CC0 reference
 

@@ -1,3 +1,8 @@
+> **🛠️ v1.4.4 (`18`) is source-ready; no v1.4.4 APK is retained yet.** This update is the
+> sprite-first HUD refit documented in [`../docs/HUD_V1.4.4.md`](../docs/HUD_V1.4.4.md).
+> The current runner had no preinstalled JDK/Android toolchain, so use Android CI or a JDK 17 +
+> SDK 35 workstation and reuse the v1.4.3 key. The latest installable below remains v1.4.3.
+>
 > **✅ v1.4.3 (`17`) is now built and retained as `Blockhold-Defense-v1.4.3-installable.apk`**
 > (`SHA-256 478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee`). It is the full
 > *fantasy × machinery* art overhaul (every gameplay drawable recreated, all 30 enemies given

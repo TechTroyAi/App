@@ -187,6 +187,18 @@ internal class SpriteCatalog(private val context: Context) {
     val growthEssence = load("icon_growth_essence")
     val forgeCache = load("icon_forge_cache")
 
+    /** v1.4.4 fantasy-machinery HUD controls (AI concept art, isolated to 128 px). */
+    val hudPlay = load("hud_play")
+    val hudContinue = load("hud_continue")
+    val hudChallenge = load("hud_challenge")
+    val hudSoundOn = load("hud_sound_on")
+    val hudSoundOff = load("hud_sound_off")
+    val hudPause = load("hud_pause")
+    val hudReforge = load("hud_reforge")
+    val hudConfirm = load("hud_confirm")
+    val hudBack = load("hud_back")
+    val hudMenu = load("hud_menu")
+
     private val utilities = mapOf(
         UtilityKind.BLOCK_GENERATOR to loadStrip("utility_block_generator"),
         UtilityKind.CACHE_DEPOT to loadStrip("utility_cache_depot"),
