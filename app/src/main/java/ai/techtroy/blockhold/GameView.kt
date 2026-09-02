@@ -43,7 +43,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         private const val STARTING_CORE = 12
         private const val MIN_CAMERA_ZOOM = 0.72f
         private const val MAX_CAMERA_ZOOM = 2.15f
-        private const val AUTO_NEXT_WAVE_DELAY = 10f
+        private const val AUTO_NEXT_WAVE_DELAY = 60f
         private const val MAX_SEED_CHARACTERS = 12
         private const val DEFAULT_CUSTOM_SEED = "733101"
         private const val MAX_BLOCK_GENERATORS = 5
@@ -1880,7 +1880,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         } else {
             phase = GamePhase.BUILD
             nextWaveTimer = AUTO_NEXT_WAVE_DELAY
-            setBanner("WAVE $lastClearedWave CLEARED  •  NEXT WAVE IN 10S", 2.8f)
+            setBanner("WAVE $lastClearedWave CLEARED  •  NEXT WAVE IN ${countdownLabel()}", 2.8f)
             saveRun()
         }
     }
@@ -1989,7 +1989,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         } else {
             phase = GamePhase.BUILD
             nextWaveTimer = AUTO_NEXT_WAVE_DELAY
-            setBanner("FORGE PERK  ${perk.title.uppercase()}  •  NEXT WAVE IN 10S", 2.8f)
+            setBanner("FORGE PERK  ${perk.title.uppercase()}  •  NEXT WAVE IN ${countdownLabel()}", 2.8f)
         }
         saveRun()
         audio.play("build", 0.60f, 1.22f)
@@ -2486,7 +2486,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 val kind = UtilityKind.valueOf(values[2])
                 if (kind == UtilityKind.BLOCK_GENERATOR && utilities.count { it.kind == kind } >= MAX_BLOCK_GENERATORS) return@forEach
                 val utility = Utility(col, row, kind)
-                utility.level = values[3].toInt().coerceIn(1, 3)
+                utility.level = values[3].toInt().coerceIn(1, utility.maxLevel())
                 utility.imbuement = if (values.size >= 5 && values[4] != "NONE") Imbuement.valueOf(values[4]) else null
                 utility.productionProgress = if (values.size >= 6) values[5].toInt().coerceIn(0, 20) else 0
                 utility.activationCount = if (values.size >= 7) values[6].toInt().coerceIn(0, 2_000_000_000) else 0
@@ -2861,6 +2861,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun nextWaveCountdownSeconds(): Int = max(1, (nextWaveTimer + 0.99f).toInt())
 
+    /** Shortened countdown label, e.g. "1M" at 60s or "45S" below a minute. */
+    private fun countdownLabel(): String {
+        val s = nextWaveCountdownSeconds()
+        return if (s >= 60) "${s / 60}M" else "${s}S"
+    }
+
     private fun burst(x: Float, y: Float, color: Int, count: Int, force: Float) {
         repeat(count) {
             val angle = random.nextFloat() * 6.28318f
@@ -2991,7 +2997,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
             }
 
-            if ((selectedTower != null || selectedTrap != null || selectedUtility != null || selectedCorruption != null) && phase == GamePhase.BUILD && event.action == MotionEvent.ACTION_UP) {
+            if ((selectedTower != null || selectedTrap != null || selectedUtility != null || selectedCorruption != null) && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) && event.action == MotionEvent.ACTION_UP) {
                 if (backRect.contains(x, y)) {
                     selectedTower = null
                     selectedTrap = null
@@ -3183,7 +3189,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun handleGridTap(cell: GridCell) {
         val existingCorruption = findCorruption(cell.col, cell.row)
-        if (existingCorruption != null && phase == GamePhase.BUILD) {
+        if (existingCorruption != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE)) {
             selectedCorruption = existingCorruption
             selectedTower = null
             selectedTrap = null
@@ -3260,6 +3266,51 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
+    private fun towerPlacementCost(kind: TowerKind): Int {
+        val count = towers.count { it.kind == kind }
+        return kind.cost + count * max(10, kind.cost / 2)
+    }
+
+    private fun trapPlacementCost(kind: TrapKind): Int {
+        val count = traps.count { it.kind == kind }
+        return kind.cost + count * max(10, kind.cost / 2)
+    }
+
+    private fun utilityPlacementCost(kind: UtilityKind): Int {
+        val count = utilities.count { it.kind == kind }
+        return kind.cost + count * max(10, kind.cost / 2)
+    }
+
+    private fun towerKindForTool(tool: BuildTool): TowerKind = when (tool) {
+        BuildTool.BOLT -> TowerKind.BOLT
+        BuildTool.FROST -> TowerKind.FROST
+        BuildTool.CANNON -> TowerKind.CANNON
+        BuildTool.EMBER -> TowerKind.EMBER
+        BuildTool.BEACON -> TowerKind.BEACON
+        BuildTool.THORN -> TowerKind.THORN
+        BuildTool.LANCE -> TowerKind.LANCE
+        BuildTool.MIRE -> TowerKind.MIRE
+        BuildTool.GALE -> TowerKind.GALE
+        BuildTool.SUNFORGE -> TowerKind.SUNFORGE
+        BuildTool.LODESTONE -> TowerKind.LODESTONE
+        BuildTool.HOWL -> TowerKind.HOWL
+        BuildTool.VITRIOL -> TowerKind.VITRIOL
+        BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT
+        BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM
+        else -> TowerKind.BOLT
+    }
+
+    /** Current placement cost for a build-card tool, escalating with how many of its kind are already placed. */
+    private fun toolPlacementCost(tool: BuildTool): Int = when (tool) {
+        BuildTool.SPIKES -> trapPlacementCost(TrapKind.SPIKE)
+        BuildTool.ROOT -> trapPlacementCost(TrapKind.ROOT)
+        BuildTool.RUNE -> trapPlacementCost(TrapKind.EMBER)
+        BuildTool.ARC -> trapPlacementCost(TrapKind.ARC)
+        BuildTool.CRUSHER -> trapPlacementCost(TrapKind.CRUSHER)
+        BuildTool.DIG -> 0
+        else -> towerPlacementCost(towerKindForTool(tool))
+    }
+
     private fun placeTower(cell: GridCell, kind: TowerKind) {
         if (challengeModifier == ChallengeModifier.TRAPS_ONLY) return
         if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findTrap(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row)?.kind == CorruptionKind.BROOD_NEST) {
@@ -3267,7 +3318,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             audio.play("ui_click", 0.24f, 0.7f)
             return
         }
-        var cost = kind.cost
+        var cost = towerPlacementCost(kind)
         if (findCorruption(cell.col, cell.row)?.kind == CorruptionKind.THORN_SOIL) cost += 30
         if (gold < cost) {
             setBanner("NEED $cost BLOCKS", 1.5f)
@@ -3291,7 +3342,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             audio.play("ui_click", 0.24f, 0.7f)
             return
         }
-        val cost = kind.cost
+        val cost = trapPlacementCost(kind)
         if (gold < cost) {
             setBanner("NEED $cost BLOCKS", 1.5f)
             audio.play("ui_click", 0.24f, 0.68f)
@@ -3435,11 +3486,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("UTILITIES NEED CLEAN FREE TERRAIN", 1.5f)
             return
         }
-        if (gold < kind.cost) {
-            setBanner("NEED ${kind.cost} BLOCKS", 1.5f)
+        val cost = utilityPlacementCost(kind)
+        if (gold < cost) {
+            setBanner("NEED $cost BLOCKS", 1.5f)
             return
         }
-        gold -= kind.cost
+        gold -= cost
         val utility = Utility(cell.col, cell.row, kind)
         utilities.add(utility)
         selectedUtility = utility
@@ -3451,7 +3503,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun upgradeSelectedUtility() {
         val utility = selectedUtility ?: return
-        if (utility.level >= 3) {
+        if (utility.level >= utility.maxLevel()) {
             setBanner("UTILITY AT MAXIMUM LEVEL", 1.4f)
             return
         }
@@ -3479,7 +3531,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val invested = utility.kind.cost + (utility.level - 1) * (utility.kind.cost / 2 + 70)
         val value = (invested * recyclingMultiplier()).toInt()
         gold = safeAdd(gold, value)
-        val parts = utility.level + (utilities.filter { it.kind == UtilityKind.SALVAGE_YARD }.map { utilityPowerLevel(it) }.maxOrNull() ?: 0)
+        val parts = min(20, utility.level + (utilities.filter { it.kind == UtilityKind.SALVAGE_YARD }.map { utilityPowerLevel(it) }.maxOrNull() ?: 0))
         salvageParts = safeAdd(salvageParts, parts)
         utilities.remove(utility)
         selectedUtility = null
@@ -5159,9 +5211,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         canvas.drawRect(0f, top, viewWidth, top + max(1f, dp(1f)), paint)
         when {
             phase == GamePhase.DIG || phase == GamePhase.REFORGE -> drawPathForgePanel(canvas)
-            selectedCorruption != null && phase == GamePhase.BUILD -> drawCorruptionPanel(canvas)
-            selectedUtility != null && phase == GamePhase.BUILD -> drawUtilityPanel(canvas)
-            (selectedTower != null || selectedTrap != null) && phase == GamePhase.BUILD -> drawDefensePanel(canvas)
+            selectedCorruption != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawCorruptionPanel(canvas)
+            selectedUtility != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawUtilityPanel(canvas)
+            (selectedTower != null || selectedTrap != null) && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawDefensePanel(canvas)
             else -> drawToolBar(canvas)
         }
     }
@@ -5187,7 +5239,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, Color.rgb(195, 120, 255))
         for ((tool, rect) in toolRects) {
             val selected = selectedTool == tool && ((buildPage == BuildPage.TOWERS && tool.ordinal < BuildTool.SPIKES.ordinal) || (buildPage == BuildPage.TRAPS && tool.ordinal >= BuildTool.SPIKES.ordinal))
-            val affordable = gold >= tool.cost
+            val toolCost = toolPlacementCost(tool)
+            val affordable = gold >= toolCost
             val accent = toolAccent(tool)
             val background = if (selected) Color.argb(220, Color.red(accent), Color.green(accent), Color.blue(accent)) else Color.rgb(25, 38, 30)
             drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), background)
@@ -5198,7 +5251,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             drawToolIcon(canvas, tool, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.32f, if (selected) Color.rgb(13, 22, 17) else accent)
             drawCenteredText(canvas, tool.title, rect.centerX(), rect.top + rect.height() * 0.68f, min(dp(9f), rect.width() * 0.12f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
-            drawCenteredText(canvas, tool.cost.toString(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(8f), rect.width() * 0.105f), if (selected) Color.rgb(22, 38, 27) else if (affordable) Color.rgb(190, 244, 78) else Color.rgb(255, 105, 94), true)
+            drawCenteredText(canvas, toolCost.toString(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(8f), rect.width() * 0.105f), if (selected) Color.rgb(22, 38, 27) else if (affordable) Color.rgb(190, 244, 78) else Color.rgb(255, 105, 94), true)
         }
         for ((kind, rect) in utilityRects) {
             val selected = selectedUtilityKind == kind
@@ -5217,15 +5270,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             spritePaint.alpha = 255
             drawCenteredText(canvas, kind.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.70f, min(dp(8f), rect.width() * 0.09f), if (unlocked) Color.WHITE else Color.rgb(105, 116, 108), true)
             val placedGenerators = if (kind == UtilityKind.BLOCK_GENERATOR) utilities.count { it.kind == kind } else 0
+            val utilityCost = utilityPlacementCost(kind)
             val utilityFooter = when {
                 !unlocked -> "WAVE 10"
-                kind == UtilityKind.BLOCK_GENERATOR -> "${kind.cost}  •  $placedGenerators/$MAX_BLOCK_GENERATORS"
-                else -> kind.cost.toString()
+                kind == UtilityKind.BLOCK_GENERATOR -> "$utilityCost  •  $placedGenerators/$MAX_BLOCK_GENERATORS"
+                else -> utilityCost.toString()
             }
             val footerColor = when {
                 !unlocked -> Color.rgb(255, 111, 100)
                 kind == UtilityKind.BLOCK_GENERATOR && placedGenerators >= MAX_BLOCK_GENERATORS -> Color.rgb(255, 111, 100)
-                gold < kind.cost -> Color.rgb(255, 111, 100)
+                gold < utilityCost -> Color.rgb(255, 111, 100)
                 else -> Color.rgb(190, 244, 78)
             }
             drawCenteredText(canvas, utilityFooter, rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(12, 22, 17) else footerColor, true)
@@ -5387,8 +5441,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun drawUtilityPanel(canvas: Canvas) {
         val utility = selectedUtility ?: return
-        val cost = if (utility.level < 3) utility.upgradeCost() else 0
-        val canUpgrade = utility.level < 3 && gold >= cost
+        val cost = if (utility.level < utility.maxLevel()) utility.upgradeCost() else 0
+        val canUpgrade = utility.level < utility.maxLevel() && gold >= cost
         val utilityTextColor = if (canUpgrade) Color.rgb(12, 21, 16) else Color.WHITE
         drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
         drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(10f), Color.WHITE, true)
@@ -5402,9 +5456,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), 2)
         if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
             val activeGenerators = utilities.count { it.kind == UtilityKind.BLOCK_GENERATOR }
-            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  ${if (utility.level < 3) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL"}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  ${if (utility.level < utility.maxLevel()) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL"}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
         } else {
-            drawCenteredText(canvas, if (utility.level < 3) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+            drawCenteredText(canvas, if (utility.level < utility.maxLevel()) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
         }
         drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(81, 49, 31) else Color.rgb(31, 40, 34))
         drawCenteredText(canvas, if (utility.kind == UtilityKind.FORGE_WORKSHOP) "OPEN FORGEWORKS" else "PASSIVE UTILITY", storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(255, 187, 116) else Color.rgb(137, 153, 142), true)

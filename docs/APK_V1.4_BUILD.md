@@ -507,3 +507,47 @@ into two encrypted locations outside the sandbox (password manager + repository 
 produce release-signed builds and v1.4.4+ updates in place. A `.signing/release.properties`
 matching the key was also written so `scripts/build-apk.sh release` can reuse it on a machine
 with the Android SDK.
+
+---
+
+# v1.4.3 feature patch — build-time QoL and balance
+
+Date: 2026-09-02
+Artifact: `artifacts/Blockhold-Defense-v1.4.3-installable.apk` (rebuilt)
+SHA-256: `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee`
+
+## New features
+
+1. **Next-wave countdown raised to 1 minute.** `AUTO_NEXT_WAVE_DELAY` is now 60 s; the
+   countdown banners and the build-countdown hint label report a compact `1M`/`45S` form.
+2. **Inspect and interact during a wave.** Selecting an existing tower, trap, utility, or
+   corruption now works during `WAVE` as well as `BUILD` — the selection panel (upgrade,
+   store, imbue, recycle, reforge-cleanse) renders and accepts input during combat. Placing
+   new towers/traps/utilities and switching build cards remains gated to the BUILD phase, so
+   you can manage your defense mid-wave but cannot add new structures.
+3. **Block Generator upgrades to level 99.** `Utility.maxLevel()` returns 99 for Block
+   Generators (3 for all other utilities). `blockOutput()` scales with level (`45 + (level-3)*18`
+   past level 3), and the upgrade cost already rises with level (`kind.cost/2 + level*55`).
+   The five-generator placement cap, `utilities.count`, and save/load clamping all respect the
+   new ceiling. Recycling reports are capped at 20 Parts so a hyper-leveled generator cannot
+   print salvage parts.
+4. **Per-type placement cost escalation.** Placing a tower/trap/utility increases the cost of
+   the *same* kind only:  `cost + count_run * max(10, base/2)`. The build-bar and utility card
+   footers live-update the escalated cost and affordability. (A Bolt placed on the map raises
+   the cost for the next Bolt only; Frost, traps, utilities, etc. are unaffected.)
+
+## Verification
+
+```
+verify-apk.py       All structural checks passed (0 failures).
+                    alignment, v2+v3, dex 038 integrity + 1436 types resolve,
+                    manifest ai.techtroy.blockhold 1.4.3 (17) minSdk 24 / target 35,
+                    191 SpriteCatalog drawables + 13 sounds, 101 strips square-framed)
+verify-dex-shape.py ALL DEX SHAPE CHECKS PASSED (1078 classes, 6 call sites,
+                    MainActivity + both lambda classes present, canvas save/restore balanced)
+zipalign -c -p -v 4 Verification succesful
+```
+
+`scripts/verify-dex-shape.py` was also corrected: the `sget`/`sput` opcode family (0x60–0x6D)
+is 2 code units (`21c`/`22c`), not 3 — the old table misaligned the instruction walk and could
+report a false save/restore mismatch once the dex layout shifted.

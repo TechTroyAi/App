@@ -577,12 +577,17 @@ internal class Utility(
         return if (imbuement == Imbuement.CONSERVATION) (base * 0.85f).toInt().coerceAtLeast(1) else base
     }
 
+    /** The highest upgrade level this utility can reach. Block Generator scales to 99. */
+    fun maxLevel(): Int = if (kind == UtilityKind.BLOCK_GENERATOR) 99 else 3
+
     fun outputMultiplier(): Float = (1f + (level - 1) * 0.38f) * if (imbuement == Imbuement.MIGHT) 1.15f else 1f
 
+    /** Blocks produced after every cleared wave; grows with every level up to the max. */
     fun blockOutput(): Int = when (level) {
         1 -> 18
         2 -> 30
-        else -> 45
+        3 -> 45
+        else -> 45 + (level - 3) * 18
     }
 
     fun effectRadius(): Float = 2.2f + (level - 1) * 0.65f + if (imbuement == Imbuement.REACH) 0.75f else 0f
