@@ -4308,6 +4308,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         canvas.save()
         canvas.clipRect(viewportLeft, viewportTop, viewportRight, viewportBottom)
         canvas.drawRoundRect(boardLeft - dp(6f), boardTop - dp(6f), boardLeft + COLS * tileSize + dp(6f), boardTop + ROWS * tileSize + dp(6f), dp(12f), dp(12f), paint)
+        drawBoardBezel(canvas)
         val col0 = max(0, ((viewportLeft - boardLeft) / tileSize).toInt() - 1)
         val row0 = max(0, ((viewportTop - boardTop) / tileSize).toInt() - 1)
         val col1 = min(COLS - 1, ((viewportRight - boardLeft) / tileSize).toInt() + 1)
@@ -4452,6 +4453,40 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawRoundedRect(canvas, x - width * 0.5f, y - dp(9f), x + width * 0.5f, y + dp(9f), dp(7f), Color.argb(220, 15, 28, 20))
             drawCenteredText(canvas, name, x, y, max(dp(6f), tileSize * 0.10f), Color.rgb(190, 244, 78), true)
         }
+    }
+
+    /**
+     * v1.4.3 chrome: a brass bezel framing the play board so the grid reads as a
+     * machined table rather than a bare rectangle. Purely decorative — drawn inside
+     * the existing board clip, touches no layout or hit-testing maths.
+     */
+    private fun drawBoardBezel(canvas: Canvas) {
+        val left = boardLeft - dp(6f)
+        val top = boardTop - dp(6f)
+        val right = boardLeft + COLS * tileSize + dp(6f)
+        val bottom = boardTop + ROWS * tileSize + dp(6f)
+        val corner = dp(12f)
+        strokePaint.style = Paint.Style.STROKE
+        // Outer tarnished brass rail
+        strokePaint.strokeWidth = dp(3f)
+        strokePaint.color = Color.argb(215, 148, 112, 52)
+        canvas.drawRoundRect(left, top, right, bottom, corner, corner, strokePaint)
+        // Inner highlight rail
+        strokePaint.strokeWidth = dp(1.5f)
+        strokePaint.color = Color.argb(150, 214, 172, 88)
+        canvas.drawRoundRect(left + dp(3f), top + dp(3f), right - dp(3f), bottom - dp(3f), corner, corner, strokePaint)
+        // Corner rivets
+        paint.style = Paint.Style.FILL
+        val inset = dp(9f)
+        for (px in listOf(left + inset, right - inset)) {
+            for (py in listOf(top + inset, bottom - inset)) {
+                paint.color = Color.argb(230, 196, 154, 74)
+                canvas.drawCircle(px, py, dp(2.6f), paint)
+                paint.color = Color.argb(190, 92, 68, 30)
+                canvas.drawCircle(px, py, dp(1.1f), paint)
+            }
+        }
+        strokePaint.style = Paint.Style.STROKE
     }
 
     private fun drawTerrainTile(canvas: Canvas, col: Int, row: Int) {
