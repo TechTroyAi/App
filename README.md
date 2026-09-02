@@ -197,9 +197,9 @@ The title assets are loaded by `SpriteCatalog.kt` from `drawable-nodpi` and scal
 
 The playable screen now uses the same forged visual language rather than flat code-drawn chrome: continuous top/bottom rails, framed live-resource slots, compact category tabs, build-slot skins, contextual banner, selection panels, craft/supply/sigil cards, modal shells, and action controls are all authored sprites. The reusable button family supplies normal, held, and disabled skins; category and action icons keep common controls readable without adding explanatory copy.
 
-The revised Next Wave state is concise and visual. The top-right control keeps its existing behavior—start a build-phase wave, stack an active wave, or confirm a reforge—but now pairs a launch/stack/forge icon with a short live label. Its recurring contextual panel reads `WAVE <n> • <seconds>S` during the automatic countdown instead of repeating a tutorial sentence. One-shot gameplay outcomes still use the same art-backed banner when detail matters.
+The revised Command Rail is concise and visual. A phase glyph and sprite-led Forge Charge/Evolution Core readouts replace letter shorthand; Blocks, Wave, and the heart-led **Core** frame retain their live values. The top-right control keeps its existing behavior—start a build-phase wave, stack an active wave, or confirm a reforge—but now pairs a launch/stack/forge icon with a short state label. On roomy layouts the Wave frame identifies the upcoming or active wave; compact layouts retain `W<n>` on the action itself. Its contextual panel reads `W<n> • <seconds>S` only during the automatic countdown instead of repeating a tutorial sentence. One-shot gameplay outcomes still use the same art-backed banner when detail matters.
 
-`GameView.kt` retains Canvas text only for live values such as costs, waves, inventory, and stats; `SpriteCatalog.kt` loads 49 dedicated HUD/interface PNGs from `drawable-nodpi`. Existing hit rectangles, gameplay dispatch, seeded challenge input, Forgeworks logic, and pause/end behavior remain unchanged. The deterministic producer and review contact sheet live in `artwork/hud-production/` and `tools/generate_game_ui_sprites.py`.
+`GameView.kt` retains Canvas text only for live values and short gameplay labels; `SpriteCatalog.kt` loads 50 dedicated HUD/interface PNGs from `drawable-nodpi`. Existing hit rectangles, gameplay dispatch, seeded challenge input, Forgeworks logic, and pause/end behavior remain unchanged. The deterministic producer and review contact sheet live in `artwork/hud-production/` and `tools/generate_game_ui_sprites.py`.
 
 | Family | Count | Size | Notes |
 | --- | --- | --- | --- |
@@ -219,7 +219,7 @@ The revised Next Wave state is concise and visual. The top-right control keeps i
 | **Enemies** | **30** | 192×64 | **True 3-keyframe animation** |
 | Terrain tiles | 2 | 128×128 | Seamless full-bleed grass and road |
 | Landmarks | 2 | 192×64 | Animated spawn gate and core reactor |
-| **HUD and in-game interface** | **49** | **128×128 to 1024×256** | **Rails, surfaces, controls, slots, tabs, banner, and icons** |
+| **HUD and in-game interface** | **50** | **128×128 to 1024×256** | **Rails, surfaces, controls, slots, tabs, banner, and icons** |
 
 ### True enemy animation
 
@@ -255,7 +255,7 @@ Two rules matter when adding art. Pale or bright-neutral subjects (bone, salt, s
 
 ## Visual and audio assets
 
-The game uses a coherent top-down sprite layer instead of color-only entities or flat interface chrome. Forgeworks adds Structure, corruption, evolution, Supply, imbuement, material, and Inventory images; the Fantasy Machinery pass adds a title family plus 49 playable HUD/interface exports. The fully original dark industrial forge-fantasy roster covers all towers, evolutions, crafted supplies, sigils, resources, traps, enemies, Structures, corruption mutations, terrain, landmarks, and the full player-facing interface. Limited animation production includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. Gameplay source/processing records live under `artwork/prototype/` and `artwork/style-production/`; interface generators and visual QA live under `artwork/menu-production/` and `artwork/hud-production/`. No Kenney or other third-party visuals remain in the packaged runtime assets; the historical CC0 record is retained in `docs/ASSET_LICENSES.md`.
+The game uses a coherent top-down sprite layer instead of color-only entities or flat interface chrome. Forgeworks adds Structure, corruption, evolution, Supply, imbuement, material, and Inventory images; the Fantasy Machinery pass adds a title family plus 50 playable HUD/interface exports, including the dedicated heart icon for Core health. The fully original dark industrial forge-fantasy roster covers all towers, evolutions, crafted supplies, sigils, resources, traps, enemies, Structures, corruption mutations, terrain, landmarks, and the full player-facing interface. Limited animation production includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. Gameplay source/processing records live under `artwork/prototype/` and `artwork/style-production/`; interface generators and visual QA live under `artwork/menu-production/` and `artwork/hud-production/`. No Kenney or other third-party visuals remain in the packaged runtime assets; the historical CC0 record is retained in `docs/ASSET_LICENSES.md`.
 
 All sound effects are original deterministic synthesis. Regenerate them with:
 

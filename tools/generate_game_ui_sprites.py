@@ -52,12 +52,66 @@ INK = rgba("#07100c")
 MOSS = rgba("#13251a")
 PANEL_DARK = rgba("#0b1711", 244)
 PANEL_MID = rgba("#183124", 246)
+REVIEW_OUTPUT = ROOT / "artwork" / "hud-production" / "hud-ui-sprite-review.png"
+REVIEW_ASSETS: list[tuple[str, Raster]] = []
 
 
 def save(name: str, image: Raster) -> None:
     target = OUTPUT / f"{name}.png"
     image.save(target)
+    REVIEW_ASSETS.append((name, image))
     print(target.relative_to(ROOT))
+
+
+def blit_fit(target: Raster, source: Raster, left: int, top: int, width: int, height: int) -> None:
+    """Nearest-neighbour composite of one generated export into a review-sheet cell."""
+    scale = min(width / source.width, height / source.height)
+    scaled_width = max(1, round(source.width * scale))
+    scaled_height = max(1, round(source.height * scale))
+    x0 = left + (width - scaled_width) // 2
+    y0 = top + (height - scaled_height) // 2
+    for y in range(scaled_height):
+        source_y = min(source.height - 1, y * source.height // scaled_height)
+        for x in range(scaled_width):
+            source_x = min(source.width - 1, x * source.width // scaled_width)
+            index = (source_y * source.width + source_x) * 4
+            target.pixel(x0 + x, y0 + y, tuple(source.data[index:index + 4]))  # type: ignore[arg-type]
+
+
+def draw_review_sheet(assets: list[tuple[str, Raster]]) -> None:
+    """Publish a compact visual QA sheet made only from the exact runtime exports."""
+    review = Raster(1020, 1790)
+    review.rect(0, 0, review.width, review.height, rgba("#050b08"))
+    review.rect(18, 15, review.width - 18, 18, BRASS_DARK)
+    review.rect(18, 18, review.width - 18, 19, BRASS_LIGHT)
+
+    rails = assets[:2]
+    surfaces = assets[2:14]
+    controls = assets[14:23]
+    icons = assets[23:]
+    if len(rails) != 2 or len(surfaces) != 12 or len(controls) != 9 or len(icons) != 27:
+        raise RuntimeError(f"Unexpected HUD review family: {len(assets)} exports")
+
+    # The two wide rails lead the sheet, followed by reusable skins, controls, and icons.
+    for index, (_, image) in enumerate(rails):
+        blit_fit(review, image, 38 + index * 480, 38, 464, 112)
+    review.rect(28, 164, review.width - 28, 166, BRASS_DARK)
+
+    def grid(items: list[tuple[str, Raster]], top: int, cell_height: int) -> None:
+        for index, (_, image) in enumerate(items):
+            column = index % 5
+            row = index // 5
+            blit_fit(review, image, 38 + column * 188, top + row * cell_height, 168, cell_height - 14)
+
+    grid(surfaces, 180, 142)
+    review.rect(28, 605, review.width - 28, 607, BRASS_DARK)
+    grid(controls, 620, 96)
+    review.rect(28, 817, review.width - 28, 819, BRASS_DARK)
+    grid(icons, 838, 150)
+    review.rect(18, review.height - 18, review.width - 18, review.height - 15, BRASS_DARK)
+    review.rect(18, review.height - 19, review.width - 18, review.height - 18, BRASS_LIGHT)
+    review.save(REVIEW_OUTPUT)
+    print(REVIEW_OUTPUT.relative_to(ROOT))
 
 
 def inset_frame(image: Raster, left: int, top: int, right: int, bottom: int, accent: Color, *, seed: int, warm: bool = True) -> None:
@@ -215,7 +269,20 @@ def draw_icon(kind: str, accent: Color) -> Raster:
         image.polygon([(32, 17), (45, 23), (42, 39), (32, 47), (22, 39), (19, 23)], EMBER)
         image.circle(32, 31, 8, BRASS_DARK)
         image.circle(32, 31, 5, pale)
+    elif kind == "heart":
+        # The Core-health mark is intentionally a true heart rather than another shield: it is
+        # recognizable at a glance and remains framed by the same forged gear medallion.
+        heart = [(32, 51), (16, 38), (13, 30), (15, 23), (20, 18), (26, 18), (32, 24), (38, 18), (44, 18), (49, 23), (51, 30), (48, 38)]
+        inner = [(32, 48), (19, 36), (16, 29), (18, 24), (22, 21), (27, 21), (32, 28), (37, 21), (42, 21), (46, 24), (48, 29), (45, 36)]
+        image.radial_glow(32, 31, 20, EMBER, 96)
+        image.polygon(heart, BLACK)
+        image.polygon(inner, EMBER)
+        image.polygon([(32, 45), (22, 35), (20, 29), (22, 25), (27, 25), (32, 31), (37, 25), (42, 25), (44, 29), (42, 35)], rgba("#cf4e46"))
+        image.circle(24, 26, 3, rgba("#ffd7b7"))
+        image.line(21, 35, 30, 44, shade(EMBER, 0.55), 1)
+        image.line(40, 26, 45, 31, rgba("#f6b37e"), 1)
     elif kind == "wave":
+
         image.line(17, 42, 47, 42, BRASS, 2)
         for x, height in ((21, 9), (30, 16), (39, 24)):
             image.rect(x - 3, 42 - height, x + 3, 42, BLACK)
@@ -337,6 +404,7 @@ def draw_icon(kind: str, accent: Color) -> Raster:
 
 
 def main() -> None:
+    REVIEW_ASSETS.clear()
     # Rails and panels.
     save("hud_top_rail", draw_hud_rail(512, 68, lower=False))
     save("hud_bottom_rail", draw_hud_rail(512, 128, lower=True))
@@ -367,6 +435,7 @@ def main() -> None:
     icons: tuple[tuple[str, Color], ...] = (
         ("blocks", BRASS),
         ("core", EMBER),
+        ("heart", EMBER),
         ("wave", CYAN),
         ("launch", GREEN),
         ("stack", PURPLE),
@@ -394,6 +463,7 @@ def main() -> None:
     )
     for name, color in icons:
         save(f"ui_icon_{name}", draw_icon(name, color))
+    draw_review_sheet(REVIEW_ASSETS)
 
 
 if __name__ == "__main__":

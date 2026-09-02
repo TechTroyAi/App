@@ -3411,15 +3411,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     selectedUtilityKind = entry.first
                     audio.play("ui_click", 0.28f, 1.04f)
                     val kind = entry.first
-                    val status = if (kind == UtilityKind.BLOCK_GENERATOR) " • ${utilities.count { it.kind == kind }}/$MAX_BLOCK_GENERATORS ACTIVE" else ""
-                    setBanner("${kind.title.uppercase()}  •  ${kind.description}$status", 2.8f)
+                    val status = if (kind == UtilityKind.BLOCK_GENERATOR) "  ${utilities.count { it.kind == kind }}/$MAX_BLOCK_GENERATORS" else ""
+                    setBanner("${kind.title.uppercase()}$status", 0.9f)
                     return true
                 }
                 for (entry in inventoryRects) if (entry.second.contains(x, y)) {
                     clearBuildSelections()
                     selectedInventorySelection = entry.first
                     audio.play("ui_click", 0.28f, 0.98f)
-                    setBanner("${inventoryItemTitle(entry.first).uppercase()} READY  •  FREE TO PLACE", 1.6f)
+                    setBanner("FREE TO PLACE", 0.9f)
                     return true
                 }
             }
@@ -3465,7 +3465,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         clearBuildSelections()
         selectedTool = tool
         audio.play("ui_click", 0.28f, 1f + tool.ordinal * 0.025f)
-        setBanner("${tool.title.uppercase()}  •  ${toolDescription(tool)}", 2.8f)
+        setBanner(tool.title.uppercase(), 0.8f)
     }
 
     private fun extendPath(cell: GridCell) {
@@ -3535,7 +3535,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedUtility = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 1.12f)
-            setBanner("${existingTower.kind.title.uppercase()}  •  ${existingTower.kind.description}", 2.8f)
+            setBanner(existingTower.kind.title.uppercase(), 0.7f)
             return
         }
         val existingUtility = findUtility(cell.col, cell.row)
@@ -3545,8 +3545,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedTrap = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 0.92f)
-            val status = if (existingUtility.kind == UtilityKind.BLOCK_GENERATOR) " • ${utilities.count { it.kind == existingUtility.kind }}/$MAX_BLOCK_GENERATORS ACTIVE" else ""
-            setBanner("${existingUtility.kind.title.uppercase()}  •  ${existingUtility.kind.description}$status", 2.8f)
+            val status = if (existingUtility.kind == UtilityKind.BLOCK_GENERATOR) "  ${utilities.count { it.kind == existingUtility.kind }}/$MAX_BLOCK_GENERATORS" else ""
+            setBanner("${existingUtility.kind.title.uppercase()}$status", 0.7f)
             return
         }
         val existingTrap = findTrap(cell.col, cell.row)
@@ -3556,7 +3556,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedUtility = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 1.06f)
-            setBanner("${existingTrap.kind.title.uppercase()}  •  ${existingTrap.kind.description}", 2.8f)
+            setBanner(existingTrap.kind.title.uppercase(), 0.7f)
             return
         }
         if (phase != GamePhase.BUILD) return
@@ -5621,22 +5621,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawTopBar(canvas: Canvas) {
-        // A continuous forged rail replaces the former flat HUD strip; information remains live
-        // text so the values never become stale baked art.
+        // Keep the live command rail readable in combat: sprites carry resource identity while
+        // text is reserved for values and the one-word state/action a player must act on.
         drawBitmapInRect(canvas, sprites.hudTopRail, RectF(0f, 0f, viewWidth, topBarHeight))
-        drawBitmapCentered(canvas, sprites.uiIconCore, dp(29f), topBarHeight * 0.50f, min(dp(38f), topBarHeight * 0.70f))
-        drawText(canvas, phaseLabel(), dp(57f), topBarHeight * 0.43f, min(dp(13f), topBarHeight * 0.25f), Color.WHITE, Paint.Align.LEFT, true, true)
-        val forgeResources = if (phase == GamePhase.WAVE) "F$forgeCharges  E$evolutionCores" else "F$forgeCharges  E$evolutionCores  P$salvageParts  G$growthEssence"
-        val stackLabel = if (phase == GamePhase.WAVE && activeWaveNumbers.size > 1) "  ×${activeWaveNumbers.size}" else ""
-        drawText(canvas, "$forgeResources$stackLabel", dp(57f), topBarHeight * 0.72f, min(dp(7.5f), topBarHeight * 0.16f), Color.rgb(183, 198, 185), Paint.Align.LEFT, true)
-
+        drawTopStatus(canvas)
         drawTopStats(canvas)
         val compactControls = primaryActionRect.width() <= dp(92f)
 
+        // These secondary controls are deliberately icon-only. Their forged glyphs are more
+        // legible than repeating Reset/Reforge/Cancel copy beside the primary command.
         when {
-            phase == GamePhase.REFORGE -> drawUiButton(canvas, resetPathRect, if (compactControls) "" else "CANCEL", sprites.uiIconBack, UiControlTone.WARNING, textColor = Color.rgb(255, 225, 201), textSize = min(dp(8f), resetPathRect.height() * 0.25f))
-            waveNumber == 0 && (phase == GamePhase.DIG || phase == GamePhase.BUILD) -> drawUiButton(canvas, resetPathRect, if (compactControls) "" else "RESET", sprites.uiIconReset, UiControlTone.SECONDARY, textSize = min(dp(8f), resetPathRect.height() * 0.25f))
-            phase == GamePhase.BUILD -> drawUiButton(canvas, resetPathRect, if (compactControls) "" else "REFORGE", sprites.uiIconReforge, UiControlTone.ACCENT, textColor = Color.rgb(237, 217, 255), textSize = min(dp(8f), resetPathRect.height() * 0.25f))
+            phase == GamePhase.REFORGE -> drawUiButton(canvas, resetPathRect, "", sprites.uiIconBack, UiControlTone.WARNING, textColor = Color.rgb(255, 225, 201))
+            waveNumber == 0 && (phase == GamePhase.DIG || phase == GamePhase.BUILD) -> drawUiButton(canvas, resetPathRect, "", sprites.uiIconReset, UiControlTone.SECONDARY)
+            phase == GamePhase.BUILD -> drawUiButton(canvas, resetPathRect, "", sprites.uiIconReforge, UiControlTone.ACCENT, textColor = Color.rgb(237, 217, 255))
         }
         val canStart = when {
             phase == GamePhase.BUILD && pathComplete -> true
@@ -5645,11 +5642,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             else -> false
         }
         val actionLabel = when (phase) {
-            GamePhase.DIG -> if (compactControls) "ROUTE" else "FORGE ROUTE"
-            GamePhase.BUILD -> if (compactControls) "W${waveNumber + 1}" else if (nextWaveTimer > 0f) "LAUNCH W${waveNumber + 1}" else "START W${waveNumber + 1}"
+            GamePhase.DIG -> if (compactControls) "" else "ROUTE"
+            // The wave stat carries the number on roomy screens; retain it only when that stat
+            // contracts away on compact devices.
+            GamePhase.BUILD -> if (compactControls) "W${waveNumber + 1}" else "START"
             GamePhase.REFORGE -> if (compactControls) "" else "CONFIRM"
             GamePhase.WAVE -> if (compactControls) "" else "STACK"
-            else -> if (compactControls) "" else "WAIT"
+            else -> ""
         }
         val actionIcon = when (phase) {
             GamePhase.DIG -> sprites.uiIconRoute
@@ -5673,13 +5672,99 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawUiButton(canvas, pauseRect, "", sprites.uiIconPause, UiControlTone.SECONDARY)
     }
 
+    /** The left status group carries only phase, Forge Charges, and Evolution Cores. */
+    private fun drawTopStatus(canvas: Canvas) {
+        val left = dp(8f)
+        val right = topStatusRight()
+        val available = right - left
+        if (available <= dp(36f)) return
+        val compact = available < dp(135f)
+        val ultraCompact = available < dp(90f)
+        val phaseIconSize = min(if (ultraCompact) dp(14f) else if (compact) dp(16f) else dp(20f), topBarHeight * 0.31f)
+        drawBitmapCentered(canvas, phaseStatusIcon(), left + phaseIconSize * 0.55f, topBarHeight * 0.31f, phaseIconSize)
+        if (!ultraCompact) {
+            drawText(
+                canvas,
+                compactPhaseLabel(),
+                left + phaseIconSize + dp(4f),
+                topBarHeight * 0.38f,
+                min(if (compact) dp(8.5f) else dp(10.5f), topBarHeight * 0.21f),
+                Color.rgb(236, 244, 228),
+                Paint.Align.LEFT,
+                true,
+                true
+            )
+        }
+
+        val iconSize = min(if (ultraCompact) dp(13f) else if (compact) dp(16f) else dp(19f), topBarHeight * 0.28f)
+        val textSize = min(if (ultraCompact) dp(7f) else if (compact) dp(8f) else dp(9.5f), topBarHeight * 0.17f)
+        val entries = listOf(
+            Pair(sprites.uiIconReforge, formatNumber(forgeCharges)),
+            Pair(sprites.uiIconEvolve, formatNumber(evolutionCores))
+        )
+        val gap = if (ultraCompact) dp(3f) else dp(7f)
+        val total = entries.fold(gap * (entries.size - 1)) { totalWidth, entry ->
+            totalWidth + spriteValueWidth(iconSize, entry.second, textSize)
+        }
+        var x = left + max(0f, (available - total) * 0.5f)
+        val y = topBarHeight * 0.72f
+        entries.forEachIndexed { index, entry ->
+            x = drawSpriteValue(canvas, entry.first, entry.second, x, y, iconSize, textSize, if (index == 0) Color.rgb(255, 204, 102) else Color.rgb(219, 182, 255))
+            if (index < entries.lastIndex) x += gap
+        }
+    }
+
+    private fun topStatusRight(): Float {
+        // On compact landscape screens reserve room for the Blocks + heart/Core pair first.
+        val desired = if (viewWidth < dp(520f)) dp(82f) else max(dp(104f), min(viewWidth * 0.22f, dp(210f)))
+        return min(desired, resetPathRect.left - dp(6f))
+    }
+
+    private fun phaseStatusIcon(): Bitmap = when (phase) {
+        GamePhase.DIG -> sprites.uiIconRoute
+        GamePhase.BUILD -> sprites.uiIconLaunch
+        GamePhase.REFORGE -> sprites.uiIconReforge
+        GamePhase.WAVE -> sprites.uiIconWave
+        GamePhase.PAUSED -> sprites.uiIconPause
+        GamePhase.PERK_DRAFT, GamePhase.EVOLUTION_DRAFT -> sprites.uiIconEvolve
+        else -> sprites.uiIconLaunch
+    }
+
+    private fun compactPhaseLabel(): String = when (phase) {
+        GamePhase.DIG -> "ROUTE"
+        GamePhase.BUILD -> "BUILD"
+        GamePhase.REFORGE -> "REFORGE"
+        GamePhase.PERK_DRAFT -> "PERKS"
+        GamePhase.EVOLUTION_DRAFT -> "EVOLVE"
+        GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "WAVE ×${activeWaveNumbers.size}" else "WAVE"
+        GamePhase.PAUSED -> "PAUSED"
+        else -> "READY"
+    }
+
+    /** Draws a sprite counter and returns the x coordinate immediately after it. */
+    private fun drawSpriteValue(canvas: Canvas, icon: Bitmap, value: String, x: Float, centerY: Float, iconSize: Float, textSize: Float, color: Int): Float {
+        drawBitmapCentered(canvas, icon, x + iconSize * 0.5f, centerY, iconSize)
+        val textLeft = x + iconSize + dp(3f)
+        drawText(canvas, value, textLeft, centerY + textSize * 0.34f, textSize, color, Paint.Align.LEFT, true, true)
+        return textLeft + spriteValueTextWidth(value, textSize)
+    }
+
+    private fun spriteValueWidth(iconSize: Float, value: String, textSize: Float): Float =
+        iconSize + dp(3f) + spriteValueTextWidth(value, textSize)
+
+    private fun spriteValueTextWidth(value: String, textSize: Float): Float {
+        paint.textSize = textSize
+        paint.typeface = blackTypeface
+        return paint.measureText(value)
+    }
+
     /**
-     * Fit the live resource chips between the phase label and right-side actions. At compact
-     * widths this intentionally keeps Blocks/Core first and lets the launch control convey wave
-     * number, rather than allowing tightly packed labels to collide with an action button.
+     * Fit the live resource chips between the compact phase/readout group and right-side actions.
+     * Blocks, Core, and Wave remain visible in that order; Core uses its own heart sprite and a
+     * short label instead of a wordy health line.
      */
     private fun drawTopStats(canvas: Canvas) {
-        val left = max(dp(104f), min(viewWidth * 0.22f, dp(210f)))
+        val left = topStatusRight()
         val right = resetPathRect.left - dp(6f)
         val available = right - left
         val gap = min(dp(7f), max(dp(3f), available * 0.025f))
@@ -5697,32 +5782,30 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             return RectF(statLeft, dp(7f), statLeft + width, topBarHeight - dp(7f))
         }
         drawStat(canvas, statRect(0), sprites.uiIconBlocks, formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
-        if (count >= 2) drawStat(canvas, statRect(1), sprites.uiIconCore, "$lives/$maxCore", Color.rgb(255, 111, 100))
-        if (count >= 3) drawStat(canvas, statRect(2), sprites.uiIconWave, waveNumber.toString(), Color.rgb(93, 220, 255))
+        if (count >= 2) drawStat(canvas, statRect(1), sprites.uiIconHeart, "$lives/$maxCore", Color.rgb(255, 111, 100), label = "CORE")
+        if (count >= 3) {
+            val displayedWave = if (phase == GamePhase.BUILD || phase == GamePhase.DIG || phase == GamePhase.REFORGE) waveNumber + 1 else waveNumber
+            drawStat(canvas, statRect(2), sprites.uiIconWave, displayedWave.toString(), Color.rgb(93, 220, 255))
+        }
     }
 
-    private fun drawStat(canvas: Canvas, rect: RectF, icon: Bitmap, value: String, accent: Int, pulse: Float = 0f) {
+    private fun drawStat(canvas: Canvas, rect: RectF, icon: Bitmap, value: String, accent: Int, pulse: Float = 0f, label: String = "") {
         drawBitmapInRect(canvas, sprites.uiStatFrame, rect)
         val iconSize = min(rect.height() * 0.57f, rect.width() * 0.35f)
         drawBitmapCentered(canvas, icon, rect.left + rect.width() * 0.25f, rect.centerY(), iconSize)
-        val valueSize = min(min(dp(15f), topBarHeight * 0.30f), rect.width() * 0.25f) * (1f + pulse * 0.18f)
         if (pulse > 0.02f) {
             paint.color = Color.argb((pulse * 70f).toInt().coerceIn(0, 255), Color.red(accent), Color.green(accent), Color.blue(accent))
             canvas.drawCircle(rect.centerX(), rect.centerY(), rect.height() * 0.44f * pulse, paint)
         }
-        drawCenteredText(canvas, value, rect.left + rect.width() * 0.66f, rect.centerY(), valueSize, accent, true, true)
-    }
-
-    private fun phaseLabel(): String {
-        return when (phase) {
-            GamePhase.DIG -> if (gameMode == GameMode.ENDLESS) "PATH FORGE" else "${gameMode.name} $runSeed"
-            GamePhase.BUILD -> if (gameMode == GameMode.ENDLESS) "ENDLESS BUILD" else challengeModifier.title.uppercase()
-            GamePhase.REFORGE -> "PATH REFORGE"
-            GamePhase.PERK_DRAFT -> "FORGE PERK"
-            GamePhase.EVOLUTION_DRAFT -> "EVOLUTION"
-            GamePhase.WAVE -> waveTheme
-            GamePhase.PAUSED -> "RUN PAUSED"
-            else -> "ENDLESS PATHFORGE"
+        val valueX = rect.left + rect.width() * 0.66f
+        if (label.isNotEmpty()) {
+            val labelSize = min(min(dp(6.5f), rect.height() * 0.15f), rect.width() * 0.15f)
+            val valueSize = min(min(dp(14f), topBarHeight * 0.28f), rect.width() * 0.21f)
+            drawCenteredText(canvas, label, valueX, rect.centerY() - rect.height() * 0.17f, labelSize, Color.rgb(255, 214, 205), true)
+            drawCenteredText(canvas, value, valueX, rect.centerY() + rect.height() * 0.17f, valueSize, accent, true, true)
+        } else {
+            val valueSize = min(min(dp(15f), topBarHeight * 0.30f), rect.width() * 0.25f) * (1f + pulse * 0.18f)
+            drawCenteredText(canvas, value, valueX, rect.centerY(), valueSize, accent, true, true)
         }
     }
 
@@ -5901,32 +5984,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
-    private fun toolDescription(tool: BuildTool): String {
-        return when (tool) {
-            BuildTool.BOLT -> TowerKind.BOLT.description
-            BuildTool.FROST -> TowerKind.FROST.description
-            BuildTool.CANNON -> TowerKind.CANNON.description
-            BuildTool.EMBER -> TowerKind.EMBER.description
-            BuildTool.BEACON -> TowerKind.BEACON.description
-            BuildTool.THORN -> TowerKind.THORN.description
-            BuildTool.LANCE -> TowerKind.LANCE.description
-            BuildTool.MIRE -> TowerKind.MIRE.description
-            BuildTool.GALE -> TowerKind.GALE.description
-            BuildTool.SUNFORGE -> TowerKind.SUNFORGE.description
-            BuildTool.LODESTONE -> TowerKind.LODESTONE.description
-            BuildTool.HOWL -> TowerKind.HOWL.description
-            BuildTool.VITRIOL -> TowerKind.VITRIOL.description
-            BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT.description
-            BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM.description
-            BuildTool.SPIKES -> TrapKind.SPIKE.description
-            BuildTool.ROOT -> TrapKind.ROOT.description
-            BuildTool.RUNE -> TrapKind.EMBER.description
-            BuildTool.ARC -> TrapKind.ARC.description
-            BuildTool.CRUSHER -> TrapKind.CRUSHER.description
-            BuildTool.DIG -> "Draw the route one block at a time"
-        }
-    }
-
     private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float) {
         val towerLayers: Pair<Bitmap, SpriteStrip>? = when (tool) {
             BuildTool.BOLT -> Pair(sprites.towerBase, sprites.greenTurret)
@@ -6058,17 +6115,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun drawBanner(canvas: Canvas) {
         if (!feedbackEnabled) return
         val timed = bannerTimer > 0f
-        // Keep the live guidance readable at a glance. Detailed one-shot outcome messages still
-        // flow through bannerText, while the recurring Next Wave state is now a compact status.
+        // Persistent copy is intentionally sparse. The rail already identifies the phase and
+        // resources, so this panel is reserved for an active timer, route costs, survey intel,
+        // or a short-lived gameplay result/error.
         val instruction = when {
             timed -> bannerText
-            phase == GamePhase.DIG -> "DRAW ROUTE  •  ${pathCells.size}/${currentPathLimit()}"
-            phase == GamePhase.REFORGE -> "REFORGE  •  F${effectiveReforgeCost()}  •  B${reforgeRecoveryCost()}"
-            phase == GamePhase.BUILD && nextWaveTimer > 0f -> "WAVE ${waveNumber + 1}  •  ${nextWaveCountdownSeconds()}S"
-            phase == GamePhase.BUILD && waveNumber == 0 && towers.isEmpty() -> "SELECT A BUILD CARD"
+            phase == GamePhase.DIG -> "ROUTE  ${pathCells.size}/${currentPathLimit()}"
+            phase == GamePhase.REFORGE -> "${effectiveReforgeCost()} FORGE  •  ${reforgeRecoveryCost()} BLOCKS"
+            phase == GamePhase.BUILD && nextWaveTimer > 0f -> "W${waveNumber + 1}  •  ${nextWaveCountdownSeconds()}S"
             phase == GamePhase.BUILD && surveyAvailable() -> surveyPreviewText(waveNumber + 1)
-            phase == GamePhase.BUILD -> "BUILD READY  •  WAVE ${waveNumber + 1}"
-            phase == GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "${activeWaveNumbers.size} WAVES ACTIVE" else "WAVE $waveNumber LIVE  •  STACK READY"
             else -> ""
         }
         if (instruction.isEmpty()) return

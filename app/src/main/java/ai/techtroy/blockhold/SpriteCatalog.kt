@@ -63,6 +63,8 @@ internal class SpriteCatalog(private val context: Context) {
     val uiButtonDisabled = load("ui_button_disabled")
     val uiIconBlocks = load("ui_icon_blocks")
     val uiIconCore = load("ui_icon_core")
+    /** Dedicated health heart for the compact Core stat rather than reusing the shield emblem. */
+    val uiIconHeart = load("ui_icon_heart")
     val uiIconWave = load("ui_icon_wave")
     val uiIconLaunch = load("ui_icon_launch")
     val uiIconStack = load("ui_icon_stack")
