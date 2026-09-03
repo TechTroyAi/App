@@ -6,7 +6,7 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-**v1.4.4 is the source-ready HUD refit.** The app is stamped `1.4.4` / `versionCode 18`; its title screen, challenge screen, in-game top dock, build dock, selection panels, Forgeworks, perk/evolution cards, pause screen, and result screen now share one compact sprite-first interface. Batch 01 adds exactly ten AI-generated control sprites in the existing *fantasy × machinery* art direction.
+**v1.4.4 is the source-ready HUD refit.** The app is stamped `1.4.4` / `versionCode 18`; its title screen, challenge screen, in-game top dock, build dock, selection panels, Forgeworks, perk/evolution cards, pause screen, and result screen now share one compact sprite-first interface. Batch 01 adds ten AI-generated controls; Batch 02 adds eight generated title/menu assets, with both sessions staying within the ten-sprite limit and the same *fantasy × machinery* direction.
 
 A v1.4.4 APK has not been produced locally: the runner had no preinstalled build toolchain, and direct Gradle 8.9 acquisition is blocked by its TLS connection. The repository's `Build APK` workflow is the compilation path for this source revision. The latest **built and retained** artifact is `artifacts/Blockhold-Defense-v1.4.3-installable.apk` (`1.4.3`, code `17`), which passes both APK verification scripts. See `artifacts/README.md` for its hash and signing-key warning; build v1.4.4 with JDK 17 + Android SDK 35 and reuse the v1.4.3 signing key for an in-place update.
 
@@ -26,16 +26,19 @@ See `artifacts/README.md` for artifact hashes and signing status, `docs/VERIFICA
 
 ## v1.4.4 HUD refit
 
-![v1.4.4 title-menu, in-game HUD, and first ten control sprites](docs/V1.4.4_HUD_PREVIEW.png)
+![v1.4.4 generated title scene, stacked menu buttons, sprite records, and in-game HUD](docs/V1.4.4_HUD_PREVIEW.png)
 
 > This is a source-generated layout reference built from the packaged sprites, not a device screenshot. Regenerate it with `tools/generate_hud_preview_v144.sh`.
 
 - Reclaims battlefield space with slimmer fixed top and bottom docks.
-- Replaces the old text-heavy title actions, top controls, category tabs, selection actions, workshop navigation, pause actions, and end-screen actions with sprite-led controls.
+- Replaces the title grid with a generated 16:9 fortress-forge scene and replaces live title typography with one unified generated logo sprite.
+- Stacks New Run, Continue, and Challenges vertically using three newly generated full-button plates.
+- Replaces the tiny Best/Wave/Daily record sentence with large sprite emblems and values in a dedicated lower rail; the same glyphs improve challenge, top-HUD, and result views.
+- Replaces the old text-heavy top controls, category tabs, selection actions, workshop navigation, pause actions, and end-screen actions with sprite-led controls.
 - Keeps only decision-critical copy: values, costs, levels, wave countdown, short action names, and brief timed feedback. Persistent tutorial banners and repeated descriptions no longer cover the board.
 - Uses existing tower, trap, utility, item, sigil, corruption, evolution, and resource art inside their matching buttons.
-- Adds ten new AI-generated controls: play, continue, challenge, sound on, sound off, pause, reforge, confirm, back, and menu.
-- Stores high-resolution generation sources under `artwork/ui-production/v1.4.4/source/`; `tools/process_hud_sprites_v144.sh` isolates and publishes the 128×128 Android drawables.
+- Adds eighteen generated v1.4.4 assets across two bounded batches: ten HUD controls and eight title/menu assets.
+- Stores high-resolution generation sources under `artwork/ui-production/v1.4.4/source/`; `tools/process_hud_sprites_v144.sh` deterministically isolates, normalizes, and publishes the Android drawables.
 
 ## How to play
 

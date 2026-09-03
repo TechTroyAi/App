@@ -199,6 +199,16 @@ internal class SpriteCatalog(private val context: Context) {
     val hudBack = load("hud_back")
     val hudMenu = load("hud_menu")
 
+    /** v1.4.4 menu-art Batch 02: full scene, unified logo/button plates, and record glyphs. */
+    val titleBackground = load("title_background")
+    val titleLogo = load("title_logo")
+    val titleButtonNewRun = load("title_button_new_run")
+    val titleButtonContinue = load("title_button_continue")
+    val titleButtonChallenges = load("title_button_challenges")
+    val menuBadgeBest = load("menu_badge_best")
+    val menuBadgeWave = load("menu_badge_wave")
+    val menuBadgeDaily = load("menu_badge_daily")
+
     private val utilities = mapOf(
         UtilityKind.BLOCK_GENERATOR to loadStrip("utility_block_generator"),
         UtilityKind.CACHE_DEPOT to loadStrip("utility_cache_depot"),

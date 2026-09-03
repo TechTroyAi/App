@@ -480,15 +480,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         imbueRect.set(actionLeft, storeRect.bottom + panelGap * 0.5f, panelLeft + panelWidth, storeRect.bottom + panelGap * 0.5f + actionHeight)
         sellRect.set(actionLeft, imbueRect.bottom + panelGap * 0.5f, panelLeft + panelWidth, panelBottom)
 
-        val titleGap = dp(9f)
-        val titleButtonsWidth = min(viewWidth - dp(40f), dp(720f))
-        val titleButtonWidth = (titleButtonsWidth - titleGap * 2f) / 3f
-        val titleButtonHeight = min(dp(78f), viewHeight * 0.165f)
-        val titleLeft = (viewWidth - titleButtonsWidth) * 0.5f
-        val titleTop = viewHeight * 0.64f
+        // Batch 02 turns the three title actions into one centered vertical control stack.
+        // Keep the RectFs as the source of truth so rendering and touch targets stay identical.
+        val titleGap = min(dp(8f), viewHeight * 0.014f)
+        val titleButtonHeight = min(dp(80f), viewHeight * 0.135f)
+        val titleButtonWidth = min(viewWidth * 0.44f, min(dp(440f), titleButtonHeight * 4.45f))
+        val titleLeft = (viewWidth - titleButtonWidth) * 0.5f
+        val titleTop = viewHeight * 0.40f
         titlePlayRect.set(titleLeft, titleTop, titleLeft + titleButtonWidth, titleTop + titleButtonHeight)
-        titleContinueRect.set(titlePlayRect.right + titleGap, titleTop, titlePlayRect.right + titleGap + titleButtonWidth, titleTop + titleButtonHeight)
-        titleChallengeRect.set(titleContinueRect.right + titleGap, titleTop, titleContinueRect.right + titleGap + titleButtonWidth, titleTop + titleButtonHeight)
+        titleContinueRect.set(titleLeft, titlePlayRect.bottom + titleGap, titleLeft + titleButtonWidth, titlePlayRect.bottom + titleGap + titleButtonHeight)
+        titleChallengeRect.set(titleLeft, titleContinueRect.bottom + titleGap, titleLeft + titleButtonWidth, titleContinueRect.bottom + titleGap + titleButtonHeight)
         val titleSoundSize = min(dp(46f), viewHeight * 0.10f)
         titleSoundRect.set(viewWidth - dp(12f) - titleSoundSize, dp(12f), viewWidth - dp(12f), dp(12f) + titleSoundSize)
 
@@ -4131,52 +4132,81 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawTitle(canvas: Canvas) {
-        canvas.drawColor(Color.rgb(8, 13, 11))
-        drawTitleGrid(canvas)
+        drawMenuBackdrop(canvas, 42)
 
-        // One quiet brand mark and the current build replace the old studio banner.
-        drawBitmapCentered(canvas, sprites.hudMenu, dp(34f), dp(34f), min(dp(46f), viewHeight * 0.10f))
-        drawText(canvas, versionLabel.uppercase(), dp(62f), dp(38f), dp(9f), Color.rgb(154, 174, 160), Paint.Align.LEFT, true)
+        // The generated logo is one packaged sprite: no live title typography remains.
+        drawText(canvas, versionLabel.uppercase(), dp(16f), dp(25f), dp(8f), Color.rgb(173, 191, 179), Paint.Align.LEFT, true)
         drawIconButton(
             canvas,
             titleSoundRect,
             if (audio.isEnabled()) sprites.hudSoundOn else sprites.hudSoundOff,
             "",
-            Color.rgb(18, 29, 23),
+            Color.rgb(12, 22, 18),
             Color.rgb(151, 181, 160),
             true
         )
 
-        val titleY = viewHeight * 0.31f
-        drawCenteredText(canvas, "BLOCKHOLD", viewWidth * 0.5f, titleY, min(dp(56f), viewHeight * 0.12f), Color.rgb(237, 239, 231), true, true)
-        drawCenteredText(canvas, "DEFENSE", viewWidth * 0.5f, titleY + viewHeight * 0.095f, min(dp(19f), viewHeight * 0.04f), Color.rgb(190, 244, 78), true)
-        paint.color = Color.argb(72, 190, 244, 78)
-        canvas.drawRect(viewWidth * 0.42f, titleY + viewHeight * 0.125f, viewWidth * 0.58f, titleY + viewHeight * 0.128f, paint)
+        val logoWidth = min(viewWidth * 0.48f, min(dp(460f), viewHeight * 0.78f))
+        drawBitmapCentered(canvas, sprites.titleLogo, viewWidth * 0.5f, viewHeight * 0.195f, logoWidth)
 
-        val landmarkSize = min(dp(76f), viewHeight * 0.155f)
-        spritePaint.alpha = 125
-        drawSpriteFrameCentered(canvas, sprites.gatePart, 1, viewWidth * 0.23f, titleY + viewHeight * 0.03f, landmarkSize)
-        drawSpriteFrameCentered(canvas, sprites.corePart, 1, viewWidth * 0.77f, titleY + viewHeight * 0.03f, landmarkSize)
+        drawTitleMenuButton(canvas, titlePlayRect, sprites.titleButtonNewRun, "NEW RUN", Color.rgb(190, 244, 78), true)
+        drawTitleMenuButton(canvas, titleContinueRect, sprites.titleButtonContinue, "CONTINUE", Color.rgb(93, 220, 255), savedRunAvailable)
+        drawTitleMenuButton(canvas, titleChallengeRect, sprites.titleButtonChallenges, "CHALLENGES", Color.rgb(255, 190, 104), true)
+
+        // Record glyphs replace the old tiny BEST / WAVE / DAILY sentence and sit in a
+        // dedicated lower rail where neither the logo nor the action stack obscures them.
+        val recordHeight = min(dp(48f), viewHeight * 0.085f)
+        val recordWidth = min(dp(128f), viewWidth * 0.17f)
+        val recordGap = min(dp(9f), viewWidth * 0.012f)
+        val recordTotal = recordWidth * 3f + recordGap * 2f
+        val recordLeft = (viewWidth - recordTotal) * 0.5f
+        val recordTop = viewHeight - recordHeight - min(dp(8f), viewHeight * 0.018f)
+        drawMenuRecordChip(canvas, recordLeft, recordTop, recordWidth, recordHeight, sprites.menuBadgeBest, formatNumber(bestScore), Color.rgb(255, 194, 92))
+        drawMenuRecordChip(canvas, recordLeft + recordWidth + recordGap, recordTop, recordWidth, recordHeight, sprites.menuBadgeWave, bestWave.toString(), Color.rgb(93, 220, 255))
+        drawMenuRecordChip(canvas, recordLeft + (recordWidth + recordGap) * 2f, recordTop, recordWidth, recordHeight, sprites.menuBadgeDaily, bestDailyWave.toString(), Color.rgb(190, 244, 78))
+    }
+
+    private fun drawMenuBackdrop(canvas: Canvas, dimAlpha: Int) {
+        drawBitmapCover(canvas, sprites.titleBackground, RectF(0f, 0f, viewWidth, viewHeight))
+        paint.style = Paint.Style.FILL
+        paint.color = Color.argb(dimAlpha.coerceIn(0, 255), 2, 8, 7)
+        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        paint.color = Color.argb(92, 3, 11, 8)
+        canvas.drawRect(0f, viewHeight * 0.86f, viewWidth, viewHeight, paint)
+    }
+
+    private fun drawTitleMenuButton(canvas: Canvas, rect: RectF, art: Bitmap, label: String, accent: Int, enabled: Boolean) {
+        spritePaint.alpha = if (enabled) 255 else 82
+        canvas.drawBitmap(art, null, rect, spritePaint)
         spritePaint.alpha = 255
-
-        drawMenuButton(canvas, titlePlayRect, sprites.hudPlay, "NEW RUN", Color.rgb(190, 244, 78), true)
-        drawMenuButton(canvas, titleContinueRect, sprites.hudContinue, "CONTINUE", Color.rgb(93, 220, 255), savedRunAvailable)
-        drawMenuButton(canvas, titleChallengeRect, sprites.hudChallenge, "CHALLENGES", Color.rgb(255, 190, 104), true)
-
+        if (!enabled) {
+            paint.color = Color.argb(108, 4, 10, 8)
+            canvas.drawRoundRect(rect, rect.height() * 0.18f, rect.height() * 0.18f, paint)
+        }
         drawCenteredText(
             canvas,
-            "BEST  W$bestWave   •   DAILY  W$bestDailyWave   •   CUSTOM  W$bestCustomWave",
-            viewWidth * 0.5f,
-            viewHeight - dp(15f),
-            dp(8.5f),
-            Color.rgb(119, 139, 125),
+            label,
+            rect.left + rect.width() * 0.66f,
+            rect.centerY(),
+            min(dp(13f), rect.height() * 0.25f),
+            if (enabled) accent else Color.rgb(91, 108, 97),
+            true,
             true
         )
     }
 
+    private fun drawMenuRecordChip(canvas: Canvas, left: Float, top: Float, width: Float, height: Float, icon: Bitmap, value: String, accent: Int) {
+        drawRoundedRect(canvas, left, top, left + width, top + height, height * 0.25f, Color.argb(224, 9, 19, 15))
+        strokePaint.style = Paint.Style.STROKE
+        strokePaint.strokeWidth = max(1f, dp(0.8f))
+        strokePaint.color = Color.argb(125, Color.red(accent), Color.green(accent), Color.blue(accent))
+        canvas.drawRoundRect(left, top, left + width, top + height, height * 0.25f, height * 0.25f, strokePaint)
+        drawBitmapCentered(canvas, icon, left + height * 0.52f, top + height * 0.5f, height * 0.82f)
+        drawCenteredText(canvas, value, left + width * 0.70f, top + height * 0.5f, min(dp(12f), height * 0.36f), accent, true, true)
+    }
+
     private fun drawChallengeMenu(canvas: Canvas) {
-        canvas.drawColor(Color.rgb(8, 13, 11))
-        drawTitleGrid(canvas)
+        drawMenuBackdrop(canvas, 145)
         drawIconButton(canvas, challengeBackRect, sprites.hudBack, "", Color.rgb(18, 29, 23), Color.rgb(180, 199, 185), true)
         drawCenteredText(canvas, "CHALLENGES", viewWidth * 0.5f, viewHeight * 0.15f, min(dp(38f), viewHeight * 0.082f), Color.rgb(236, 239, 231), true, true)
         drawCenteredText(canvas, "OFFLINE  •  SEEDED", viewWidth * 0.5f, viewHeight * 0.205f, dp(9f), Color.rgb(93, 220, 255), true)
@@ -4186,12 +4216,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawChallengeCard(
             canvas,
             challengeDailyRect,
-            "DAILY",
+            "",
             dailySeed.toString(),
             modifierForSeed(dailySeed),
             Color.rgb(190, 244, 78),
-            sprites.hudChallenge,
-            "W$bestDailyWave"
+            sprites.menuBadgeDaily,
+            bestDailyWave.toString()
         )
         val customSeed = customSeedValue()
         drawChallengeCard(
@@ -4201,8 +4231,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             customSeed.toString(),
             modifierForSeed(customSeed),
             Color.rgb(93, 220, 255),
-            sprites.hudContinue,
-            "W$bestCustomWave"
+            sprites.hudChallenge,
+            bestCustomWave.toString()
         )
 
         drawRoundedRect(canvas, seedInputRect.left, seedInputRect.top, seedInputRect.right, seedInputRect.bottom, dp(11f), Color.rgb(18, 30, 24))
@@ -4240,10 +4270,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
         drawBitmapCentered(canvas, icon, rect.left + rect.width() * 0.24f, rect.centerY(), min(rect.height() * 0.58f, rect.width() * 0.30f))
         val textX = rect.left + rect.width() * 0.64f
-        drawCenteredText(canvas, title, textX, rect.top + rect.height() * 0.27f, dp(16f), accent, true, true)
-        drawCenteredText(canvas, seed, textX, rect.top + rect.height() * 0.48f, dp(10f), Color.rgb(185, 199, 188), true)
-        drawCenteredText(canvas, modifier.title.uppercase(), textX, rect.top + rect.height() * 0.68f, min(dp(10f), rect.width() * 0.038f), Color.WHITE, true)
-        drawCenteredText(canvas, record, rect.right - dp(20f), rect.bottom - dp(14f), dp(8f), Color.rgb(116, 139, 123), true)
+        if (title.isNotEmpty()) {
+            drawCenteredText(canvas, title, textX, rect.top + rect.height() * 0.27f, dp(16f), accent, true, true)
+        }
+        drawCenteredText(canvas, seed, textX, rect.top + rect.height() * (if (title.isEmpty()) 0.38f else 0.48f), dp(10f), Color.rgb(185, 199, 188), true)
+        drawCenteredText(canvas, modifier.title.uppercase(), textX, rect.top + rect.height() * (if (title.isEmpty()) 0.61f else 0.68f), min(dp(10f), rect.width() * 0.038f), Color.WHITE, true)
+        val recordY = rect.bottom - dp(15f)
+        drawBitmapCentered(canvas, sprites.menuBadgeBest, rect.right - dp(42f), recordY, min(dp(22f), rect.height() * 0.18f))
+        drawCenteredText(canvas, record, rect.right - dp(18f), recordY, dp(9f), Color.rgb(255, 194, 92), true, true)
     }
 
     private fun drawPerkDraft(canvas: Canvas) {
@@ -5207,7 +5241,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val statWidth = min(dp(88f), max(dp(52f), (statAreaRight - statLeft - statGap * 2f) / 3f))
         drawHudStat(canvas, statLeft, statWidth, sprites.forgeCache, formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
         drawHudStat(canvas, statLeft + statWidth + statGap, statWidth, sprites.corePart, 0, "$lives/$maxCore", Color.rgb(255, 112, 96))
-        drawHudStat(canvas, statLeft + (statWidth + statGap) * 2f, statWidth, sprites.hudChallenge, waveNumber.toString(), Color.rgb(93, 220, 255))
+        drawHudStat(canvas, statLeft + (statWidth + statGap) * 2f, statWidth, sprites.menuBadgeWave, waveNumber.toString(), Color.rgb(93, 220, 255))
 
         val resourcesLeft = statLeft + statWidth * 3f + statGap * 2f + dp(7f)
         val resourcesRight = resetPathRect.left - dp(5f)
@@ -5233,7 +5267,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             phase == GamePhase.WAVE && activeWaveNumbers.isNotEmpty() -> true
             else -> false
         }
-        val actionIcon = if (phase == GamePhase.REFORGE) sprites.hudConfirm else sprites.hudPlay
+        val actionIcon = when (phase) {
+            GamePhase.REFORGE -> sprites.hudConfirm
+            GamePhase.BUILD, GamePhase.WAVE -> sprites.menuBadgeWave
+            else -> sprites.hudPlay
+        }
         val actionLabel = when (phase) {
             GamePhase.BUILD -> if (nextWaveTimer > 0f) "W${waveNumber + 1}  ${nextWaveCountdownSeconds()}s" else "WAVE ${waveNumber + 1}"
             GamePhase.REFORGE -> "FORGE"
@@ -5617,16 +5655,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         strokePaint.strokeWidth = dp(1f)
         strokePaint.color = Color.rgb(54, 72, 60)
         canvas.drawRoundRect(cardLeft, cardTop, cardLeft + cardWidth, cardBottom, dp(14f), dp(14f), strokePaint)
-        drawResultStat(canvas, cardLeft + cardWidth * 0.18f, cardTop, cardBottom, "SCORE", formatNumber(score), accent)
-        drawResultStat(canvas, cardLeft + cardWidth * 0.50f, cardTop, cardBottom, "WAVE", waveNumber.toString(), Color.rgb(93, 220, 255))
+        drawResultStat(canvas, cardLeft + cardWidth * 0.18f, cardTop, cardBottom, sprites.forgeCache, formatNumber(score), accent)
+        drawResultStat(canvas, cardLeft + cardWidth * 0.50f, cardTop, cardBottom, sprites.menuBadgeWave, waveNumber.toString(), Color.rgb(93, 220, 255))
         val modeBest = when (gameMode) { GameMode.ENDLESS -> bestWave; GameMode.DAILY -> bestDailyWave; GameMode.CUSTOM -> bestCustomWave }
-        drawResultStat(canvas, cardLeft + cardWidth * 0.82f, cardTop, cardBottom, "BEST", modeBest.toString(), Color.rgb(255, 188, 96))
+        drawResultStat(canvas, cardLeft + cardWidth * 0.82f, cardTop, cardBottom, sprites.menuBadgeBest, modeBest.toString(), Color.rgb(255, 188, 96))
         drawEndButtons(canvas, if (gameMode == GameMode.ENDLESS) "NEW RUN" else "RETRY", "MENU")
     }
 
-    private fun drawResultStat(canvas: Canvas, x: Float, top: Float, bottom: Float, label: String, value: String, color: Int) {
-        drawCenteredText(canvas, value, x, top + (bottom - top) * 0.48f, dp(19f), color, true, true)
-        drawCenteredText(canvas, label, x, top + (bottom - top) * 0.73f, dp(8f), Color.rgb(118, 137, 124), true)
+    private fun drawResultStat(canvas: Canvas, x: Float, top: Float, bottom: Float, icon: Bitmap, value: String, color: Int) {
+        val height = bottom - top
+        drawBitmapCentered(canvas, icon, x, top + height * 0.34f, min(dp(42f), height * 0.44f))
+        drawCenteredText(canvas, value, x, top + height * 0.74f, dp(18f), color, true, true)
     }
 
     private fun drawEndButtons(canvas: Canvas, primary: String, secondary: String) {
@@ -5658,10 +5697,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val labelCenter = iconX + (rect.right - iconX) * 0.53f
             drawCenteredText(canvas, label, labelCenter, rect.centerY(), min(dp(10f), min(rect.height() * 0.24f, rect.width() * 0.075f)), if (enabled) accent else Color.rgb(82, 98, 87), true)
         }
-    }
-
-    private fun drawMenuButton(canvas: Canvas, rect: RectF, icon: Bitmap, label: String, accent: Int, enabled: Boolean) {
-        drawIconButton(canvas, rect, icon, label, if (enabled) Color.rgb(17, 30, 23) else Color.rgb(12, 20, 16), accent, enabled, enabled)
     }
 
     private fun drawResourcePill(canvas: Canvas, left: Float, top: Float, width: Float, bottom: Float, icon: Bitmap, value: String, accent: Int) {
@@ -5775,6 +5810,23 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         } else {
             canvas.drawBitmap(bitmap, null, destination, spritePaint)
         }
+    }
+
+    private fun drawBitmapCover(canvas: Canvas, bitmap: Bitmap, destination: RectF) {
+        val targetWidth = max(1f, destination.width())
+        val targetHeight = max(1f, destination.height())
+        val targetRatio = targetWidth / targetHeight
+        val bitmapRatio = bitmap.width.toFloat() / max(1, bitmap.height).toFloat()
+        val source = if (bitmapRatio > targetRatio) {
+            val sourceWidth = max(1, (bitmap.height * targetRatio).toInt()).coerceAtMost(bitmap.width)
+            val left = (bitmap.width - sourceWidth) / 2
+            Rect(left, 0, left + sourceWidth, bitmap.height)
+        } else {
+            val sourceHeight = max(1, (bitmap.width / targetRatio).toInt()).coerceAtMost(bitmap.height)
+            val top = (bitmap.height - sourceHeight) / 2
+            Rect(0, top, bitmap.width, top + sourceHeight)
+        }
+        canvas.drawBitmap(bitmap, source, destination, spritePaint)
     }
 
     private fun drawRoundedRect(canvas: Canvas, left: Float, top: Float, right: Float, bottom: Float, radius: Float, color: Int) {

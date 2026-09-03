@@ -47,35 +47,39 @@ font-size 17 fill '#bef44e' text 1262,70 'FANTASY x MACHINERY'
 font-size 15 fill '#7d9685' text 75,151 'TITLE MENU'
 font-size 15 fill '#7d9685' text 797,151 'IN-GAME HUD'
 
-# Title menu card + soft shadow
-fill '#020604' roundrectangle 60,180 740,560 22,22
-fill '#080e0b' stroke '#493e2a' stroke-width 2 roundrectangle 70,170 730,541 18,18
-stroke '#536557' stroke-width 1 opacity 0.13
-line 70,244 730,244 line 70,318 730,318 line 70,392 730,392 line 70,466 730,466
-line 152,170 152,541 line 234,170 234,541 line 316,170 316,541 line 398,170 398,541 line 480,170 480,541 line 562,170 562,541 line 644,170 644,541
-opacity 1 stroke none
-image over 88,185 45,45 '$DRAWABLE/hud_menu.png'
-font-size 11 fill '#82998a' text 146,214 'V1.4.4'
-fill '#111f18' stroke '#47604d' stroke-width 1 roundrectangle 667,184 714,231 11,11
+# Title menu card + generated Batch 02 scene
+fill '#020604' roundrectangle 60,180 740,615 22,22
+image over 70,170 660,430 '$DRAWABLE/title_background.png'
+fill '#020806' fill-opacity 0.22 rectangle 70,170 730,600
+fill '#03100c' fill-opacity 0.58 rectangle 70,544 730,600
+fill-opacity 1
+fill none stroke '#6e5934' stroke-width 2 roundrectangle 70,170 730,600 18,18
+stroke none
+font-size 11 fill '#a9baae' text 91,198 'V1.4.4'
+fill '#0b1712' stroke '#47604d' stroke-width 1 roundrectangle 667,184 714,231 11,11
 stroke none image over 673,190 35,35 '$DRAWABLE/hud_sound_on.png'
-image over 150,258 75,75 '$TMP/gate.png'
-image over 575,258 75,75 '$TMP/core.png'
-font-size 43 fill '#eef0e8' text 286,296 'BLOCKHOLD'
-font-size 15 fill '#bef44e' text 358,327 'DEFENSE'
-fill '#bef44e' opacity 0.45 rectangle 337,341 463,343
-opacity 1
 
-# Title actions
-fill '#13251b' stroke '#91bd42' stroke-width 2 roundrectangle 93,399 288,482 13,13
-stroke none image over 111,413 55,55 '$DRAWABLE/hud_play.png'
-font-size 15 fill '#bef44e' text 189,449 'NEW RUN'
-fill '#12231b' stroke '#4f9eaa' stroke-width 2 roundrectangle 302,399 497,482 13,13
-stroke none image over 320,413 55,55 '$DRAWABLE/hud_continue.png'
-font-size 15 fill '#5ddcff' text 395,449 'CONTINUE'
-fill '#211a12' stroke '#a87540' stroke-width 2 roundrectangle 511,399 706,482 13,13
-stroke none image over 529,413 55,55 '$DRAWABLE/hud_challenge.png'
-font-size 14 fill '#ffbe68' text 601,449 'CHALLENGES'
-font-size 10 fill '#6f8978' text 285,518 'BEST W18   -   DAILY W9   -   CUSTOM W14'
+# One generated logo sprite replaces live title typography
+image over 221,183 358,161 '$DRAWABLE/title_logo.png'
+
+# Three generated button plates in one vertical stack
+image over 239,307 322,69 '$DRAWABLE/title_button_new_run.png'
+font-size 16 fill '#bef44e' text 376,349 'NEW RUN'
+image over 239,377 322,69 '$DRAWABLE/title_button_continue.png'
+font-size 16 fill '#5ddcff' text 371,419 'CONTINUE'
+image over 239,447 322,69 '$DRAWABLE/title_button_challenges.png'
+font-size 15 fill '#ffbe68' text 365,489 'CHALLENGES'
+
+# Sprite-led records: crown = score, energy wave = best wave, calendar = daily
+fill '#09130f' stroke '#735d32' stroke-width 1 roundrectangle 181,536 317,586 11,11
+stroke none image over 189,541 40,40 '$DRAWABLE/menu_badge_best.png'
+font-size 14 fill '#ffc25c' text 244,568 '124K'
+fill '#09130f' stroke '#315c66' stroke-width 1 roundrectangle 332,536 468,586 11,11
+stroke none image over 340,541 40,40 '$DRAWABLE/menu_badge_wave.png'
+font-size 16 fill '#5ddcff' text 410,568 '18'
+fill '#09130f' stroke '#657b34' stroke-width 1 roundrectangle 483,536 619,586 11,11
+stroke none image over 491,541 40,40 '$DRAWABLE/menu_badge_daily.png'
+font-size 16 fill '#bef44e' text 561,568 '9'
 
 # In-game card + top dock
 fill '#020604' roundrectangle 780,180 1540,605 22,22
@@ -91,14 +95,14 @@ fill '#101d16' roundrectangle 891,178 979,223 9,9
 image over 898,184 33,33 '$TMP/core.png'
 font-size 15 fill '#ff7060' text 939,207 '12/12'
 fill '#101d16' roundrectangle 984,178 1058,223 9,9
-image over 991,185 31,31 '$DRAWABLE/hud_challenge.png'
+image over 991,185 31,31 '$DRAWABLE/menu_badge_wave.png'
 font-size 16 fill '#5ddcff' text 1032,207 '7'
 image over 1068,187 29,29 '$DRAWABLE/hud_reforge.png'
 font-size 13 fill '#d5b6ff' text 1102,207 '2'
 
 # Wave, sound, pause controls
 fill '#1c2c1d' stroke '#759638' stroke-width 1 roundrectangle 1220,178 1357,223 9,9
-stroke none image over 1227,184 34,34 '$DRAWABLE/hud_play.png'
+stroke none image over 1227,184 34,34 '$DRAWABLE/menu_badge_wave.png'
 font-size 14 fill '#bef44e' text 1276,207 'WAVE 8'
 fill '#101d16' stroke '#364c3c' stroke-width 1 roundrectangle 1364,178 1412,223 9,9
 stroke none image over 1372,185 32,32 '$DRAWABLE/hud_sound_on.png'
@@ -146,21 +150,23 @@ fill '#0e1914' stroke '#344b3b' stroke-width 1 roundrectangle 1351,492 1491,574 
 stroke none image over 1395,497 51,51 '$DRAWABLE/tower_ember_base.png'
 font-size 11 fill '#dce8df' text 1377,565 'EMBER - 145'
 
-# First 10-sprite production batch
-font-size 15 fill '#7d9685' text 75,628 'AI CONTROL SPRITES  -  BATCH 01 / 10'
-fill '#0d1812' stroke '#3f392a' stroke-width 1 roundrectangle 72,652 1528,757 16,16
+# Eight-sprite title/menu production batch
+font-size 15 fill '#7d9685' text 75,638 'AI MENU SPRITES  -  BATCH 02 / 8'
+fill '#0d1812' stroke '#3f392a' stroke-width 1 roundrectangle 72,652 1528,790 16,16
 stroke none
-image over 97,665 80,80 '$DRAWABLE/hud_play.png'
-image over 243,665 80,80 '$DRAWABLE/hud_continue.png'
-image over 389,665 80,80 '$DRAWABLE/hud_challenge.png'
-image over 535,665 80,80 '$DRAWABLE/hud_sound_on.png'
-image over 681,665 80,80 '$DRAWABLE/hud_sound_off.png'
-image over 827,665 80,80 '$DRAWABLE/hud_pause.png'
-image over 973,665 80,80 '$DRAWABLE/hud_reforge.png'
-image over 1119,665 80,80 '$DRAWABLE/hud_confirm.png'
-image over 1265,665 80,80 '$DRAWABLE/hud_back.png'
-image over 1411,665 80,80 '$DRAWABLE/hud_menu.png'
-font 'DejaVu-Sans' font-size 14 fill '#8da293' text 421,827 'Minimal copy  -  sprite-first actions  -  more battlefield space  -  unified brass-and-rune chrome'
+image over 91,669 190,107 '$DRAWABLE/title_background.png'
+image over 302,681 180,81 '$DRAWABLE/title_logo.png'
+image over 505,689 155,50 '$DRAWABLE/title_button_new_run.png'
+image over 670,689 155,50 '$DRAWABLE/title_button_continue.png'
+image over 835,689 155,50 '$DRAWABLE/title_button_challenges.png'
+image over 1035,676 78,78 '$DRAWABLE/menu_badge_best.png'
+image over 1143,676 78,78 '$DRAWABLE/menu_badge_wave.png'
+image over 1251,676 78,78 '$DRAWABLE/menu_badge_daily.png'
+font-size 10 fill '#779083' text 112,782 'BACKDROP'
+font-size 10 fill '#779083' text 356,782 'LOGO'
+font-size 10 fill '#779083' text 674,782 'STACKED ACTION PLATES'
+font-size 10 fill '#779083' text 1093,782 'RECORD GLYPHS'
+font 'DejaVu-Sans' font-size 14 fill '#8da293' text 382,842 'Generated title scene  -  one-piece logo  -  stacked action plates  -  sprite-led records'
 MVG
 
 convert -size 1600x900 xc:'#07100c' -draw "@$MVG" -strip -depth 8 "$OUTPUT"
