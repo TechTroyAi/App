@@ -59,6 +59,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         private const val MAX_INVENTORY_CAPACITY = 45
         private const val INVENTORY_PAGE_SIZE = 5
         private const val BUILD_SHELF_SLIDE_DURATION = 0.30f
+        /** v1.4.4 Forge Overdrive — meter fills from enemy kills, boosts all towers briefly. */
+        private const val OVERDRIVE_MAX = 100f
+        private const val OVERDRIVE_DURATION = 8.0f
+        private const val OVERDRIVE_FIRE_RATE_BOOST = 0.55f
+        private const val OVERDRIVE_DAMAGE_BOOST = 1.25f
     }
 
     private val stateLock = Any()
@@ -178,6 +183,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var routeOilWaves = 0
     private var scrapMagnetKills = 0
 
+    /** v1.4.4 Forge Overdrive — fills on kills, activated by the player for a timed boost. */
+    private var overdriveCharge = 0f
+    private var overdriveActive = false
+    private var overdriveTimer = 0f
+    private var overdriveMaxTimer = OVERDRIVE_DURATION
+    private var overdriveFlash = 0f
+    /** v1.4.4 Wave Momentum — tracks core health at wave start for perfect-clear bonus. */
+    private var livesAtWaveStart = STARTING_CORE
+    private var perfectWaveStreak = 0
+
     /** Crafts C1: brief Hex immunity per tower cell key. */
     private var coolingImmunity = HashMap<Int, Float>()
     private var reforgeCost = 0
@@ -281,6 +296,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val workshopBackRect = RectF()
     private val workshopPreviousRect = RectF()
     private val workshopNextRect = RectF()
+    /** v1.4.4 Overdrive activation button — sits between resource stats and primary action. */
+    private val overdriveRect = RectF()
 
     /**
      * The game is a custom SurfaceView, so the challenge seed uses a lightweight input connection
@@ -482,6 +499,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         primaryActionRect.set(soundRect.left - dp(8f) - actionWidth, top, soundRect.left - dp(8f), bottom)
         val resetWidth = if (compactTopControls) smallButton else min(dp(96f), viewWidth * 0.13f)
         resetPathRect.set(primaryActionRect.left - dp(7f) - resetWidth, top, primaryActionRect.left - dp(7f), bottom)
+        // v1.4.4: Forge Overdrive button sits between the reset/reforge control and the primary
+        // action, so it's reachable without leaving the command cluster during combat.
+        val overdriveWidth = if (compactTopControls) smallButton else min(dp(72f), viewWidth * 0.10f)
+        overdriveRect.set(resetPathRect.left - dp(7f) - overdriveWidth, top, resetPathRect.left - dp(7f), bottom)
 
         val toolTop = viewHeight - bottomBarHeight + dp(9f)
         val toolBottom = viewHeight - dp(9f)
@@ -684,6 +705,26 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         lastDisplayedGold = gold
         lastDisplayedForge = forgeCharges
         if (screenShake > 0f) screenShake -= delta
+        // v1.4.4 Forge Overdrive — tick the active boost and its flash
+        if (overdriveActive) {
+            overdriveTimer = max(0f, overdriveTimer - delta)
+            overdriveFlash = max(0f, overdriveFlash - delta * 1.5f)
+            if (overdriveTimer <= 0f) {
+                overdriveActive = false
+                overdriveTimer = 0f
+                // v1.4.4 Overdrive Resonance — all towers fire a bonus shot as the boost ends
+                for (tower in towers) {
+                    if (tower.disabledTimer > 0f) continue
+                    val target = findTarget(tower)
+                    if (target != null) {
+                        tower.cooldown = 0f
+                        burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 215, 80), 4, 0.5f)
+                    }
+                }
+                setBanner("OVERDRIVE RESONANCE  •  BONUS VOLLEY", 1.8f)
+                audio.play("build", 0.50f, 1.40f)
+            }
+        }
         if (phase == GamePhase.BUILD && nextWaveTimer >= 0f && pendingPerkWaves.isEmpty()) {
             nextWaveTimer = max(0f, nextWaveTimer - delta)
             if (nextWaveTimer <= 0f) startWave()
@@ -859,6 +900,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     if (hasHarmonyNear(tower)) interval *= 0.80f
                     interval *= sparkRelayIntervalMul(tower.col, tower.row)
                     if (perkCount(ForgePerk.LAST_BASTION) > 0 && distanceSquared(tower.col + 0.5f, tower.row + 0.5f, COLS - 0.5f, START_ROW + 0.5f) <= 14f) interval *= max(0.55f, 1f - perkCount(ForgePerk.LAST_BASTION) * 0.10f)
+                    // v1.4.4 Forge Overdrive — all towers fire faster while active
+                    if (overdriveActive) interval *= OVERDRIVE_FIRE_RATE_BOOST
                     tower.cooldown = interval
                     tower.recoil = 1f
                 }
@@ -1291,6 +1334,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun fireTower(tower: Tower, target: Enemy) {
         var damage = tower.currentDamage()
+        // v1.4.4 Forge Overdrive — bonus damage while active (+ perk scaling)
+        if (overdriveActive) damage *= OVERDRIVE_DAMAGE_BOOST * (1f + perkCount(ForgePerk.OVERDRIVE_MASTERY) * 0.10f)
         if (perkCount(ForgePerk.CORNER_AMBUSH) > 0 && enemyOnCorner(target)) damage *= 1f + perkCount(ForgePerk.CORNER_AMBUSH) * 0.22f
         damage *= battleBannerDamageBonus(tower.col, tower.row)
         if (tower.imbuement == Imbuement.SIEGE && (target.kind.elite || target.kind.boss)) damage *= 1.22f
@@ -1753,6 +1798,29 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if ((enemy.kind.elite || enemy.kind.boss) && perkCount(ForgePerk.ELITE_BOUNTIES) > 0) bounty = (bounty * (1f + perkCount(ForgePerk.ELITE_BOUNTIES) * 0.50f)).toInt()
             gold = safeAdd(gold, bounty)
             score = safeAdd(score, bounty * 10)
+            // v1.4.4 Forge Overdrive — kills charge the overdrive meter (elites/bosses give more)
+            if (!overdriveActive) {
+                val chargeGain = when {
+                    enemy.kind.boss -> 35f
+                    enemy.kind.elite -> 15f
+                    else -> 4f
+                }
+                overdriveCharge = min(OVERDRIVE_MAX, overdriveCharge + chargeGain)
+            } else {
+                // v1.4.4 Overdrive Kill Chain — kills during overdrive extend the timer
+                val extendSec = when {
+                    enemy.kind.boss -> 1.2f
+                    enemy.kind.elite -> 0.5f
+                    else -> 0.15f
+                }
+                val maxExtension = overdriveMaxTimer + 5f
+                if (overdriveTimer < maxExtension) {
+                    overdriveTimer = min(maxExtension, overdriveTimer + extendSec)
+                    if (random.nextFloat() < 0.3f) {
+                        floatingLabels.add(FloatingLabel("+${(extendSec * 10).toInt()}", enemy.x, enemy.y - 0.3f, Color.rgb(255, 215, 80), 0.5f, pop = 1.1f))
+                    }
+                }
+            }
             if (scrapMagnetKills > 0) {
                 scrapMagnetKills -= 1
                 salvageParts = safeAdd(salvageParts, 1)
@@ -1910,6 +1978,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val utilityIncome = processUtilityWaveClear()
         gold = safeAdd(gold, safeAdd(reward, utilityIncome))
         score = safeAdd(score, reward * 5 + utilityIncome * 3)
+        // v1.4.4 Wave Momentum — perfect wave (no core damage) charges overdrive + streak bonus
+        if (lives >= livesAtWaveStart && !overdriveActive) {
+            perfectWaveStreak += 1
+            val momentumBonus = 8f + min(12f, perfectWaveStreak * 2f)
+            overdriveCharge = min(OVERDRIVE_MAX, overdriveCharge + momentumBonus)
+            if (perfectWaveStreak >= 3) {
+                floatingLabels.add(FloatingLabel("MOMENTUM ×$perfectWaveStreak", COLS * 0.5f, ROWS * 0.5f, Color.rgb(255, 215, 80), life = 1.4f, pop = 1.4f))
+            }
+        } else {
+            perfectWaveStreak = 0
+        }
         if (surveyLensWaves > 0) surveyLensWaves -= 1
         if (completedWave % 5 == 0 && perkCount(ForgePerk.CORE_REGENERATION) > 0) {
             lives = min(maxCore, lives + perkCount(ForgePerk.CORE_REGENERATION))
@@ -2104,6 +2183,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         waveQueue.clear()
         spawnIndex = 0
         nextWaveTimer = -1f
+        // v1.4.4: reset overdrive state on run end
+        overdriveCharge = 0f
+        overdriveActive = false
+        overdriveTimer = 0f
+        overdriveMaxTimer = OVERDRIVE_DURATION
+        overdriveFlash = 0f
+        perfectWaveStreak = 0
+        livesAtWaveStart = STARTING_CORE
         selectedTower = null
         selectedTrap = null
         selectedUtility = null
@@ -2125,6 +2212,48 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (clearedWave > bestCustomWave) { bestCustomWave = clearedWave; editor.putInt("best_custom_wave", bestCustomWave) }
         }
         editor.apply()
+    }
+
+    /** v1.4.4: Forge Overdrive — player-activated burst that speeds all towers and boosts damage. */
+    private fun activateOverdrive() {
+        if (overdriveActive || overdriveCharge < OVERDRIVE_MAX) return
+        if (phase != GamePhase.WAVE && phase != GamePhase.BUILD) return
+        overdriveActive = true
+        val masteryDuration = OVERDRIVE_DURATION * (1f + perkCount(ForgePerk.OVERDRIVE_MASTERY) * 0.50f)
+        overdriveTimer = masteryDuration
+        overdriveMaxTimer = masteryDuration
+        overdriveCharge = 0f
+        overdriveFlash = 1f
+        setBanner("FORGE OVERDRIVE  •  ${masteryDuration.toInt()}S BOOST", 2.2f)
+        audio.play("build", 0.70f, 1.30f)
+        screenShake = max(screenShake, 0.25f)
+        // Visual burst: particles from every tower + screen-wide gold flash
+        for (tower in towers) {
+            burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 200, 60), 8, 0.8f)
+            burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 255, 180), 4, 0.5f)
+        }
+        // v1.4.4 Forge Echo perk — traps pulse bonus damage to enemies on the path
+        if (perkCount(ForgePerk.FORGE_ECHO) > 0) {
+            val echoDamage = perkCount(ForgePerk.FORGE_ECHO) * 25f
+            for (trap in traps) {
+                trap.pulse = 1f
+                burst(trap.col + 0.5f, trap.row + 0.5f, trap.kind.accent, 6, 0.6f)
+                for (enemy in enemies) {
+                    if (!enemy.targetable) continue
+                    if (distanceSquared(enemy.x, enemy.y, trap.col + 0.5f, trap.row + 0.5f) <= 1.5f) {
+                        damageEnemy(enemy, echoDamage, trap.kind.accent, 0.3f)
+                    }
+                }
+            }
+            floatingLabels.add(FloatingLabel("FORGE ECHO", COLS * 0.5f, ROWS * 0.3f, Color.rgb(255, 183, 105), life = 1.2f, pop = 1.4f))
+        }
+        // Bonus: wave momentum streak adds to overdrive duration
+        if (perfectWaveStreak >= 3) {
+            val bonusDuration = min(4f, perfectWaveStreak * 0.5f)
+            overdriveTimer += bonusDuration
+            overdriveMaxTimer = overdriveTimer
+            setBanner("FORGE OVERDRIVE  •  ${overdriveTimer.toInt()}S  MOMENTUM ×$perfectWaveStreak", 2.4f)
+        }
     }
 
     private fun startWave() {
@@ -2155,6 +2284,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedCorruption = null
         phase = GamePhase.WAVE
+        // v1.4.4 Wave Momentum — snapshot core health for perfect-clear overdrive bonus
+        livesAtWaveStart = lives
         for (tower in towers) if (tower.imbuement == Imbuement.SURGE) tower.surgeCharges = 3
         for (trap in traps) if (trap.imbuement == Imbuement.SURGE) trap.surgeCharges = 3
         val message = when {
@@ -3265,6 +3396,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     if (phase == GamePhase.REFORGE) cancelReforge()
                     else if (phase == GamePhase.BUILD && waveNumber == 0) resetPath()
                     else if (phase == GamePhase.BUILD) startReforge()
+                    return true
+                }
+                // v1.4.4 Forge Overdrive activation
+                if (overdriveRect.contains(x, y)) {
+                    if (overdriveCharge >= OVERDRIVE_MAX && !overdriveActive) {
+                        activateOverdrive()
+                    } else if (overdriveActive) {
+                        setBanner("OVERDRIVE ALREADY ACTIVE", 1.2f)
+                    } else {
+                        setBanner("OVERDRIVE ${overdriveCharge.toInt()}/${OVERDRIVE_MAX.toInt()}", 1.2f)
+                    }
                     return true
                 }
                 if (primaryActionRect.contains(x, y)) {
@@ -4576,6 +4718,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawBottomBar(canvas)
         drawBanner(canvas)
         canvas.restore()
+        // v1.4.4 Forge Overdrive — screen-wide gold flash on activation
+        if (overdriveFlash > 0.02f) {
+            paint.color = Color.argb((overdriveFlash * 120f).toInt().coerceIn(0, 255), 255, 215, 80)
+            canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        }
         when (phase) {
             GamePhase.PAUSED -> drawPauseOverlay(canvas)
             GamePhase.VICTORY, GamePhase.GAME_OVER -> drawEndOverlay(canvas)
@@ -5342,6 +5489,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.color = Color.argb(190, 100, 200, 255)
             canvas.drawCircle(x, y, tileSize * 0.48f, strokePaint)
         }
+        // v1.4.4 Forge Overdrive — warm gold machinery glow on all towers while active
+        if (overdriveActive) {
+            val pulse = 0.5f + 0.5f * sin(ambientTime * 6f + tower.col * 0.5f + tower.row * 0.7f)
+            paint.color = Color.argb((35 + pulse * 30).toInt().coerceIn(0, 255), 255, 200, 60)
+            canvas.drawCircle(x, y, tileSize * (0.44f + pulse * 0.04f), paint)
+            strokePaint.strokeWidth = tileSize * 0.03f
+            strokePaint.color = Color.argb((120 + pulse * 80).toInt().coerceIn(0, 255), 255, 215, 80)
+            canvas.drawCircle(x, y, tileSize * 0.46f, strokePaint)
+        }
         if (tower.disabledTimer > 0f) drawHexShackle(canvas, x, y)
         drawRankDots(canvas, x, y + tileSize * 0.37f, tower.level, tower.overcharge, tower.kind.accent)
         drawImbuementGlyph(canvas, x, y, tower.imbuement)
@@ -5670,6 +5826,85 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawUiButton(canvas, soundRect, "", if (audio.isEnabled()) sprites.menuIconSoundOn else sprites.menuIconSoundOff, UiControlTone.SECONDARY)
         drawUiButton(canvas, feedbackToggleRect, "", sprites.uiIconFeedback, if (feedbackEnabled) UiControlTone.SECONDARY else UiControlTone.WARNING)
         drawUiButton(canvas, pauseRect, "", sprites.uiIconPause, UiControlTone.SECONDARY)
+        // v1.4.4 Forge Overdrive meter + activation button
+        drawOverdriveButton(canvas)
+    }
+
+    /**
+     * v1.4.4: Forge Overdrive button — shows charge progress as a radial fill ring around an
+     * arcane gear icon. Pulses gold when full; glows hot while active.
+     */
+    private fun drawOverdriveButton(canvas: Canvas) {
+        val rect = overdriveRect
+        val ready = overdriveCharge >= OVERDRIVE_MAX && !overdriveActive
+        val active = overdriveActive
+        // Background button skin
+        val tone = when {
+            active -> UiControlTone.WARNING
+            ready -> UiControlTone.ACCENT
+            else -> UiControlTone.SECONDARY
+        }
+        val icon = when {
+            active -> sprites.uiIconLaunch
+            else -> sprites.uiIconReforge
+        }
+        drawUiButton(canvas, rect, "", icon, tone)
+
+        val cx = rect.centerX()
+        val cy = rect.centerY()
+        val radius = min(rect.width(), rect.height()) * 0.42f
+
+        // Charge fill arc (green→gold as it fills)
+        if (!active && overdriveCharge > 0f) {
+            val fillRatio = overdriveCharge / OVERDRIVE_MAX
+            val fillR = (93 + fillRatio * 162).toInt().coerceIn(0, 255)
+            val fillG = (220 + fillRatio * 35).toInt().coerceIn(0, 255)
+            val fillB = (255 - fillRatio * 177).toInt().coerceIn(0, 255)
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeWidth = max(2f, rect.height() * 0.08f)
+            strokePaint.color = Color.argb(220, fillR, fillG, fillB)
+            val ring = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+            canvas.drawArc(ring, -90f, 360f * fillRatio, false, strokePaint)
+        }
+
+        // Ready pulse when full
+        if (ready) {
+            val pulse = 0.5f + 0.5f * sin(ambientTime * 6f)
+            paint.color = Color.argb((60 + pulse * 80).toInt().coerceIn(0, 255), 255, 215, 80)
+            canvas.drawCircle(cx, cy, radius * (1.05f + pulse * 0.08f), paint)
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeWidth = max(2f, rect.height() * 0.06f)
+            strokePaint.color = Color.argb(230, 255, 215, 80)
+            canvas.drawCircle(cx, cy, radius * 1.12f, strokePaint)
+        }
+
+        // Active countdown ring (red→orange drain)
+        if (active) {
+            val remaining = if (overdriveMaxTimer > 0f) overdriveTimer / overdriveMaxTimer else 0f
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeWidth = max(2.5f, rect.height() * 0.09f)
+            strokePaint.color = Color.argb(240, 255, (100 + remaining * 100).toInt().coerceIn(0, 255), 40)
+            val ring = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+            canvas.drawArc(ring, -90f, 360f * remaining, false, strokePaint)
+            // Hot glow
+            val hotPulse = 0.5f + 0.5f * sin(ambientTime * 8f)
+            paint.color = Color.argb((30 + hotPulse * 40).toInt().coerceIn(0, 255), 255, 140, 40)
+            canvas.drawCircle(cx, cy, radius * 0.70f, paint)
+        }
+
+        // Charge label
+        val labelSize = min(dp(7f), rect.height() * 0.18f)
+        val label = when {
+            active -> "${overdriveTimer.toInt()}S"
+            ready -> "GO"
+            else -> "${overdriveCharge.toInt()}"
+        }
+        val labelColor = when {
+            active -> Color.rgb(255, 200, 80)
+            ready -> Color.rgb(255, 215, 80)
+            else -> Color.rgb(180, 200, 190)
+        }
+        drawCenteredText(canvas, label, cx, cy + radius + labelSize * 0.8f, labelSize, labelColor, true)
     }
 
     /** The left status group carries only phase, Forge Charges, and Evolution Cores. */

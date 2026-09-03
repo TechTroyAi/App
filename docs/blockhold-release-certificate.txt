@@ -1,27 +1,91 @@
------BEGIN CERTIFICATE-----
-MIIEqTCCAxGgAwIBAgIIHBF5L0zu0IEwDQYJKoZIhvcNAQELBQAwgYExCzAJBgNV
-BAYTAlBIMRUwEwYDVQQIEwxEYXZhbyBSZWdpb24xEzARBgNVBAcTCkRhdmFvIENp
-dHkxEzARBgNVBAoTClRlY2hUcm95QWkxFTATBgNVBAsTDEdhbWUgUmVsZWFzZTEa
-MBgGA1UEAxMRQmxvY2tob2xkIERlZmVuc2UwIBcNMjYwODI2MTQwMDI3WhgPMjA1
-NDAxMTExNDAwMjdaMIGBMQswCQYDVQQGEwJQSDEVMBMGA1UECBMMRGF2YW8gUmVn
-aW9uMRMwEQYDVQQHEwpEYXZhbyBDaXR5MRMwEQYDVQQKEwpUZWNoVHJveUFpMRUw
-EwYDVQQLEwxHYW1lIFJlbGVhc2UxGjAYBgNVBAMTEUJsb2NraG9sZCBEZWZlbnNl
-MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA2RtGWJzMRRgXnQ/agxSZ
-YoyldXRIueIlFdt4waAYzUarnFXkzEwzrned7ToHVHj9n09LMIXgZumHM1gtYV3X
-T+eCV2jpCqxuoyj2t0WOOLunl5EyOVHLyrQd94sW9gMDn63TG9G6Xh/nMKiuJSeO
-3GMnGKfWzTDiwgxNf2u99SJutcohy0botGga15sFCpfv1IwLdyrtqih5eiLhNyRz
-b3pgZhmz9wL16wLxC6sdUIwoa49Ck1G4ZX0D9m2EYG4Tn7C0ZzxKtndsHgVsaiD+
-lj1gtmtnNHnPFYt1/jW8xNPJmKrCNyqLPFjfeh7bPrhs+w4wsux9dnQJHv4iotif
-OcD9t16Nut2aT7NP+b20R++sroxak5bySPaqy1txttWlQ5DRGC+WpBDE5udd+Hh3
-3M6k0Aoe81Jf8+V91t9RZY8pGIFYtR8vhfBWafRYra9k/dnd4fVfESR2J2bqutjF
-IOvStLfDkB0wz+SmfT4aFpGJVmse4vZKE8KZjZTNWU2NAgMBAAGjITAfMB0GA1Ud
-DgQWBBRnf8L0PJcH2pzwy3U4HLDgdSy9YDANBgkqhkiG9w0BAQsFAAOCAYEAThRI
-ThB/ZfvRyb5pdD7oiUOEO7eXdpSevbI24Ko/DbXA34umTE09pVtkFPM6ke9IvXI0
-Ajhz13SDWL/3XLTMqq4AkLSFOuyEC12jIcJFsWwxo9KRiXG2sEfhd2zS1UzA6x7l
-+aQathpyHUUmeo5jnxvwdZZUSRBs2JziSlgS+HjGrMyWLDVxuTXgNWJYuXBe3nkY
-Sc6un6KMmzqNNPYTJYdWTwCY8csWp5RCC48sYG3sx0YNqWZhFVZpu/rVzZAfpnHx
-0Y+jDS65lnQtXV3BdIQQiBDFNFOd85FAPnj6RNr1C/SJlzmrtXQC8nNOSDUdHmv5
-jpaLKGaFHgI8bowGBfXjFJBgCHMW0i3nIHtdG48P51qp2SHUlMlG0ktyEfZETA2D
-ONy650KzCNaAr+WD5oVxkg5w4DljaVCPrvLFYmNPdGTGdlGBK8iIOjdGIZYSMy33
-AFv32xV2pblZF2p+KkPJ3pfy8quJxLBfebbRP7ctUMpgLw4nyjLIs4b1FuBj
------END CERTIFICATE-----
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            7c:06:db:95:24:61:5d:e8:42:ca:9f:5e:5d:da:e6:80:66:e6:67:58
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = TechTroyAi BlockHold Defense, OU = TechTroyAiBlockHoldDefense Creator Signature, O = TechTroyAi, L = Davao City, ST = Davao Region, C = PH
+        Validity
+            Not Before: Sep  3 05:04:17 2026 GMT
+            Not After : Aug 26 05:04:17 2056 GMT
+        Subject: CN = TechTroyAi BlockHold Defense, OU = TechTroyAiBlockHoldDefense Creator Signature, O = TechTroyAi, L = Davao City, ST = Davao Region, C = PH
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (4096 bit)
+                Modulus:
+                    00:df:33:b3:76:1d:5b:16:50:05:f4:3e:90:d1:3a:
+                    76:23:89:3e:74:11:76:f5:9b:98:b8:27:e4:11:4d:
+                    2a:9f:2d:bf:fc:f3:43:6a:65:d3:74:c4:61:81:d6:
+                    fa:7e:3f:27:65:ab:dc:4c:e0:ca:ec:62:ec:57:cf:
+                    11:34:ff:93:e4:e0:2f:e4:af:a7:24:6f:57:14:19:
+                    ac:a3:e7:78:f5:1f:a0:c8:be:bd:43:61:3e:4a:9b:
+                    69:b0:0c:82:32:6e:70:3b:bc:3e:b0:5a:3d:00:16:
+                    a1:10:1c:20:75:1e:c9:35:58:1f:51:7d:a7:4b:ec:
+                    79:b2:81:34:60:49:2e:dd:7d:dd:af:21:17:aa:e2:
+                    ba:b0:be:86:cf:13:33:35:ab:ca:a7:28:80:25:f9:
+                    f6:ea:10:2b:ba:9a:fc:9d:9d:47:63:eb:9b:d6:91:
+                    e1:b1:7c:fb:14:8a:80:7c:11:34:25:b7:8f:36:58:
+                    5e:9a:3a:e1:46:8d:8d:f3:d8:e0:f4:ce:40:b1:b8:
+                    78:a5:32:62:ba:57:80:75:76:46:4e:19:cc:77:bf:
+                    41:c9:cb:33:50:f9:66:bd:8c:1f:c2:28:b1:1b:d5:
+                    3e:a8:9a:50:16:f4:14:bf:9a:1f:62:0b:22:83:04:
+                    51:06:b0:0a:7e:e9:ec:c8:57:d2:03:e3:e9:91:80:
+                    60:63:f1:22:d9:a3:bd:45:b3:d4:a2:58:97:d9:ad:
+                    ff:fd:d8:fa:00:b9:9f:2c:b7:fd:21:46:3d:e2:03:
+                    75:b1:0b:e6:11:d8:9b:c9:d4:02:49:8c:de:f5:f8:
+                    47:c1:e2:bc:87:40:3c:74:2e:d0:f5:10:39:f7:b9:
+                    ec:46:5b:f2:32:4f:4c:a2:18:ab:4d:61:12:3e:54:
+                    03:df:76:4d:71:10:81:9b:6a:d1:9e:97:e3:79:2d:
+                    0d:48:7e:28:28:33:34:2f:42:49:4a:4d:ec:ab:8f:
+                    37:d6:2d:91:bb:8a:91:96:eb:fa:f9:f4:46:ff:83:
+                    bf:c7:68:3e:f8:f5:51:1c:69:4c:81:29:8c:0b:92:
+                    00:45:eb:32:0e:76:4e:4b:33:bc:88:86:29:1c:c8:
+                    e3:ea:6c:f5:d8:e0:b1:f5:f2:8a:12:c4:5c:4f:40:
+                    4f:99:c7:cb:59:ce:0e:a9:9a:c1:55:b4:e1:bd:34:
+                    a3:67:5e:ef:9b:da:80:01:9c:29:a8:e1:50:00:0d:
+                    e6:1f:0e:dc:18:05:b4:ed:f4:01:57:75:9d:a0:bd:
+                    ac:8f:49:a5:c9:ba:9f:46:76:b9:85:09:84:22:4c:
+                    ed:95:7c:ce:34:6d:ef:f3:3b:65:99:a3:ad:cb:4f:
+                    b2:63:ed:55:be:c0:8b:a0:dd:17:96:6b:f1:21:8b:
+                    bb:c8:7b
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Subject Key Identifier: 
+                4D:56:CB:8D:89:3F:F9:4F:76:B5:56:21:96:0E:82:FA:4C:F8:2B:4C
+            X509v3 Authority Key Identifier: 
+                4D:56:CB:8D:89:3F:F9:4F:76:B5:56:21:96:0E:82:FA:4C:F8:2B:4C
+            X509v3 Basic Constraints: critical
+                CA:FALSE
+            X509v3 Key Usage: critical
+                Digital Signature
+    Signature Algorithm: sha256WithRSAEncryption
+    Signature Value:
+        ac:1e:58:63:ed:db:81:b2:41:39:d1:b5:29:09:05:75:46:0f:
+        1e:26:de:75:82:e8:5b:52:af:b1:b8:17:7d:27:02:f8:43:6f:
+        7a:6e:91:4e:87:2b:0c:83:57:db:7c:21:54:82:c7:99:53:8a:
+        ad:c6:c2:6d:cd:70:d1:34:51:5c:e4:74:01:76:5d:3e:ab:9e:
+        78:88:65:66:cc:bb:60:78:56:7f:ed:eb:e9:03:f9:22:23:90:
+        dd:db:76:12:8d:f4:fe:0d:1c:03:39:70:c3:6f:f0:fd:da:35:
+        5c:68:cb:8d:0d:86:ed:99:06:ff:9f:47:0d:38:29:e0:df:ef:
+        5a:b6:05:bc:37:e7:f2:b8:53:c1:21:ee:6d:a7:71:6b:44:97:
+        30:37:5e:54:7c:19:87:11:ba:f4:83:6e:6a:73:d8:3c:d6:b3:
+        8f:1c:0d:8c:b7:97:b3:f2:1c:bd:2d:8e:ab:93:b9:98:5e:55:
+        45:59:7f:02:7f:a9:c5:b9:8f:cd:6d:10:4d:f4:2c:85:07:dd:
+        ce:4d:d6:e7:75:ac:a5:2e:4f:de:67:ac:ed:75:5c:f0:1e:33:
+        35:8a:37:b9:5c:fa:18:ac:a8:21:5d:a2:a2:eb:44:1d:d7:fb:
+        55:8e:5e:07:df:57:66:3b:b0:95:40:3f:a4:3c:92:76:ef:1e:
+        e5:66:79:72:13:3d:62:fb:d5:da:e3:d9:2a:e7:c4:ab:cc:96:
+        06:94:dd:68:6f:4b:30:3b:03:00:39:a4:a3:c9:20:22:7d:0d:
+        89:b5:48:31:66:e4:b4:bf:6d:d5:12:0c:ef:9c:f2:16:60:83:
+        fc:18:6f:03:d5:78:0b:5d:3c:7d:51:c0:9d:6b:6d:5c:ec:92:
+        b4:bb:40:e7:e4:20:14:8e:c7:12:90:11:c9:5e:3d:fd:49:45:
+        b0:bb:30:87:92:a7:af:f0:6e:b6:29:6e:05:75:3e:b7:b5:a2:
+        61:b3:7d:0d:f2:ba:3d:4f:5b:4c:72:3b:1c:db:71:89:fe:f2:
+        68:eb:95:9c:ea:8c:5a:ac:f6:12:85:7d:45:ae:cf:73:9b:c7:
+        ba:0b:10:4c:e2:f8:3b:3d:12:ab:07:85:e1:06:b3:0d:87:e1:
+        f4:82:b3:9b:fa:ed:68:ae:d0:41:a1:f3:be:4e:56:9f:6d:43:
+        72:f6:fa:7f:39:2d:ad:1d:8f:cb:79:fc:b3:d2:07:27:42:8e:
+        1a:dd:bc:31:6a:7b:d9:99:7f:d0:08:24:b2:21:e7:05:ca:28:
+        b9:a5:1d:f9:df:96:f8:ab:f1:58:20:fe:aa:51:7e:5d:6c:18:
+        c3:3f:f7:40:4a:07:cc:a2:c2:8b:10:7d:74:f5:78:92:2d:c4:
+        96:99:86:b4:2f:bb:b6:b0
