@@ -323,7 +323,11 @@ internal enum class ForgePerk(val title: String, val description: String) {
     DEEP_ROUTE("Deep Route", "Increase the route-length limit by eight"),
     CORRUPTION_WARD("Corruption Ward", "Bosses create fewer corrupted blocks"),
     CORNER_AMBUSH("Corner Ambush", "Enemies on route corners take bonus damage"),
-    PATHFINDER_TRAPS("Pathfinder Traps", "Traps strengthen as the route becomes longer");
+    PATHFINDER_TRAPS("Pathfinder Traps", "Traps strengthen as the route becomes longer"),
+
+    // v1.4.4 Forge Overdrive perks
+    OVERDRIVE_MASTERY("Overdrive Mastery", "Overdrive lasts longer and deals more damage"),
+    FORGE_ECHO("Forge Echo", "Overdrive activation triggers all traps for bonus damage");
 
     val category: PerkCategory
         get() = when (ordinal / 5) {

@@ -187,6 +187,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var overdriveCharge = 0f
     private var overdriveActive = false
     private var overdriveTimer = 0f
+    private var overdriveMaxTimer = OVERDRIVE_DURATION
     private var overdriveFlash = 0f
     /** v1.4.4 Wave Momentum — tracks core health at wave start for perfect-clear bonus. */
     private var livesAtWaveStart = STARTING_CORE
@@ -1333,8 +1334,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun fireTower(tower: Tower, target: Enemy) {
         var damage = tower.currentDamage()
-        // v1.4.4 Forge Overdrive — bonus damage while active
-        if (overdriveActive) damage *= OVERDRIVE_DAMAGE_BOOST
+        // v1.4.4 Forge Overdrive — bonus damage while active (+ perk scaling)
+        if (overdriveActive) damage *= OVERDRIVE_DAMAGE_BOOST * (1f + perkCount(ForgePerk.OVERDRIVE_MASTERY) * 0.10f)
         if (perkCount(ForgePerk.CORNER_AMBUSH) > 0 && enemyOnCorner(target)) damage *= 1f + perkCount(ForgePerk.CORNER_AMBUSH) * 0.22f
         damage *= battleBannerDamageBonus(tower.col, tower.row)
         if (tower.imbuement == Imbuement.SIEGE && (target.kind.elite || target.kind.boss)) damage *= 1.22f
@@ -2172,6 +2173,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         overdriveCharge = 0f
         overdriveActive = false
         overdriveTimer = 0f
+        overdriveMaxTimer = OVERDRIVE_DURATION
         overdriveFlash = 0f
         perfectWaveStreak = 0
         livesAtWaveStart = STARTING_CORE
@@ -2203,10 +2205,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (overdriveActive || overdriveCharge < OVERDRIVE_MAX) return
         if (phase != GamePhase.WAVE && phase != GamePhase.BUILD) return
         overdriveActive = true
-        overdriveTimer = OVERDRIVE_DURATION
+        val masteryDuration = OVERDRIVE_DURATION * (1f + perkCount(ForgePerk.OVERDRIVE_MASTERY) * 0.50f)
+        overdriveTimer = masteryDuration
+        overdriveMaxTimer = masteryDuration
         overdriveCharge = 0f
         overdriveFlash = 1f
-        setBanner("FORGE OVERDRIVE  •  ${OVERDRIVE_DURATION.toInt()}S BOOST", 2.2f)
+        setBanner("FORGE OVERDRIVE  •  ${masteryDuration.toInt()}S BOOST", 2.2f)
         audio.play("build", 0.70f, 1.30f)
         screenShake = max(screenShake, 0.25f)
         // Visual burst: particles from every tower + screen-wide gold flash
@@ -2214,10 +2218,26 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 200, 60), 8, 0.8f)
             burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 255, 180), 4, 0.5f)
         }
+        // v1.4.4 Forge Echo perk — traps pulse bonus damage to enemies on the path
+        if (perkCount(ForgePerk.FORGE_ECHO) > 0) {
+            val echoDamage = perkCount(ForgePerk.FORGE_ECHO) * 25f
+            for (trap in traps) {
+                trap.pulse = 1f
+                burst(trap.col + 0.5f, trap.row + 0.5f, trap.kind.accent, 6, 0.6f)
+                for (enemy in enemies) {
+                    if (!enemy.targetable) continue
+                    if (distanceSquared(enemy.x, enemy.y, trap.col + 0.5f, trap.row + 0.5f) <= 1.5f) {
+                        damageEnemy(enemy, echoDamage, trap.kind.accent, 0.3f)
+                    }
+                }
+            }
+            floatingLabels.add(FloatingLabel("FORGE ECHO", COLS * 0.5f, ROWS * 0.3f, Color.rgb(255, 183, 105), life = 1.2f, pop = 1.4f))
+        }
         // Bonus: wave momentum streak adds to overdrive duration
         if (perfectWaveStreak >= 3) {
             val bonusDuration = min(4f, perfectWaveStreak * 0.5f)
             overdriveTimer += bonusDuration
+            overdriveMaxTimer = overdriveTimer
             setBanner("FORGE OVERDRIVE  •  ${overdriveTimer.toInt()}S  MOMENTUM ×$perfectWaveStreak", 2.4f)
         }
     }
@@ -5846,7 +5866,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
         // Active countdown ring (red→orange drain)
         if (active) {
-            val remaining = overdriveTimer / OVERDRIVE_DURATION
+            val remaining = if (overdriveMaxTimer > 0f) overdriveTimer / overdriveMaxTimer else 0f
             strokePaint.style = Paint.Style.STROKE
             strokePaint.strokeWidth = max(2.5f, rect.height() * 0.09f)
             strokePaint.color = Color.argb(240, 255, (100 + remaining * 100).toInt().coerceIn(0, 255), 40)
