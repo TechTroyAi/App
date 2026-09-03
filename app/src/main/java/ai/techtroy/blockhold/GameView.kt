@@ -1806,6 +1806,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     else -> 4f
                 }
                 overdriveCharge = min(OVERDRIVE_MAX, overdriveCharge + chargeGain)
+            } else {
+                // v1.4.4 Overdrive Kill Chain — kills during overdrive extend the timer
+                val extendSec = when {
+                    enemy.kind.boss -> 1.2f
+                    enemy.kind.elite -> 0.5f
+                    else -> 0.15f
+                }
+                val maxExtension = overdriveMaxTimer + 5f
+                if (overdriveTimer < maxExtension) {
+                    overdriveTimer = min(maxExtension, overdriveTimer + extendSec)
+                    if (random.nextFloat() < 0.3f) {
+                        floatingLabels.add(FloatingLabel("+${(extendSec * 10).toInt()}", enemy.x, enemy.y - 0.3f, Color.rgb(255, 215, 80), 0.5f, pop = 1.1f))
+                    }
+                }
             }
             if (scrapMagnetKills > 0) {
                 scrapMagnetKills -= 1
