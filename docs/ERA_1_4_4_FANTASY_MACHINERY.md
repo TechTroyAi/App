@@ -17,8 +17,8 @@ v1.4.4 breathes life into the HUD with AI-generated Fantasy Machinery sprites an
 A player-activated burst that temporarily boosts ALL towers:
 
 - **Fire Rate:** +45% faster (×0.55 interval)
-- **Damage:** +25% bonus damage
-- **Duration:** 8 seconds
+- **Damage:** +25% bonus damage (+10% per Overdrive Mastery stack)
+- **Duration:** 8 seconds (+50% per Overdrive Mastery stack)
 - **Meter:** 100 charge points
 - **Charge Sources:**
   - Normal enemy kill: +4 charge
@@ -28,22 +28,51 @@ A player-activated burst that temporarily boosts ALL towers:
 - **Visual:** Warm gold glow on all active towers during overdrive
 - **HUD:** Radial fill ring around arcane gear icon; pulses gold when full; countdown ring while active
 
-### 🎨 AI-Generated Fantasy Machinery HUD Sprites (Batch 1)
+### 🎮 Wave Momentum (New Mechanic)
 
-All HUD buttons and rails regenerated with deeper Fantasy Machinery detail:
+Clearing a wave without core damage charges overdrive:
 
-| Sprite | Description |
-|--------|-------------|
-| `hud_top_rail.png` | Brass/copper top bar with gear mechanisms, rune engravings, crystal gauges |
-| `hud_bottom_rail.png` | Dark iron/copper build shelf with gear mechanisms, riveted plates, arcane channels |
-| `ui_button_primary.png` | Ornate brass frame with decorative gears, green arcane energy glow |
-| `ui_button_primary_pressed.png` | Pressed state — brighter glow, inset shadow |
-| `ui_button_secondary.png` | Dark bronze/copper frame with subtle gear engravings |
-| `ui_button_secondary_pressed.png` | Pressed state — brighter blue metallic, inset shadow |
-| `ui_button_accent.png` | Brass frame with purple arcane crystal inlays, mystical rune edges |
-| `ui_button_accent_pressed.png` | Pressed state — brighter purple crystals, intense rune glow |
-| `ui_button_warning.png` | Dark iron frame with red-orange ember glow, hazard stripes, steam vents |
-| `ui_button_warning_pressed.png` | Pressed state — brighter ember, visible steam particles |
+- **Base bonus:** +8 charge for a perfect wave
+- **Streak bonus:** +2 per consecutive perfect wave (up to +12 additional)
+- **Streak 3+:** Floating "MOMENTUM ×N" label on the board
+- **Streak 3+ activation:** Extends overdrive duration by up to +4 seconds
+
+### 🎮 Overdrive Kill Chain (New Mechanic)
+
+Kills during active overdrive extend the timer:
+
+- Normal kill: +0.15 seconds
+- Elite kill: +0.50 seconds
+- Boss kill: +1.20 seconds
+- Max extension: +5 seconds beyond base duration
+- Floating "+X" labels on 30% of kills during overdrive
+
+### 🎮 Overdrive Resonance (New Mechanic)
+
+When overdrive expires, ALL towers fire a bonus volley:
+
+- Every non-disabled tower resets its cooldown to 0
+- Gold particle burst from each tower
+- "OVERDRIVE RESONANCE • BONUS VOLLEY" banner
+
+### 🎮 New Forge Perks
+
+| Perk | Effect |
+|------|--------|
+| **Overdrive Mastery** | +50% overdrive duration, +10% damage per stack |
+| **Forge Echo** | All traps pulse 25 damage to nearby enemies on overdrive activation |
+
+### 🎨 AI-Generated Fantasy Machinery HUD Sprites (50 Total)
+
+All HUD buttons, rails, panels, cards, modals, menus, and icons regenerated with deeper Fantasy Machinery detail:
+
+**Batch 1 — Buttons & Rails (10):** Top/bottom rails, primary/secondary/accent/warning buttons (normal + pressed)
+**Batch 2 — Panels & Cards (10):** Panels (normal + active), cards (normal + active), modal, build slots, tabs, stat frame
+**Batch 3 — Icons & Banner (10):** Banner, resource icons (blocks, core, heart, wave), action icons (launch, route, reforge, pause, evolve)
+**Batch 4 — Menu & Actions (10):** Title background, menu panel, crest, disabled states, action icons (store, imbue, recycle, back, upgrade)
+**Batch 5 — Final Polish (10):** Menu buttons (primary + secondary, normal + pressed), menu icons (play, continue, sound on/off), category icons (towers, traps)
+
+**Total: 50 sprites, 7.1MB (out of 256 total game sprites at 10.3MB)**
 
 ### 📐 HUD Button Relocation
 
@@ -104,12 +133,17 @@ The Fantasy Machinery HUD sprites reinforce the **forge-fantasy aesthetic** — 
 ## Next Turns (Sprite Pipeline)
 
 Remaining HUD sprites for v1.4.4 Batch 2+:
-- [ ] `ui_panel.png` / `ui_panel_active.png` — inspection panel backgrounds
-- [ ] `ui_card.png` / `ui_card_active.png` — perk/evolution card backgrounds
-- [ ] `ui_modal.png` — full-screen modal overlay
-- [ ] `ui_build_slot.png` / `ui_build_slot_selected.png` — build shelf card frames
-- [ ] `ui_tab.png` / `ui_tab_selected.png` — bottom shelf tab skins
-- [ ] `ui_stat_frame.png` — resource stat chip frame
-- [ ] `ui_banner.png` — floating notification banner
-- [ ] Resource icons (Blocks, Core, Wave) — enhanced fantasy machinery style
-- [ ] Phase status icons (Route, Build, Wave, etc.)
+- [x] `ui_panel.png` / `ui_panel_active.png` — Inspection panel backgrounds
+- [x] `ui_card.png` / `ui_card_active.png` — Perk/evolution card backgrounds
+- [x] `ui_modal.png` — Full-screen modal overlay
+- [x] `ui_build_slot.png` / `ui_build_slot_selected.png` — Build shelf card frames
+- [x] `ui_tab.png` / `ui_tab_selected.png` — Bottom shelf tab skins
+- [x] `ui_stat_frame.png` — Resource stat chip frame
+- [x] `ui_banner.png` — Floating notification banner
+- [x] Resource icons (Blocks, Core, Wave, Heart) — enhanced fantasy machinery style
+- [x] Action icons (Launch, Route, Reforge, Pause, Evolve) — enhanced
+- [x] Menu sprites (title background, panel, crest, buttons) — enhanced
+- [x] Menu icons (play, continue, sound on/off) — enhanced
+- [x] Category icons (Towers, Traps) — enhanced
+- [x] Disabled states (button, build slot) — enhanced
+- [x] Action icons (Store, Imbue, Recycle, Back, Upgrade) — enhanced
