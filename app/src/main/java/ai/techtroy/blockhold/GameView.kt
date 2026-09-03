@@ -188,6 +188,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var overdriveActive = false
     private var overdriveTimer = 0f
     private var overdriveFlash = 0f
+    /** v1.4.4 Wave Momentum — tracks core health at wave start for perfect-clear bonus. */
+    private var livesAtWaveStart = STARTING_CORE
+    private var perfectWaveStreak = 0
 
     /** Crafts C1: brief Hex immunity per tower cell key. */
     private var coolingImmunity = HashMap<Int, Float>()
@@ -708,7 +711,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (overdriveTimer <= 0f) {
                 overdriveActive = false
                 overdriveTimer = 0f
-                setBanner("OVERDRIVE EXHAUSTED", 1.6f)
+                // v1.4.4 Overdrive Resonance — all towers fire a bonus shot as the boost ends
+                for (tower in towers) {
+                    if (tower.disabledTimer > 0f) continue
+                    val target = findTarget(tower)
+                    if (target != null) {
+                        tower.cooldown = 0f
+                        burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 215, 80), 4, 0.5f)
+                    }
+                }
+                setBanner("OVERDRIVE RESONANCE  •  BONUS VOLLEY", 1.8f)
+                audio.play("build", 0.50f, 1.40f)
             }
         }
         if (phase == GamePhase.BUILD && nextWaveTimer >= 0f && pendingPerkWaves.isEmpty()) {
@@ -1950,6 +1963,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val utilityIncome = processUtilityWaveClear()
         gold = safeAdd(gold, safeAdd(reward, utilityIncome))
         score = safeAdd(score, reward * 5 + utilityIncome * 3)
+        // v1.4.4 Wave Momentum — perfect wave (no core damage) charges overdrive + streak bonus
+        if (lives >= livesAtWaveStart && !overdriveActive) {
+            perfectWaveStreak += 1
+            val momentumBonus = 8f + min(12f, perfectWaveStreak * 2f)
+            overdriveCharge = min(OVERDRIVE_MAX, overdriveCharge + momentumBonus)
+            if (perfectWaveStreak >= 3) {
+                floatingLabels.add(FloatingLabel("MOMENTUM ×$perfectWaveStreak", COLS * 0.5f, ROWS * 0.5f, Color.rgb(255, 215, 80), life = 1.4f, pop = 1.4f))
+            }
+        } else {
+            perfectWaveStreak = 0
+        }
         if (surveyLensWaves > 0) surveyLensWaves -= 1
         if (completedWave % 5 == 0 && perkCount(ForgePerk.CORE_REGENERATION) > 0) {
             lives = min(maxCore, lives + perkCount(ForgePerk.CORE_REGENERATION))
@@ -2149,6 +2173,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         overdriveActive = false
         overdriveTimer = 0f
         overdriveFlash = 0f
+        perfectWaveStreak = 0
+        livesAtWaveStart = STARTING_CORE
         selectedTower = null
         selectedTrap = null
         selectedUtility = null
@@ -2183,9 +2209,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         setBanner("FORGE OVERDRIVE  •  ${OVERDRIVE_DURATION.toInt()}S BOOST", 2.2f)
         audio.play("build", 0.70f, 1.30f)
         screenShake = max(screenShake, 0.25f)
-        // Visual burst: particles from every tower
+        // Visual burst: particles from every tower + screen-wide gold flash
         for (tower in towers) {
-            burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 200, 60), 6, 0.6f)
+            burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 200, 60), 8, 0.8f)
+            burst(tower.col + 0.5f, tower.row + 0.5f, Color.rgb(255, 255, 180), 4, 0.5f)
+        }
+        // Bonus: wave momentum streak adds to overdrive duration
+        if (perfectWaveStreak >= 3) {
+            val bonusDuration = min(4f, perfectWaveStreak * 0.5f)
+            overdriveTimer += bonusDuration
+            setBanner("FORGE OVERDRIVE  •  ${overdriveTimer.toInt()}S  MOMENTUM ×$perfectWaveStreak", 2.4f)
         }
     }
 
@@ -2217,6 +2250,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedCorruption = null
         phase = GamePhase.WAVE
+        // v1.4.4 Wave Momentum — snapshot core health for perfect-clear overdrive bonus
+        livesAtWaveStart = lives
         for (tower in towers) if (tower.imbuement == Imbuement.SURGE) tower.surgeCharges = 3
         for (trap in traps) if (trap.imbuement == Imbuement.SURGE) trap.surgeCharges = 3
         val message = when {
@@ -4649,6 +4684,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawBottomBar(canvas)
         drawBanner(canvas)
         canvas.restore()
+        // v1.4.4 Forge Overdrive — screen-wide gold flash on activation
+        if (overdriveFlash > 0.02f) {
+            paint.color = Color.argb((overdriveFlash * 120f).toInt().coerceIn(0, 255), 255, 215, 80)
+            canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        }
         when (phase) {
             GamePhase.PAUSED -> drawPauseOverlay(canvas)
             GamePhase.VICTORY, GamePhase.GAME_OVER -> drawEndOverlay(canvas)
