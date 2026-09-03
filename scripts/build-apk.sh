@@ -32,7 +32,8 @@ fi
 case "$MODE" in
   debug)   TASK="assembleDebug";   OUT="app/build/outputs/apk/debug/app-debug.apk" ;;
   release) TASK="assembleRelease"; OUT="app/build/outputs/apk/release/app-release.apk" ;;
-  *) echo "usage: $0 [debug|release]" >&2; exit 2 ;;
+  offline) TASK="offline";         OUT="" ;;
+  *) echo "usage: $0 [debug|release|offline]" >&2; exit 2 ;;
 esac
 
 if [[ "$MODE" == "release" && ! -f .signing/blockhold-release.p12 ]]; then
@@ -44,9 +45,21 @@ fi
 echo "==> 1/4  Linting Kotlin runtime pitfalls"
 python3 scripts/lint-kotlin-pitfalls.py
 
+if [[ "$MODE" == "offline" ]]; then
+  echo
+  echo "==> 2/4  Building offline"
+  python3 scripts/build-offline-apk.py
+  exit 0
+fi
+
 echo
 echo "==> 2/4  Building ($TASK)"
-./gradlew --no-daemon "$TASK"
+if ! ./gradlew --no-daemon "$TASK"; then
+  echo "Gradle build failed or Gradle wrapper is unavailable in offline environment."
+  echo "Falling back to offline builder (kotlinc + dx + apktool + apksigner)..."
+  python3 scripts/build-offline-apk.py
+  exit 0
+fi
 
 if [[ ! -f "$OUT" ]]; then
   echo "Build reported success but $OUT was not produced." >&2

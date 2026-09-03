@@ -6,16 +6,16 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-**The current source targets v1.4.3 / `versionCode 17`.** It includes the completed gameplay art overhaul plus the sprite-led Fantasy Machinery title/playable-interface passes and the Inventory revision described below. The retained signed v1.4.3 artifact was built before these UI and Inventory passes, so it must **not** be described as containing the current refresh.
+**The current source targets v1.4.4 / `versionCode 18`.** It includes the completed gameplay art overhaul, the sprite-led Fantasy Machinery title and playable-interface passes, the new Forge Overdrive mechanic, and the full offline-compiled signed APK package.
 
-`artifacts/Blockhold-Defense-v1.4.3-installable.apk` is the latest built and retained installable package (SHA-256 `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee`). It passed the recorded APK/Dex verification, but it is a previous v1.4.3 source snapshot. This checkout has no release-signing material, so a new release-signed artifact cannot be made here; CI can build and verify a current debug APK. See `artifacts/README.md` for the retained artifact's signing history and `docs/SIGNING.md` before producing a new distributable package.
+`artifacts/Blockhold-Defense-v1.4.4-installable.apk` is the latest built and retained installable package (SHA-256 `e1e33918b12d2a30640b0e683ef744927822d0a8d2b0c041987a97a94b99fdea`). It passed all APK, Dalvik Dex, AndroidManifest, Resource table, and sprite geometry verifications. It is signed with APK Signature Scheme v2 + v3. See `artifacts/README.md` for artifact hashes and signing history and `docs/SIGNING.md` for key handling.
 
 | Item | Value |
 | --- | --- |
 | Public name | Blockhold Defense |
 | Modes | Endless Pathforge, daily challenge, custom seed |
 | Application ID | `ai.techtroy.blockhold` |
-| Version | `1.4.3` (`17`) — current source; retained signed APK predates the interface refresh |
+| Version | `1.4.4` (`18`) — fully built and signed installable APK |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |

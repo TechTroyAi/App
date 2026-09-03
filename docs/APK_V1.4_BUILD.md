@@ -551,3 +551,42 @@ zipalign -c -p -v 4 Verification succesful
 `scripts/verify-dex-shape.py` was also corrected: the `sget`/`sput` opcode family (0x60–0x6D)
 is 2 code units (`21c`/`22c`), not 3 — the old table misaligned the instruction walk and could
 report a false save/restore mismatch once the dex layout shifted.
+
+---
+
+# v1.4.4 artifact — Fantasy Machinery HUD + Forge Overdrive
+
+Date: 2026-09-03
+Artifact: `artifacts/Blockhold-Defense-v1.4.4-installable.apk`
+SHA-256: `e1e33918b12d2a30640b0e683ef744927822d0a8d2b0c041987a97a94b99fdea`
+Version: `1.4.4` / `versionCode 18`
+Signed with: APK Signature Scheme **v2 + v3**, `--min-sdk-version 24`
+Certificate SHA-256: `79:4b:0c:30:22:50:37:17:7a:28:71:4c:e2:56:90:e7:be:e2:aa:c8:33:56:d1:2b:5a:d9:08:7f:a6:85:ef:bc`
+Certificate DN: `CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH`
+
+## Features & UI
+
+1. **Forge Overdrive mechanic:**
+   - Real-time charge meter (kills charge meter: normal +4, elite +15, boss +35, capacity 100).
+   - Player-activated 8-second boost (+45% fire rate / ×0.55 interval, +25% damage boost).
+   - Dynamic top-cluster button with radial charge arc, gold pulse when full, active countdown timer, and particle activation FX.
+2. **Fantasy Machinery HUD & UI pass:**
+   - Authored top and bottom rail chrome (`hud_top_rail.png`, `hud_bottom_rail.png`).
+   - Skinned button family (`ui_button_primary`, `ui_button_secondary`, `ui_button_accent`, `ui_button_warning` with normal and pressed states).
+   - All 256 SpriteCatalog drawables fully compiled into `resources.arsc` and packaged.
+3. **Build Toolchain:**
+   - Automated offline builder `scripts/build-offline-apk.py` (and `./scripts/build-apk.sh` auto-fallback).
+   - `kotlinc 1.9.25` (`-Xlambdas=class -Xsam-conversions=class`) + `dx 1.16` + `apktool 2.6.0` + `apksigner 0.9`.
+
+## Verification
+
+```
+verify-apk.py       All structural checks passed (0 failures, 0 warnings).
+                    (alignment, v2+v3 signing, dex 038 integrity + 1447 types resolve,
+                     manifest ai.techtroy.blockhold 1.4.4 (18) minSdk 24 / target 35,
+                     256 SpriteCatalog drawables + 13 sounds, 101 sprite strips square-framed)
+verify-dex-shape.py ALL DEX SHAPE CHECKS PASSED (1086 classes, 6 call sites,
+                    MainActivity + both lambda classes present, canvas save/restore balanced)
+apksigner verify    Verifies with schemes v2, v3
+```
+
