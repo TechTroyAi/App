@@ -4135,7 +4135,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawMenuBackdrop(canvas, 42)
 
         // The generated logo is one packaged sprite: no live title typography remains.
-        drawText(canvas, versionLabel.uppercase(), dp(16f), dp(25f), dp(8f), Color.rgb(173, 191, 179), Paint.Align.LEFT, true)
         drawIconButton(
             canvas,
             titleSoundRect,
@@ -4153,17 +4152,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawTitleMenuButton(canvas, titleContinueRect, sprites.titleButtonContinue, "CONTINUE", Color.rgb(93, 220, 255), savedRunAvailable)
         drawTitleMenuButton(canvas, titleChallengeRect, sprites.titleButtonChallenges, "CHALLENGES", Color.rgb(255, 190, 104), true)
 
-        // Record glyphs replace the old tiny BEST / WAVE / DAILY sentence and sit in a
-        // dedicated lower rail where neither the logo nor the action stack obscures them.
-        val recordHeight = min(dp(48f), viewHeight * 0.085f)
-        val recordWidth = min(dp(128f), viewWidth * 0.17f)
-        val recordGap = min(dp(9f), viewWidth * 0.012f)
-        val recordTotal = recordWidth * 3f + recordGap * 2f
-        val recordLeft = (viewWidth - recordTotal) * 0.5f
-        val recordTop = viewHeight - recordHeight - min(dp(8f), viewHeight * 0.018f)
-        drawMenuRecordChip(canvas, recordLeft, recordTop, recordWidth, recordHeight, sprites.menuBadgeBest, formatNumber(bestScore), Color.rgb(255, 194, 92))
-        drawMenuRecordChip(canvas, recordLeft + recordWidth + recordGap, recordTop, recordWidth, recordHeight, sprites.menuBadgeWave, bestWave.toString(), Color.rgb(93, 220, 255))
-        drawMenuRecordChip(canvas, recordLeft + (recordWidth + recordGap) * 2f, recordTop, recordWidth, recordHeight, sprites.menuBadgeDaily, bestDailyWave.toString(), Color.rgb(190, 244, 78))
+        // Batch 03 gives each record its own generated plate and moves the three into a
+        // quiet top-left vertical stack. Order follows the menu hierarchy: Best, Daily, Wave.
+        val recordHeight = min(dp(52f), viewHeight * 0.078f)
+        val recordWidth = min(viewWidth * 0.235f, min(dp(190f), recordHeight * 3.65f))
+        val recordGap = min(dp(6f), viewHeight * 0.010f)
+        val recordLeft = min(dp(12f), viewWidth * 0.014f)
+        val recordTop = min(dp(12f), viewHeight * 0.020f)
+        drawMenuRecordPlate(canvas, recordLeft, recordTop, recordWidth, recordHeight, sprites.menuRecordBestPlate, formatNumber(bestScore), Color.rgb(255, 194, 92))
+        drawMenuRecordPlate(canvas, recordLeft, recordTop + recordHeight + recordGap, recordWidth, recordHeight, sprites.menuRecordDailyPlate, bestDailyWave.toString(), Color.rgb(190, 244, 78))
+        drawMenuRecordPlate(canvas, recordLeft, recordTop + (recordHeight + recordGap) * 2f, recordWidth, recordHeight, sprites.menuRecordWavePlate, bestWave.toString(), Color.rgb(93, 220, 255))
+
+        drawVersionTag(canvas)
     }
 
     private fun drawMenuBackdrop(canvas: Canvas, dimAlpha: Int) {
@@ -4195,14 +4195,25 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         )
     }
 
-    private fun drawMenuRecordChip(canvas: Canvas, left: Float, top: Float, width: Float, height: Float, icon: Bitmap, value: String, accent: Int) {
-        drawRoundedRect(canvas, left, top, left + width, top + height, height * 0.25f, Color.argb(224, 9, 19, 15))
-        strokePaint.style = Paint.Style.STROKE
-        strokePaint.strokeWidth = max(1f, dp(0.8f))
-        strokePaint.color = Color.argb(125, Color.red(accent), Color.green(accent), Color.blue(accent))
-        canvas.drawRoundRect(left, top, left + width, top + height, height * 0.25f, height * 0.25f, strokePaint)
-        drawBitmapCentered(canvas, icon, left + height * 0.52f, top + height * 0.5f, height * 0.82f)
+    private fun drawMenuRecordPlate(canvas: Canvas, left: Float, top: Float, width: Float, height: Float, plate: Bitmap, value: String, accent: Int) {
+        val rect = RectF(left, top, left + width, top + height)
+        canvas.drawBitmap(plate, null, rect, spritePaint)
         drawCenteredText(canvas, value, left + width * 0.70f, top + height * 0.5f, min(dp(12f), height * 0.36f), accent, true, true)
+    }
+
+    private fun drawVersionTag(canvas: Canvas) {
+        val height = min(dp(32f), viewHeight * 0.055f)
+        val width = min(viewWidth * 0.115f, min(dp(104f), height * 3.35f))
+        val margin = min(dp(12f), viewHeight * 0.020f)
+        val left = viewWidth - margin - width
+        val top = viewHeight - margin - height
+        drawRoundedRect(canvas, left, top, left + width, top + height, height * 0.28f, Color.argb(224, 8, 18, 14))
+        strokePaint.style = Paint.Style.STROKE
+        strokePaint.strokeWidth = max(1f, dp(0.7f))
+        strokePaint.color = Color.argb(135, 165, 139, 77)
+        canvas.drawRoundRect(left, top, left + width, top + height, height * 0.28f, height * 0.28f, strokePaint)
+        drawBitmapCentered(canvas, sprites.hudMenu, left + height * 0.50f, top + height * 0.5f, height * 0.74f)
+        drawCenteredText(canvas, versionLabel.uppercase(), left + width * 0.68f, top + height * 0.5f, min(dp(8f), height * 0.30f), Color.rgb(184, 199, 188), true)
     }
 
     private fun drawChallengeMenu(canvas: Canvas) {

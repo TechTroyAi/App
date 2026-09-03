@@ -9,7 +9,7 @@ v1.4.4 rebuilds the Canvas interface around a compact, sprite-first fantasy-mach
 ## Interface changes
 
 - **Title:** a generated 16:9 fortress-forge scene replaces the procedural grid; one generated logo sprite replaces live `BLOCKHOLD DEFENSE` typography. New Run, Continue, and Challenges now use three full generated button plates in a centered vertical stack.
-- **Records:** generated Best, Wave, and Daily emblems replace the former tiny record sentence and move into a dedicated lower rail with larger values.
+- **Records:** Best, Daily, and Wave now use complete generated plate sprites stacked vertically in the top-left. The version number moves out of that corner into a compact bottom-right tag.
 - **Challenge menu:** the new scene continues behind the challenge view, the Daily choice uses its generated emblem, and compact icon cards avoid repeated seed instructions and modifier descriptions.
 - **Top dock:** Blocks, Core, Wave, and secondary resources are icon/value chips. Reforge, wave, sound, and pause are now sprite controls. The old brand/phase sentence and TXT toggle are gone.
 - **Bottom dock:** category controls are icon tabs; defense cards retain only identity and cost. Selection panels focus on rank, damage/range, cost, and actions instead of repeating full descriptions.
@@ -52,7 +52,19 @@ This follow-up uses **eight** generated concepts, remaining within the ten-sprit
 | `menu_badge_wave.png` | wave record and HUD emblem | 128×128 |
 | `menu_badge_daily.png` | daily record/challenge emblem | 128×128 |
 
-The three button plates are aligned vertically and share one centerline. Best score, best endless wave, and best daily wave now occupy a separate bottom record rail represented by their emblems rather than repeated labels. Result cards also use sprite glyphs for Score, Wave, and Best.
+The three action plates are aligned vertically and share one centerline. The standalone record emblems remain active in challenge cards, the top HUD, and result cards.
+
+## AI record-plate batch 03
+
+The third pass adds three complete sprite bodies; the title no longer wraps standalone glyphs in painted rectangles:
+
+| Runtime drawable | Purpose | Runtime size |
+| --- | --- | --- |
+| `menu_record_best_plate.png` | best-score plate | 512×160 |
+| `menu_record_daily_plate.png` | best daily-wave plate | 512×160 |
+| `menu_record_wave_plate.png` | best endless-wave plate | 512×160 |
+
+The approved sources have clean empty metal value fields. Three base generations and three cleanup refinements were used—six image outputs this session, within the limit of ten—and only the three approved clean sources are retained. The plates render Best, Daily, and Wave in that order from top to bottom at the upper-left; the version tag now sits at the lower-right.
 
 ## Reproduction
 
@@ -67,11 +79,11 @@ The processor removes generated neutral backdrops with edge-connected flood fill
 ## Verification checklist
 
 - Android version: `1.4.4` (`18`)
-- Generated concepts: **10 in Batch 01 + 8 in Batch 02 = 18 total**
-- Batch 02 remains within the ten-sprite per-turn limit
-- New packaged Batch 02 assets: **8**
-- All seventeen transparent v1.4.4 sprites have transparent corner pixels; the opaque scene and all fixed-size assets match their documented dimensions
-- `SpriteCatalog`: all eighteen v1.4.4 runtime names loaded eagerly
-- Preview: 1600×900 PNG regenerated from packaged art and updated for Batch 02
+- Approved runtime art: **10 in Batch 01 + 8 in Batch 02 + 3 in Batch 03 = 21 assets**
+- Batch 03 generation/refinement outputs this session: **6**, within the ten-image limit
+- New packaged Batch 03 assets: **3**
+- All twenty transparent v1.4.4 sprites have transparent corner pixels; the opaque scene and all fixed-size assets match their documented dimensions
+- `SpriteCatalog`: all twenty-one v1.4.4 runtime names loaded eagerly
+- Preview: 1600×900 PNG regenerated from packaged art and updated for Batch 03
 - Static Kotlin pitfall lint: zero errors
 - Gradle compile: delegated to the repository's `Build APK` workflow; local Gradle 8.9 acquisition is blocked by the runner's TLS connection

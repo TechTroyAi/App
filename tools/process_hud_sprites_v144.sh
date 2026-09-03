@@ -2,6 +2,7 @@
 # Isolate and publish the v1.4.4 fantasy-machinery HUD controls and title assets.
 # Batch 01 contains ten 128 px controls. Batch 02 contains eight generated menu
 # assets: a backdrop, a logo, three full button plates, and three record badges.
+# Batch 03 adds three complete sprite-backed record plates for the title stack.
 # Requires ImageMagick 6+ (`convert`). Generated concepts occasionally contain
 # a baked white/grey transparency field, so the edge-connected neutral field is
 # flood-filled away before each transparent sprite is normalized.
@@ -86,6 +87,12 @@ echo "published title_logo.png"
 
 for name in menu_badge_best menu_badge_wave menu_badge_daily; do
   isolate "$SOURCE/${name}_source.png" "$PROCESSED/${name}.png" '112x112' '128x128'
+  cp "$PROCESSED/${name}.png" "$DRAWABLE/${name}.png"
+  echo "published ${name}.png"
+done
+
+for name in menu_record_best_plate menu_record_daily_plate menu_record_wave_plate; do
+  isolate "$SOURCE/${name}_source.png" "$PROCESSED/${name}.png" '492x140!' '512x160'
   cp "$PROCESSED/${name}.png" "$DRAWABLE/${name}.png"
   echo "published ${name}.png"
 done

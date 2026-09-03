@@ -208,6 +208,9 @@ internal class SpriteCatalog(private val context: Context) {
     val menuBadgeBest = load("menu_badge_best")
     val menuBadgeWave = load("menu_badge_wave")
     val menuBadgeDaily = load("menu_badge_daily")
+    val menuRecordBestPlate = load("menu_record_best_plate")
+    val menuRecordDailyPlate = load("menu_record_daily_plate")
+    val menuRecordWavePlate = load("menu_record_wave_plate")
 
     private val utilities = mapOf(
         UtilityKind.BLOCK_GENERATOR to loadStrip("utility_block_generator"),

@@ -55,7 +55,6 @@ fill '#03100c' fill-opacity 0.58 rectangle 70,544 730,600
 fill-opacity 1
 fill none stroke '#6e5934' stroke-width 2 roundrectangle 70,170 730,600 18,18
 stroke none
-font-size 11 fill '#a9baae' text 91,198 'V1.4.4'
 fill '#0b1712' stroke '#47604d' stroke-width 1 roundrectangle 667,184 714,231 11,11
 stroke none image over 673,190 35,35 '$DRAWABLE/hud_sound_on.png'
 
@@ -70,16 +69,18 @@ font-size 16 fill '#5ddcff' text 371,419 'CONTINUE'
 image over 239,447 322,69 '$DRAWABLE/title_button_challenges.png'
 font-size 15 fill '#ffbe68' text 365,489 'CHALLENGES'
 
-# Sprite-led records: crown = score, energy wave = best wave, calendar = daily
-fill '#09130f' stroke '#735d32' stroke-width 1 roundrectangle 181,536 317,586 11,11
-stroke none image over 189,541 40,40 '$DRAWABLE/menu_badge_best.png'
-font-size 14 fill '#ffc25c' text 244,568 '124K'
-fill '#09130f' stroke '#315c66' stroke-width 1 roundrectangle 332,536 468,586 11,11
-stroke none image over 340,541 40,40 '$DRAWABLE/menu_badge_wave.png'
-font-size 16 fill '#5ddcff' text 410,568 '18'
-fill '#09130f' stroke '#657b34' stroke-width 1 roundrectangle 483,536 619,586 11,11
-stroke none image over 491,541 40,40 '$DRAWABLE/menu_badge_daily.png'
-font-size 16 fill '#bef44e' text 561,568 '9'
+# Three complete record plates stacked at top-left: Best, Daily, Wave
+image over 80,183 146,44 '$DRAWABLE/menu_record_best_plate.png'
+font-size 12 fill '#ffc25c' text 174,210 '124K'
+image over 80,229 146,44 '$DRAWABLE/menu_record_daily_plate.png'
+font-size 14 fill '#bef44e' text 180,256 '9'
+image over 80,275 146,44 '$DRAWABLE/menu_record_wave_plate.png'
+font-size 14 fill '#5ddcff' text 178,302 '18'
+
+# Version tag moves to the lower-right corner
+fill '#08120e' stroke '#78633b' stroke-width 1 roundrectangle 626,558 715,587 8,8
+stroke none image over 632,562 21,21 '$DRAWABLE/hud_menu.png'
+font-size 10 fill '#b8c7bc' text 660,578 'V1.4.4'
 
 # In-game card + top dock
 fill '#020604' roundrectangle 780,180 1540,605 22,22
@@ -150,23 +151,17 @@ fill '#0e1914' stroke '#344b3b' stroke-width 1 roundrectangle 1351,492 1491,574 
 stroke none image over 1395,497 51,51 '$DRAWABLE/tower_ember_base.png'
 font-size 11 fill '#dce8df' text 1377,565 'EMBER - 145'
 
-# Eight-sprite title/menu production batch
-font-size 15 fill '#7d9685' text 75,638 'AI MENU SPRITES  -  BATCH 02 / 8'
+# Three approved sprite-backed record plates (six generation/refinement outputs this turn)
+font-size 15 fill '#7d9685' text 75,638 'AI RECORD PLATES  -  BATCH 03 / 3'
 fill '#0d1812' stroke '#3f392a' stroke-width 1 roundrectangle 72,652 1528,790 16,16
 stroke none
-image over 91,669 190,107 '$DRAWABLE/title_background.png'
-image over 302,681 180,81 '$DRAWABLE/title_logo.png'
-image over 505,689 155,50 '$DRAWABLE/title_button_new_run.png'
-image over 670,689 155,50 '$DRAWABLE/title_button_continue.png'
-image over 835,689 155,50 '$DRAWABLE/title_button_challenges.png'
-image over 1035,676 78,78 '$DRAWABLE/menu_badge_best.png'
-image over 1143,676 78,78 '$DRAWABLE/menu_badge_wave.png'
-image over 1251,676 78,78 '$DRAWABLE/menu_badge_daily.png'
-font-size 10 fill '#779083' text 112,782 'BACKDROP'
-font-size 10 fill '#779083' text 356,782 'LOGO'
-font-size 10 fill '#779083' text 674,782 'STACKED ACTION PLATES'
-font-size 10 fill '#779083' text 1093,782 'RECORD GLYPHS'
-font 'DejaVu-Sans' font-size 14 fill '#8da293' text 382,842 'Generated title scene  -  one-piece logo  -  stacked action plates  -  sprite-led records'
+image over 95,666 400,112 '$DRAWABLE/menu_record_best_plate.png'
+font-size 21 fill '#ffc25c' text 354,731 '124K'
+image over 560,666 400,112 '$DRAWABLE/menu_record_daily_plate.png'
+font-size 23 fill '#bef44e' text 833,731 '9'
+image over 1025,666 400,112 '$DRAWABLE/menu_record_wave_plate.png'
+font-size 23 fill '#5ddcff' text 1296,731 '18'
+font 'DejaVu-Sans' font-size 14 fill '#8da293' text 365,842 'Top-left record stack  -  fully generated plate bodies  -  lower-right version tag'
 MVG
 
 convert -size 1600x900 xc:'#07100c' -draw "@$MVG" -strip -depth 8 "$OUTPUT"
