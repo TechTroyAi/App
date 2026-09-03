@@ -1761,7 +1761,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 enemy.abilityTimer = 3.2f
             }
         }
-        if (showLabel && random.nextFloat() < 0.22f) floatingLabels.add(FloatingLabel(actual.toInt().toString(), enemy.x, enemy.y - 0.25f, effectColor, 0.7f))
+        // Show damage pops as compact values so late-wave multi-thousand hits (and multi-million
+        // DPS) stay readable instead of overflowing as walls of digits.
+        if (showLabel && random.nextFloat() < 0.22f) floatingLabels.add(FloatingLabel(formatNumber(actual.toInt()), enemy.x, enemy.y - 0.25f, effectColor, 0.7f))
         if (enemy.health > 0f) return
         beginEnemyDeath(enemy)
     }
@@ -1978,11 +1980,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val utilityIncome = processUtilityWaveClear()
         gold = safeAdd(gold, safeAdd(reward, utilityIncome))
         score = safeAdd(score, reward * 5 + utilityIncome * 3)
-        // v1.4.4 Wave Momentum — perfect wave (no core damage) charges overdrive + streak bonus
-        if (lives >= livesAtWaveStart && !overdriveActive) {
+        // v1.4.4 Wave Momentum — a perfect wave (no core damage) advances the streak and, outside
+        // Overdrive, charges the meter. A flawless wave that clears while Overdrive is active still
+        // advances the streak — only the raw momentum charge is skipped (kills already extend the
+        // timer), so finishing a perfect wave mid-Overdrive no longer wipes a hard-earned streak.
+        if (lives >= livesAtWaveStart) {
             perfectWaveStreak += 1
-            val momentumBonus = 8f + min(12f, perfectWaveStreak * 2f)
-            overdriveCharge = min(OVERDRIVE_MAX, overdriveCharge + momentumBonus)
+            if (!overdriveActive) {
+                val momentumBonus = 8f + min(12f, perfectWaveStreak * 2f)
+                overdriveCharge = min(OVERDRIVE_MAX, overdriveCharge + momentumBonus)
+            }
             if (perfectWaveStreak >= 3) {
                 floatingLabels.add(FloatingLabel("MOMENTUM ×$perfectWaveStreak", COLS * 0.5f, ROWS * 0.5f, Color.rgb(255, 215, 80), life = 1.4f, pop = 1.4f))
             }
@@ -2398,15 +2405,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         if (wave % 10 == 0) {
             val tier = wave / 10
-            // F2: rotate named bosses; Overgrowth remains the signature every 30
-            val bossKind = when {
-                wave % 30 == 0 -> EnemyKind.OVERGROWTH
-                tier % 5 == 1 -> EnemyKind.IRON_MONARCH
-                tier % 5 == 2 -> EnemyKind.SPORE_SOVEREIGN
-                tier % 5 == 3 -> EnemyKind.TIDAL_ROOT
-                tier % 5 == 4 -> EnemyKind.ASHEN_CHOIR
-                else -> EnemyKind.OVERGROWTH
-            }
+            val bossKind = bossKindForWave(wave)
             waveQueue.add(SpawnSpec(bossKind, healthScale * (0.90f + min(1.45f, tier * 0.065f)), min(1.36f, speedScale), rewardScale * 1.3f, tier, sourceWave = wave))
         }
         val broodCount = corruptions.count { it.kind == CorruptionKind.BROOD_NEST }
@@ -2423,17 +2422,26 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val threat = when {
             wave % 10 == 0 -> {
                 val tier = wave / 10
-                when {
-                    wave % 30 == 0 -> "OVERGROWTH T$tier"
-                    tier % 3 == 1 -> "IRON MONARCH T$tier"
-                    tier % 3 == 2 -> "SPORE SOVEREIGN T$tier"
-                    else -> "OVERGROWTH T$tier"
-                }
+                // Must mirror bossKindForWave() so the telegraph names the boss that actually spawns.
+                "${bossKindForWave(wave).title.uppercase()} T$tier"
             }
             wave % 5 == 0 -> "ELITE SIGNAL"
             else -> "NO ELITE"
         }
         return when (level) { 1 -> "SURVEY • WAVE $wave $theme"; 2 -> "SURVEY • WAVE $wave $theme • ~$count HOSTILES"; else -> "SURVEY • WAVE $wave $theme • ~$count • $threat" }
+    }
+
+    /** Single source of truth for the boss rotation on boss-milestone waves. */
+    private fun bossKindForWave(wave: Int): EnemyKind {
+        val tier = wave / 10
+        return when {
+            wave % 30 == 0 -> EnemyKind.OVERGROWTH
+            tier % 5 == 1 -> EnemyKind.IRON_MONARCH
+            tier % 5 == 2 -> EnemyKind.SPORE_SOVEREIGN
+            tier % 5 == 3 -> EnemyKind.TIDAL_ROOT
+            tier % 5 == 4 -> EnemyKind.ASHEN_CHOIR
+            else -> EnemyKind.OVERGROWTH
+        }
     }
 
     private fun waveHealthScale(wave: Int): Float {
