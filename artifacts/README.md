@@ -4,7 +4,8 @@
 > true 3-keyframe animation, new terrain, landmarks, and board chrome) **plus** the v1.4.3
 > feature patch: a 1-minute auto next-wave countdown, inspect/interact during a wave (no new
 > placement mid-wave), Block Generators upgrading to level 99 with per-level output growth, and
-> per-type placement cost escalation. Built offline from source with the retained offline
+> per-type placement cost escalation. **It predates the 2026-09-02 sprite-led title and playable-interface
+> source passes and does not contain either UI refresh.** Built offline from source with the retained offline
 > toolchain (JDK 25 Temurin via jdk4py, Kotlin 1.9.25, `android.jar` API 35, `dx`, `apktool` 2.6.0
 > for resource re-linking, `zipalign`, `apksigner`). `scripts/verify-apk.py` and
 > `scripts/verify-dex-shape.py` both report **0 failures** (1078 classes, 6 call sites, 191
@@ -53,7 +54,7 @@
 >
 > | File | SHA-256 | Status |
 > |---|---|---|
-> | `Blockhold-Defense-v1.4.3-installable.apk` | `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee` | **✅ install this** — v1.4.3 art overhaul + feature patch, `1.4.3` (17); new key, uninstall v1.4.2 once |
+> | `Blockhold-Defense-v1.4.3-installable.apk` | `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee` | retained installable — v1.4.3 art overhaul + feature patch, `1.4.3` (17); **predates the current title/playable-interface refresh**; new key, uninstall v1.4.2 once |
 > | `Blockhold-Defense-v1.4.2-installable.apk` | `842e1602e05057b5b58e74a7bacabd962ca8db1dae5dca4c92dc9befe2731eea` | superseded — pressure waves + wave stacking, `1.4.2` (16) |
 > | `Blockhold-Defense-v1.4.1-installable.apk` | `789c964ad702a28531386e2e75f610a87c260275a47c53bfb4caf42fba6c7c96` | superseded — canvas restore-underflow fix + launch fix, `1.4.1` (15) |
 > | ~~`Blockhold-Defense-v1.4.1-installable.apk`~~ | ~~`6c3807aca6fb593962a627ab78e4b9b99c832f305c898f26e569dd9e53619063`~~ | ❌ **does not open** — superseded, discard if downloaded |

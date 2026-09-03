@@ -31,6 +31,12 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/** Identifies the currently held title control so sprite buttons visibly depress on touch. */
+private enum class TitleMenuAction { NONE, PLAY, CONTINUE, CHALLENGE, SOUND }
+
+/** Shared visual roles for the reusable Fantasy Machinery in-game button family. */
+private enum class UiControlTone { PRIMARY, SECONDARY, ACCENT, WARNING }
+
 internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
     companion object {
@@ -48,6 +54,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         private const val DEFAULT_CUSTOM_SEED = "733101"
         private const val MAX_BLOCK_GENERATORS = 5
         private const val ELITE_TRAP_BREAK_DELAY = 1.75f
+        /** Every category has this many slots before an Inventory Depot is online. */
+        private const val DEFAULT_INVENTORY_CAPACITY = 25
+        private const val MAX_INVENTORY_CAPACITY = 45
+        private const val INVENTORY_PAGE_SIZE = 5
+        private const val BUILD_SHELF_SLIDE_DURATION = 0.30f
     }
 
     private val stateLock = Any()
@@ -98,7 +109,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var selectedCorruption: CorruptedCell? = null
     private var selectedUtility: Utility? = null
     private var selectedUtilityKind: UtilityKind? = null
-    private var selectedStoredTrapIndex = -1
+    private var selectedInventorySelection: InventorySelection? = null
     private var evolutionTower: Tower? = null
     private var imbuementTower: Tower? = null
     private var imbuementTrap: SpikeTrap? = null
@@ -106,7 +117,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var buildPage = BuildPage.TOWERS
     private var utilityPageIndex = 0
     private var towerPageIndex = 0
-    private var cachePageIndex = 0
+    private var inventoryPageIndex = 0
+    private var inventoryCategory = InventoryCategory.TOWERS
+    /** 0 is fully shown; 1 translates just the placement shelf below the viewport. */
+    private var buildShelfSlide = 0f
     private var workshopTab = WorkshopTab.CRAFT
     private var workshopPageIndex = 0
 
@@ -115,7 +129,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val towers = ArrayList<Tower>()
     private val traps = ArrayList<SpikeTrap>()
     private val utilities = ArrayList<Utility>()
+    private val storedTowers = ArrayList<StoredTower>()
     private val storedTraps = ArrayList<StoredTrap>()
+    private val storedStructures = ArrayList<StoredStructure>()
     private val supplies = HashMap<CraftedItem, Int>()
     private val corruptions = ArrayList<CorruptedCell>()
     private val perks = HashMap<ForgePerk, Int>()
@@ -192,6 +208,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var lastDisplayedGold = -1
     private var lastDisplayedForge = -1
     private var savedRunAvailable = prefBoolean("has_saved_run", false)
+    private var titlePressedAction = TitleMenuAction.NONE
+    /** Last live pointer position lets every art-backed in-game control use its pressed sprite. */
+    private var uiTouchActive = false
+    private var uiTouchX = -1f
+    private var uiTouchY = -1f
 
     private var viewWidth = 1f
     private var viewHeight = 1f
@@ -227,6 +248,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val pauseRect = RectF()
     private val soundRect = RectF()
     private val feedbackToggleRect = RectF()
+    private val titlePanelRect = RectF()
     private val titlePlayRect = RectF()
     private val titleContinueRect = RectF()
     private val titleChallengeRect = RectF()
@@ -241,7 +263,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val towerPageRect = RectF()
     private val trapPageRect = RectF()
     private val utilityPageRect = RectF()
-    private val cachePageRect = RectF()
+    private val inventoryPageRect = RectF()
     private val challengeDailyRect = RectF()
     private val challengeSeedStartRect = RectF()
     private val challengeBackRect = RectF()
@@ -250,7 +272,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val evolutionRects = ArrayList<RectF>()
     private val toolRects = ArrayList<Pair<BuildTool, RectF>>()
     private val utilityRects = ArrayList<Pair<UtilityKind, RectF>>()
-    private val cacheRects = ArrayList<Pair<Int, RectF>>()
+    private val inventoryRects = ArrayList<Pair<InventorySelection, RectF>>()
+    /** Forge Workshop gets its own half-action so it can be opened and stored independently. */
+    private val workshopRect = RectF()
+    private val structureStoreRect = RectF()
     private val workshopTabRects = ArrayList<Pair<WorkshopTab, RectF>>()
     private val workshopCardRects = ArrayList<RectF>()
     private val workshopBackRect = RectF()
@@ -450,9 +475,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         pauseRect.set(viewWidth - dp(8f) - smallButton, top, viewWidth - dp(8f), bottom)
         soundRect.set(pauseRect.left - dp(7f) - smallButton, top, pauseRect.left - dp(7f), bottom)
         feedbackToggleRect.set(soundRect.left - dp(7f) - smallButton, top, soundRect.left - dp(7f), bottom)
-        val actionWidth = min(dp(130f), viewWidth * 0.17f)
+        // Compact landscape devices reserve the right-side actions first and collapse their
+        // wording to icons/short labels, leaving a useful strip for the resource readouts.
+        val compactTopControls = viewWidth < dp(480f)
+        val actionWidth = if (compactTopControls) min(dp(96f), viewWidth * 0.16f) else min(dp(130f), viewWidth * 0.17f)
         primaryActionRect.set(soundRect.left - dp(8f) - actionWidth, top, soundRect.left - dp(8f), bottom)
-        val resetWidth = min(dp(96f), viewWidth * 0.13f)
+        val resetWidth = if (compactTopControls) smallButton else min(dp(96f), viewWidth * 0.13f)
         resetPathRect.set(primaryActionRect.left - dp(7f) - resetWidth, top, primaryActionRect.left - dp(7f), bottom)
 
         val toolTop = viewHeight - bottomBarHeight + dp(9f)
@@ -466,7 +494,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         towerPageRect.set(left, toolTop, left + tabWidth, toolTop + tabHeight)
         trapPageRect.set(towerPageRect.right + pageGap, toolTop, left + pageWidth, toolTop + tabHeight)
         utilityPageRect.set(left, towerPageRect.bottom + pageGap, left + tabWidth, toolBottom)
-        cachePageRect.set(utilityPageRect.right + pageGap, trapPageRect.bottom + pageGap, left + pageWidth, toolBottom)
+        inventoryPageRect.set(utilityPageRect.right + pageGap, trapPageRect.bottom + pageGap, left + pageWidth, toolBottom)
         rebuildToolRects(left + pageWidth + dp(7f), totalWidth - pageWidth - dp(7f), toolTop, toolBottom)
 
         val panelWidth = min(viewWidth - dp(24f), dp(650f))
@@ -479,16 +507,50 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val actionLeft = upgradeRect.right + panelGap
         val actionHeight = (panelBottom - panelTop - panelGap) / 3f
         storeRect.set(actionLeft, panelTop, panelLeft + panelWidth, panelTop + actionHeight)
+        val storeSplitGap = dp(3f)
+        val storeSplit = storeRect.centerX()
+        workshopRect.set(storeRect.left, storeRect.top, storeSplit - storeSplitGap, storeRect.bottom)
+        structureStoreRect.set(storeSplit + storeSplitGap, storeRect.top, storeRect.right, storeRect.bottom)
         imbueRect.set(actionLeft, storeRect.bottom + panelGap * 0.5f, panelLeft + panelWidth, storeRect.bottom + panelGap * 0.5f + actionHeight)
         sellRect.set(actionLeft, imbueRect.bottom + panelGap * 0.5f, panelLeft + panelWidth, panelBottom)
 
-        val titleButtonWidth = min(dp(230f), viewWidth * 0.34f)
-        val titleButtonHeight = min(dp(60f), viewHeight * 0.13f)
-        titlePlayRect.set(viewWidth * 0.5f - titleButtonWidth - dp(6f), viewHeight * 0.68f, viewWidth * 0.5f - dp(6f), viewHeight * 0.68f + titleButtonHeight)
-        titleContinueRect.set(viewWidth * 0.5f + dp(6f), viewHeight * 0.68f, viewWidth * 0.5f + titleButtonWidth + dp(6f), viewHeight * 0.68f + titleButtonHeight)
-        val challengeHeight = min(dp(39f), viewHeight * 0.085f)
-        titleChallengeRect.set(viewWidth * 0.5f - titleButtonWidth * 0.72f, viewHeight * 0.835f, viewWidth * 0.5f + titleButtonWidth * 0.72f, viewHeight * 0.835f + challengeHeight)
-        titleSoundRect.set(viewWidth - dp(58f), dp(14f), viewWidth - dp(14f), dp(58f))
+        // Title screen: keep one focused interaction column. The panel and every control are
+        // raster sprites, while these rectangles only define responsive placement and hit areas.
+        val maxTitlePanelWidth = min(viewWidth * 0.46f, dp(440f))
+        val maxTitlePanelHeight = min(viewHeight * 0.70f, max(1f, viewHeight - dp(8f)))
+        // Fit the authored 760:632 panel uniformly so a short landscape display never stretches
+        // the artwork vertically or leaves less room than its control column needs.
+        val titlePanelScale = min(maxTitlePanelWidth / 760f, maxTitlePanelHeight / 632f)
+        val titlePanelWidth = 760f * titlePanelScale
+        val titlePanelHeight = 632f * titlePanelScale
+        val preferredTitlePanelTop = max(dp(72f), viewHeight * 0.29f)
+        val titlePanelTop = min(preferredTitlePanelTop, max(0f, viewHeight - dp(8f) - titlePanelHeight))
+        titlePanelRect.set(
+            viewWidth * 0.5f - titlePanelWidth * 0.5f,
+            titlePanelTop,
+            viewWidth * 0.5f + titlePanelWidth * 0.5f,
+            titlePanelTop + titlePanelHeight
+        )
+        val desiredTitleButtonWidth = titlePanelRect.width() * 0.80f
+        val titleButtonGap = min(dp(10f), titlePanelRect.height() * 0.035f)
+        val titleButtonsTopInset = min(dp(50f), titlePanelRect.height() * 0.13f)
+        val titleButtonsBottomInset = min(dp(24f), titlePanelRect.height() * 0.07f)
+        val titleButtonLaneHeight = max(1f, titlePanelRect.height() - titleButtonsTopInset - titleButtonsBottomInset)
+        // Preserve the authored button-sprite aspect ratio and reduce the whole button scale on
+        // short landscape displays instead of letting the third action escape its panel.
+        val titleButtonHeight = min(
+            desiredTitleButtonWidth * 152f / 640f,
+            max(1f, (titleButtonLaneHeight - titleButtonGap * 2f) / 3f)
+        )
+        val titleButtonWidth = titleButtonHeight * 640f / 152f
+        val titleButtonsHeight = titleButtonHeight * 3f + titleButtonGap * 2f
+        val titleButtonsTop = titlePanelRect.top + titleButtonsTopInset + (titleButtonLaneHeight - titleButtonsHeight) * 0.5f
+        val titleButtonLeft = titlePanelRect.centerX() - titleButtonWidth * 0.5f
+        titlePlayRect.set(titleButtonLeft, titleButtonsTop, titleButtonLeft + titleButtonWidth, titleButtonsTop + titleButtonHeight)
+        titleContinueRect.set(titleButtonLeft, titlePlayRect.bottom + titleButtonGap, titleButtonLeft + titleButtonWidth, titlePlayRect.bottom + titleButtonGap + titleButtonHeight)
+        titleChallengeRect.set(titleButtonLeft, titleContinueRect.bottom + titleButtonGap, titleButtonLeft + titleButtonWidth, titleContinueRect.bottom + titleButtonGap + titleButtonHeight)
+        val titleSoundSize = min(dp(58f), min(viewWidth, viewHeight) * 0.105f)
+        titleSoundRect.set(viewWidth - dp(16f) - titleSoundSize, dp(16f), viewWidth - dp(16f), dp(16f) + titleSoundSize)
 
         computeOverlayRects()
 
@@ -556,10 +618,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         workshopNextRect.set(viewWidth * 0.5f + dp(12f), viewHeight * 0.80f, viewWidth * 0.5f + dp(120f), viewHeight * 0.89f)
     }
 
-    private fun rebuildToolRects(left: Float = cachePageRect.right + dp(7f), width: Float = min(viewWidth - dp(20f), dp(790f)) - (cachePageRect.right - towerPageRect.left) - dp(7f), top: Float = viewHeight - bottomBarHeight + dp(9f), bottom: Float = viewHeight - dp(9f)) {
+    private fun rebuildToolRects(left: Float = inventoryPageRect.right + dp(7f), width: Float = min(viewWidth - dp(20f), dp(790f)) - (inventoryPageRect.right - towerPageRect.left) - dp(7f), top: Float = viewHeight - bottomBarHeight + dp(9f), bottom: Float = viewHeight - dp(9f)) {
         toolRects.clear()
         utilityRects.clear()
-        cacheRects.clear()
+        inventoryRects.clear()
         val gap = dp(6f)
         when (buildPage) {
             BuildPage.TOWERS, BuildPage.TRAPS -> {
@@ -571,7 +633,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     x += buttonWidth + gap
                 }
             }
-            BuildPage.UTILITIES -> {
+            BuildPage.STRUCTURES -> {
                 val kinds = UtilityKind.values().drop(utilityPageIndex * 4).take(4)
                 val buttonWidth = (width - gap * (kinds.size - 1)) / max(1, kinds.size)
                 var x = left
@@ -580,14 +642,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     x += buttonWidth + gap
                 }
             }
-            BuildPage.CACHE -> {
-                val start = cachePageIndex * 5
-                val indices = (start until min(storedTraps.size, start + 5)).toList()
+            BuildPage.INVENTORY -> {
+                val start = inventoryPageIndex * INVENTORY_PAGE_SIZE
+                val indices = (start until min(inventoryCount(inventoryCategory), start + INVENTORY_PAGE_SIZE)).toList()
                 val count = max(1, indices.size)
                 val buttonWidth = (width - gap * (count - 1)) / count
                 var x = left
                 for (index in indices) {
-                    cacheRects.add(Pair(index, RectF(x, top, x + buttonWidth, bottom)))
+                    val selection = InventorySelection(inventoryCategory, index)
+                    inventoryRects.add(Pair(selection, RectF(x, top, x + buttonWidth, bottom)))
                     x += buttonWidth + gap
                 }
             }
@@ -626,8 +689,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (nextWaveTimer <= 0f) startWave()
         }
         if (phase == GamePhase.WAVE) updateWave(delta)
+        updateBuildShelfSlide(delta)
         updateEffects(delta)
     }
+
+    /** The build shelf, not inspection panels, leaves the screen during combat. */
+    private fun updateBuildShelfSlide(delta: Float) {
+        val combatHidden = phase == GamePhase.WAVE || (phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.WAVE)
+        val target = if (combatHidden) 1f else 0f
+        val step = delta / BUILD_SHELF_SLIDE_DURATION
+        buildShelfSlide = if (target > buildShelfSlide) min(target, buildShelfSlide + step) else max(target, buildShelfSlide - step)
+    }
+
+    private fun buildShelfOffsetY(): Float = buildShelfSlide * (bottomBarHeight + dp(22f))
+
+    /** Prevent a tap from hitting a static rectangle while its card is still moving into view. */
+    private fun buildShelfReadyForInput(): Boolean = buildShelfSlide <= 0.02f
 
     private fun updateWave(delta: Float) {
         if (spawnIndex < waveQueue.size) {
@@ -2279,27 +2356,93 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         return min(0.95f, 0.60f + perkCount(ForgePerk.BETTER_RECYCLING) * 0.15f + salvageBonus)
     }
 
-    private fun cacheCapacity(): Int {
+    /** Capacity applies independently to every inventory category, never as one shared pool. */
+    private fun inventoryCapacity(): Int {
         val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxByOrNull { it.level }
-        return min(20, 4 + if (depot == null) 0 else when (utilityPowerLevel(depot)) { 1 -> 3; 2 -> 5; 3 -> 7; else -> 8 })
+        val bonus = if (depot == null) 0 else when (utilityPowerLevel(depot)) {
+            1 -> 5
+            2 -> 10
+            3 -> 15
+            else -> 20
+        }
+        return min(MAX_INVENTORY_CAPACITY, DEFAULT_INVENTORY_CAPACITY + bonus)
     }
 
-    private fun cacheStorageDiscount(): Float {
+    private fun inventoryCount(category: InventoryCategory): Int = when (category) {
+        InventoryCategory.TOWERS -> storedTowers.size
+        InventoryCategory.TRAPS -> storedTraps.size
+        InventoryCategory.STRUCTURES -> storedStructures.size
+    }
+
+    private fun inventoryPageCount(category: InventoryCategory = inventoryCategory): Int =
+        max(1, (inventoryCount(category) + INVENTORY_PAGE_SIZE - 1) / INVENTORY_PAGE_SIZE)
+
+    private fun hasInventoryRoom(category: InventoryCategory): Boolean = inventoryCount(category) < inventoryCapacity()
+
+    /** Removing the last depot may shrink every separate shelf back to its base capacity. */
+    private fun lastDepotWouldOverfillInventory(structure: Utility, addingToStructureShelf: Boolean): Boolean {
+        if (structure.kind != UtilityKind.CACHE_DEPOT || utilities.any { it !== structure && it.kind == UtilityKind.CACHE_DEPOT }) return false
+        val projectedStructures = storedStructures.size + (if (addingToStructureShelf) 1 else 0)
+        return storedTowers.size > DEFAULT_INVENTORY_CAPACITY ||
+            storedTraps.size > DEFAULT_INVENTORY_CAPACITY ||
+            projectedStructures > DEFAULT_INVENTORY_CAPACITY
+    }
+
+    private fun canStoreStructure(structure: Utility): Boolean =
+        hasInventoryRoom(InventoryCategory.STRUCTURES) && !lastDepotWouldOverfillInventory(structure, addingToStructureShelf = true)
+
+    private fun isValidInventorySelection(selection: InventorySelection?): Boolean =
+        selection != null && selection.index in 0 until inventoryCount(selection.category)
+
+    private fun inventoryItemTitle(selection: InventorySelection): String = when (selection.category) {
+        InventoryCategory.TOWERS -> storedTowers.getOrNull(selection.index)?.kind?.title
+        InventoryCategory.TRAPS -> storedTraps.getOrNull(selection.index)?.kind?.title
+        InventoryCategory.STRUCTURES -> storedStructures.getOrNull(selection.index)?.kind?.title
+    } ?: "UNAVAILABLE"
+
+    private fun inventoryItemRank(selection: InventorySelection): String = when (selection.category) {
+        InventoryCategory.TOWERS -> storedTowers.getOrNull(selection.index)?.rankLabel()
+        InventoryCategory.TRAPS -> storedTraps.getOrNull(selection.index)?.rankLabel()
+        InventoryCategory.STRUCTURES -> storedStructures.getOrNull(selection.index)?.rankLabel()
+    } ?: ""
+
+    private fun inventoryItemImbuement(selection: InventorySelection): Imbuement? = when (selection.category) {
+        InventoryCategory.TOWERS -> storedTowers.getOrNull(selection.index)?.imbuement
+        InventoryCategory.TRAPS -> storedTraps.getOrNull(selection.index)?.imbuement
+        InventoryCategory.STRUCTURES -> storedStructures.getOrNull(selection.index)?.imbuement
+    }
+
+    private fun inventoryStorageDiscount(): Float {
         val depot = utilities.filter { it.kind == UtilityKind.CACHE_DEPOT }.maxByOrNull { it.level }
         if (depot == null) return 0f
         val conservation = if (depot.imbuement == Imbuement.CONSERVATION) 0.10f else 0f
         return min(0.55f, utilityPowerLevel(depot) * 0.10f + conservation)
     }
 
-    private fun trapStorageCost(trap: SpikeTrap): Int {
-        var cost = max(20, (trap.kind.cost * 0.30f).toInt() + (trap.level - 1) * 12 + trap.overcharge * 8)
-        cost = (cost * (1f - cacheStorageDiscount())).toInt()
-        if (trap.imbuement == Imbuement.CONSERVATION) cost = (cost * 0.85f).toInt()
+    private fun discountedStorageCost(base: Int, imbuement: Imbuement?): Int {
+        var cost = (base * (1f - inventoryStorageDiscount())).toInt()
+        if (imbuement == Imbuement.CONSERVATION) cost = (cost * 0.85f).toInt()
         return max(1, cost)
     }
 
-    // There is intentionally no global utility capacity in v1.4.2. Free terrain and cost remain
-    // meaningful limits; each kind is unique except for the five-structure Block Generator cap.
+    private fun towerStorageCost(tower: Tower): Int {
+        val evolutionPremium = if (tower.evolution != null) 36 else 0
+        val base = max(25, (tower.kind.cost * 0.30f).toInt() + (tower.level - 1) * 16 + tower.overcharge * 10 + evolutionPremium)
+        return discountedStorageCost(base, tower.imbuement)
+    }
+
+    private fun trapStorageCost(trap: SpikeTrap): Int {
+        val base = max(20, (trap.kind.cost * 0.30f).toInt() + (trap.level - 1) * 12 + trap.overcharge * 8)
+        return discountedStorageCost(base, trap.imbuement)
+    }
+
+    private fun structureStorageCost(structure: Utility): Int {
+        val base = max(25, (structure.kind.cost * 0.30f).toInt() + (structure.level - 1) * 15)
+        return discountedStorageCost(base, structure.imbuement)
+    }
+
+    // There is intentionally no global Structure capacity. Free terrain and cost remain
+    // meaningful limits; each kind is unique except for the five-Structure Block Generator cap.
 
     private fun workshopLevel(): Int = utilities.filter { it.kind == UtilityKind.FORGE_WORKSHOP }.map { it.level }.maxOrNull() ?: 0
 
@@ -2396,18 +2539,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun saveRun() {
         if (!pathComplete || phase == GamePhase.GAME_OVER || phase == GamePhase.VICTORY) return
         val pathData = pathCells.joinToString(";") { "${it.col},${it.row}" }
-        val towerData = towers.joinToString(";") { "${it.col},${it.row},${it.kind.name},${it.level},${it.overcharge},${it.evolution?.name ?: "NONE"},${it.imbuement?.name ?: "NONE"}" }
-        val trapData = traps.joinToString(";") { "${it.id},${it.col},${it.row},${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"}" }
+        val towerData = towers.joinToString(";") { "${it.col},${it.row},${it.kind.name},${it.level},${it.overcharge},${it.evolution?.name ?: "NONE"},${it.imbuement?.name ?: "NONE"},${it.activationCount}" }
+        val trapData = traps.joinToString(";") { "${it.id},${it.col},${it.row},${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"},${it.activationCount}" }
         val utilityData = utilities.joinToString(";") { "${it.col},${it.row},${it.kind.name},${it.level},${it.imbuement?.name ?: "NONE"},${it.productionProgress},${it.activationCount}" }
         val corruptionData = corruptions.joinToString(";") { "${it.id},${it.cell.col},${it.cell.row},${it.kind.name}" }
         val perkData = perks.entries.joinToString(";") { "${it.key.name},${it.value}" }
         val pendingPerkData = if (phase == GamePhase.PERK_DRAFT) perkChoices.joinToString(",") { it.name } else ""
         val pendingPerkWavesData = pendingPerkWaves.joinToString(",")
         val savedNextWaveTimer = if (phase == GamePhase.BUILD || (phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.BUILD)) nextWaveTimer else -1f
-        val inventoryData = storedTraps.joinToString(";") { "${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"}" }
+        val towerInventoryData = storedTowers.joinToString(";") { "${it.kind.name},${it.level},${it.overcharge},${it.evolution?.name ?: "NONE"},${it.imbuement?.name ?: "NONE"},${it.activationCount}" }
+        val trapInventoryData = storedTraps.joinToString(";") { "${it.kind.name},${it.level},${it.overcharge},${it.imbuement?.name ?: "NONE"},${it.activationCount}" }
+        val structureInventoryData = storedStructures.joinToString(";") { "${it.kind.name},${it.level},${it.imbuement?.name ?: "NONE"},${it.productionProgress},${it.activationCount}" }
         val supplyData = supplies.entries.filter { it.value > 0 }.joinToString(";") { "${it.key.name},${it.value}" }
         preferences.edit()
-            .putInt("run_save_version", 3)
+            .putInt("run_save_version", 4)
             .putBoolean("has_saved_run", true)
             .putString("run_path", pathData)
             .putString("run_towers", towerData)
@@ -2418,7 +2563,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             .putString("run_pending_perks", pendingPerkData)
             .putString("run_pending_perk_waves", pendingPerkWavesData)
             .putFloat("run_next_wave_timer", savedNextWaveTimer)
-            .putString("run_inventory", inventoryData)
+            .putString("run_inventory_towers", towerInventoryData)
+            .putString("run_inventory_traps", trapInventoryData)
+            .putString("run_inventory_structures", structureInventoryData)
+            // Keep the old trap-only key as a compatibility mirror for an interrupted upgrade.
+            .putString("run_inventory", trapInventoryData)
             .putString("run_supplies", supplyData)
             .putInt("run_gold", gold)
             .putInt("run_lives", lives)
@@ -2459,8 +2608,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 tower.level = values[3].toInt().coerceIn(1, 3)
                 tower.overcharge = values[4].toInt().coerceIn(0, 999)
                 tower.evolution = if (values.size >= 6 && values[5] != "NONE") TowerEvolution.valueOf(values[5]) else null
-                if (tower.evolution?.kind != null && tower.evolution?.kind != tower.kind) tower.evolution = null
+                tower.evolution = tower.evolution?.takeIf { it.kind == tower.kind }
                 tower.imbuement = if (values.size >= 7 && values[6] != "NONE") Imbuement.valueOf(values[6]) else null
+                tower.activationCount = if (values.size >= 8) values[7].toInt().coerceIn(0, 2_000_000_000) else 0
                 towers.add(tower)
             }
             traps.clear()
@@ -2473,10 +2623,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 trap.level = values[4].toInt().coerceIn(1, 3)
                 trap.overcharge = values[5].toInt().coerceIn(0, 999)
                 trap.imbuement = if (values.size >= 7 && values[6] != "NONE") Imbuement.valueOf(values[6]) else null
+                trap.activationCount = if (values.size >= 8) values[7].toInt().coerceIn(0, 2_000_000_000) else 0
                 traps.add(trap)
             }
             utilities.clear()
-            // Utilities no longer have a four-structure global cap. The board and placement
+            // Structures no longer have a four-Structure global cap. The board and placement
             // rules still protect the save from impossible coordinates/collisions.
             preferences.getString("run_utilities", "").orEmpty().split(';').filter { it.isNotBlank() }.take(COLS * ROWS).forEach {
                 val values = it.split(',')
@@ -2509,17 +2660,96 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             preferences.getString("run_pending_perks", "").orEmpty().split(',').filter { it.isNotBlank() }.take(3).forEach { perkChoices.add(ForgePerk.valueOf(it)) }
             pendingPerkWaves.clear()
             preferences.getString("run_pending_perk_waves", "").orEmpty().split(',').filter { it.isNotBlank() }.take(32).forEach { pendingPerkWaves.add(it.toInt().coerceAtLeast(1)) }
+            storedTowers.clear()
             storedTraps.clear()
-            val saveVersion = preferences.getInt("run_save_version", 1)
-            preferences.getString("run_inventory", "").orEmpty().split(';').filter { it.isNotBlank() }.take(20).forEach {
-                val values = it.split(',')
-                if (saveVersion >= 3 && values.size >= 4) {
-                    storedTraps.add(StoredTrap(TrapKind.valueOf(values[0]), values[1].toInt().coerceIn(1, 3), values[2].toInt().coerceIn(0, 999), if (values[3] != "NONE") Imbuement.valueOf(values[3]) else null))
-                } else {
-                    repeat(values.getOrElse(1) { "0" }.toInt().coerceIn(0, 4)) { storedTraps.add(StoredTrap(TrapKind.valueOf(values[0]))) }
+            storedStructures.clear()
+            val saveVersion = prefInt("run_save_version", 1)
+
+            fun entries(key: String): List<String> = preferences.getString(key, "").orEmpty()
+                .split(';').filter { it.isNotBlank() }.take(MAX_INVENTORY_CAPACITY)
+
+            fun loadLegacyTrapInventory() {
+                entries("run_inventory").forEach { entry ->
+                    val values = entry.split(',')
+                    if (saveVersion >= 3 && values.size >= 4) {
+                        storedTraps.add(
+                            StoredTrap(
+                                TrapKind.valueOf(values[0]),
+                                values[1].toInt().coerceIn(1, 3),
+                                values[2].toInt().coerceIn(0, 999),
+                                if (values[3] != "NONE") Imbuement.valueOf(values[3]) else null,
+                                if (values.size >= 5) values[4].toInt().coerceIn(0, 2_000_000_000) else 0
+                            )
+                        )
+                    } else {
+                        repeat(values.getOrElse(1) { "0" }.toInt().coerceIn(0, 4)) {
+                            storedTraps.add(StoredTrap(TrapKind.valueOf(values[0])))
+                        }
+                    }
                 }
             }
-            while (storedTraps.size > 20) storedTraps.removeAt(storedTraps.lastIndex)
+
+            if (saveVersion >= 4) {
+                entries("run_inventory_towers").forEach { entry ->
+                    val values = entry.split(',')
+                    if (values.size < 5) return@forEach
+                    val kind = TowerKind.valueOf(values[0])
+                    var evolution = if (values[3] != "NONE") TowerEvolution.valueOf(values[3]) else null
+                    if (evolution != null && evolution.kind != kind) evolution = null
+                    storedTowers.add(
+                        StoredTower(
+                            kind,
+                            values[1].toInt().coerceIn(1, 3),
+                            values[2].toInt().coerceIn(0, 999),
+                            evolution,
+                            if (values[4] != "NONE") Imbuement.valueOf(values[4]) else null,
+                            if (values.size >= 6) values[5].toInt().coerceIn(0, 2_000_000_000) else 0
+                        )
+                    )
+                }
+                val trapEntries = entries("run_inventory_traps")
+                if (trapEntries.isEmpty()) {
+                    // A v4 key may be absent if a previous write was interrupted; preserve the
+                    // v3-compatible mirror rather than silently dropping the old trap shelf.
+                    loadLegacyTrapInventory()
+                } else {
+                    trapEntries.forEach { entry ->
+                        val values = entry.split(',')
+                        if (values.size < 4) return@forEach
+                        storedTraps.add(
+                            StoredTrap(
+                                TrapKind.valueOf(values[0]),
+                                values[1].toInt().coerceIn(1, 3),
+                                values[2].toInt().coerceIn(0, 999),
+                                if (values[3] != "NONE") Imbuement.valueOf(values[3]) else null,
+                                if (values.size >= 5) values[4].toInt().coerceIn(0, 2_000_000_000) else 0
+                            )
+                        )
+                    }
+                }
+                entries("run_inventory_structures").forEach { entry ->
+                    val values = entry.split(',')
+                    if (values.size < 5) return@forEach
+                    val kind = UtilityKind.valueOf(values[0])
+                    val maxLevel = if (kind == UtilityKind.BLOCK_GENERATOR) 99 else 3
+                    storedStructures.add(
+                        StoredStructure(
+                            kind,
+                            values[1].toInt().coerceIn(1, maxLevel),
+                            if (values[2] != "NONE") Imbuement.valueOf(values[2]) else null,
+                            values[3].toInt().coerceIn(0, 20),
+                            values[4].toInt().coerceIn(0, 2_000_000_000)
+                        )
+                    )
+                }
+            } else {
+                // v1–v3 only had run_inventory, and every entry was a trap. Migrate it into the
+                // dedicated Trap Inventory unchanged; Tower and Structure shelves begin empty.
+                loadLegacyTrapInventory()
+            }
+            while (storedTowers.size > MAX_INVENTORY_CAPACITY) storedTowers.removeAt(storedTowers.lastIndex)
+            while (storedTraps.size > MAX_INVENTORY_CAPACITY) storedTraps.removeAt(storedTraps.lastIndex)
+            while (storedStructures.size > MAX_INVENTORY_CAPACITY) storedStructures.removeAt(storedStructures.lastIndex)
             supplies.clear()
             preferences.getString("run_supplies", "").orEmpty().split(';').filter { it.isNotBlank() }.forEach {
                 val values = it.split(',')
@@ -2560,8 +2790,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedTrap = null
             selectedUtility = null
             selectedUtilityKind = null
-            selectedStoredTrapIndex = -1
+            selectedInventorySelection = null
             selectedCorruption = null
+            inventoryCategory = InventoryCategory.TOWERS
+            inventoryPageIndex = 0
+            buildShelfSlide = 0f
             buildPage = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildPage.TRAPS else BuildPage.TOWERS
             rebuildToolRects()
             phase = if (perkChoices.size == 3) GamePhase.PERK_DRAFT else GamePhase.BUILD
@@ -2577,19 +2810,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun isValidSavedPath(path: List<GridCell>): Boolean {
         if (path.size < COLS || path.size > COLS * ROWS) return false
-        if (path.first() != GridCell(0, START_ROW) || path.last() != GridCell(COLS - 1, START_ROW)) return false
+        if (path.firstOrNull() != GridCell(0, START_ROW) || path.lastOrNull() != GridCell(COLS - 1, START_ROW)) return false
         if (path.toSet().size != path.size) return false
         return path.all { it.col in 0 until COLS && it.row in 0 until ROWS } && path.zipWithNext().all { abs(it.first.col - it.second.col) + abs(it.first.row - it.second.row) == 1 }
     }
 
     private fun clearSavedRun() {
         val editor = preferences.edit()
-        arrayOf("run_path", "run_towers", "run_traps", "run_utilities", "run_corruptions", "run_perks", "run_pending_perks", "run_pending_perk_waves", "run_next_wave_timer", "run_inventory", "run_supplies", "run_gold", "run_lives", "run_max_core", "run_score", "run_wave", "run_forge_charges", "run_evolution_cores", "run_salvage_parts", "run_growth_essence", "run_survey_lens_waves", "run_phase_barrier", "run_mode", "run_modifier", "run_seed", "run_save_version").forEach { editor.remove(it) }
+        arrayOf("run_path", "run_towers", "run_traps", "run_utilities", "run_corruptions", "run_perks", "run_pending_perks", "run_pending_perk_waves", "run_next_wave_timer", "run_inventory", "run_inventory_towers", "run_inventory_traps", "run_inventory_structures", "run_supplies", "run_gold", "run_lives", "run_max_core", "run_score", "run_wave", "run_forge_charges", "run_evolution_cores", "run_salvage_parts", "run_growth_essence", "run_survey_lens_waves", "run_phase_barrier", "run_mode", "run_modifier", "run_seed", "run_save_version").forEach { editor.remove(it) }
         editor.putBoolean("has_saved_run", false).apply()
         savedRunAvailable = false
     }
 
     private fun newRun(mode: GameMode = GameMode.ENDLESS, seed: Long = 7331L, modifier: ChallengeModifier = ChallengeModifier.NONE) {
+        titlePressedAction = TitleMenuAction.NONE
         clearSavedRun()
         gameMode = mode
         runSeed = seed
@@ -2600,12 +2834,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedUtility = null
         selectedUtilityKind = null
-        selectedStoredTrapIndex = -1
+        selectedInventorySelection = null
         selectedCorruption = null
         evolutionTower = null
         imbuementTower = null
         imbuementTrap = null
         imbuementUtility = null
+        inventoryCategory = InventoryCategory.TOWERS
+        inventoryPageIndex = 0
+        buildShelfSlide = 0f
         buildPage = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildPage.TRAPS else BuildPage.TOWERS
         rebuildToolRects()
         pathCells.clear()
@@ -2614,7 +2851,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         towers.clear()
         traps.clear()
         utilities.clear()
+        storedTowers.clear()
         storedTraps.clear()
+        storedStructures.clear()
         supplies.clear()
         corruptions.clear()
         perks.clear()
@@ -2692,6 +2931,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun returnToTitle() {
         if ((phase == GamePhase.BUILD || (phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.BUILD)) && pathComplete) saveRun()
+        titlePressedAction = TitleMenuAction.NONE
         phase = GamePhase.TITLE
         enemies.clear()
         pendingSpawns.clear()
@@ -2700,7 +2940,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedUtility = null
         selectedUtilityKind = null
-        selectedStoredTrapIndex = -1
+        selectedInventorySelection = null
         selectedCorruption = null
         evolutionTower = null
         imbuementTower = null
@@ -2734,7 +2974,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         towers.clear()
         traps.clear()
         utilities.clear()
+        storedTowers.clear()
         storedTraps.clear()
+        storedStructures.clear()
         supplies.clear()
         corruptions.clear()
         salvageParts = 0
@@ -2754,12 +2996,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedUtility = null
         selectedUtilityKind = null
-        selectedStoredTrapIndex = -1
+        selectedInventorySelection = null
         selectedCorruption = null
         evolutionTower = null
         imbuementTower = null
         imbuementTrap = null
         imbuementUtility = null
+        inventoryCategory = InventoryCategory.TOWERS
+        inventoryPageIndex = 0
+        buildShelfSlide = 0f
         buildPage = if (challengeModifier == ChallengeModifier.TRAPS_ONLY) BuildPage.TRAPS else BuildPage.TOWERS
         rebuildToolRects()
         setBanner("PATH RESET  DRAG TO THE CORE", 2.2f)
@@ -2876,10 +3121,41 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
+    private fun titleActionAt(x: Float, y: Float): TitleMenuAction {
+        return when {
+            titlePlayRect.contains(x, y) -> TitleMenuAction.PLAY
+            titleContinueRect.contains(x, y) && savedRunAvailable -> TitleMenuAction.CONTINUE
+            titleChallengeRect.contains(x, y) -> TitleMenuAction.CHALLENGE
+            titleSoundRect.contains(x, y) -> TitleMenuAction.SOUND
+            else -> TitleMenuAction.NONE
+        }
+    }
+
+    private fun activateTitleAction(action: TitleMenuAction) {
+        when (action) {
+            TitleMenuAction.PLAY -> newRun()
+            TitleMenuAction.CONTINUE -> if (savedRunAvailable) loadSavedRun()
+            TitleMenuAction.CHALLENGE -> {
+                phase = GamePhase.CHALLENGE_MENU
+                audio.play("ui_click", 0.38f, 1.13f)
+            }
+            TitleMenuAction.SOUND -> audio.toggle()
+            TitleMenuAction.NONE -> Unit
+        }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         synchronized(stateLock) {
             val x = event.x
             val y = event.y
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_POINTER_DOWN -> {
+                    uiTouchActive = true
+                    uiTouchX = x
+                    uiTouchY = y
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> uiTouchActive = false
+            }
 
             // F0 camera: pinch-zoom + drag-pan on the board viewport (chrome stays fixed)
             val playPhases = phase == GamePhase.BUILD || phase == GamePhase.DIG || phase == GamePhase.WAVE ||
@@ -2901,12 +3177,17 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
 
             if (phase == GamePhase.TITLE) {
-                if (event.action == MotionEvent.ACTION_UP) {
-                    when {
-                        titlePlayRect.contains(x, y) -> newRun()
-                        titleContinueRect.contains(x, y) && savedRunAvailable -> loadSavedRun()
-                        titleChallengeRect.contains(x, y) -> phase = GamePhase.CHALLENGE_MENU
-                        titleSoundRect.contains(x, y) -> audio.toggle()
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> titlePressedAction = titleActionAt(x, y)
+                    MotionEvent.ACTION_CANCEL -> titlePressedAction = TitleMenuAction.NONE
+                    MotionEvent.ACTION_UP -> {
+                        val heldAction = titlePressedAction
+                        titlePressedAction = TitleMenuAction.NONE
+                        // Trigger only when the finger is released over the same active sprite.
+                        // This makes menu controls feel deliberate and avoids accidental releases.
+                        if (heldAction != TitleMenuAction.NONE && heldAction == titleActionAt(x, y)) {
+                            activateTitleAction(heldAction)
+                        }
                     }
                 }
                 return true
@@ -3007,19 +3288,28 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     return true
                 }
                 if (upgradeRect.contains(x, y)) {
+                    val tower = selectedTower
                     when {
                         selectedCorruption != null -> cleanseSelectedCorruption()
                         selectedUtility != null -> upgradeSelectedUtility()
+                        tower?.canEvolve() == true -> if (evolutionCores > 0) openEvolutionDraft(tower) else setBanner("DEFEAT AN OVERGROWTH BOSS FOR AN EVOLUTION CORE", 2f)
                         else -> upgradeSelectedDefense()
                     }
                     return true
                 }
-                if (storeRect.contains(x, y)) {
-                    val tower = selectedTower
+                val utility = selectedUtility
+                if (utility?.kind == UtilityKind.FORGE_WORKSHOP && workshopRect.contains(x, y)) {
+                    openWorkshop()
+                    return true
+                }
+                if (utility?.kind == UtilityKind.FORGE_WORKSHOP && structureStoreRect.contains(x, y)) {
+                    storeSelectedStructure()
+                    return true
+                }
+                if (utility?.kind != UtilityKind.FORGE_WORKSHOP && storeRect.contains(x, y)) {
                     when {
-                        tower != null && tower.canEvolve() -> if (evolutionCores > 0) openEvolutionDraft(tower) else setBanner("DEFEAT AN OVERGROWTH BOSS FOR AN EVOLUTION CORE", 2f)
-                        selectedTrap != null -> storeSelectedTrap()
-                        selectedUtility?.kind == UtilityKind.FORGE_WORKSHOP -> openWorkshop()
+                        selectedTower != null || selectedTrap != null -> storeSelectedDefense()
+                        utility != null -> storeSelectedStructure()
                     }
                     return true
                 }
@@ -3033,47 +3323,87 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
             }
 
-            if (phase == GamePhase.BUILD && event.action == MotionEvent.ACTION_UP) {
-                if (towerPageRect.contains(x, y)) {
-                    if (challengeModifier == ChallengeModifier.TRAPS_ONLY) {
-                        setBanner("TRAPS ONLY CHALLENGE", 1.4f)
+            if (phase == GamePhase.BUILD && buildShelfReadyForInput() && event.action == MotionEvent.ACTION_UP) {
+                if (buildPage == BuildPage.INVENTORY) {
+                    fun selectInventoryCategory(category: InventoryCategory) {
+                        if (inventoryCategory == category) {
+                            when (category) {
+                                InventoryCategory.TOWERS -> {
+                                    if (challengeModifier == ChallengeModifier.TRAPS_ONLY) {
+                                        setBanner("TRAPS ONLY CHALLENGE", 1.4f)
+                                        return
+                                    }
+                                    buildPage = BuildPage.TOWERS
+                                    if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
+                                }
+                                InventoryCategory.TRAPS -> {
+                                    if (challengeModifier == ChallengeModifier.TOWERS_ONLY) {
+                                        setBanner("TOWERS ONLY CHALLENGE", 1.4f)
+                                        return
+                                    }
+                                    buildPage = BuildPage.TRAPS
+                                    if (selectedTool.ordinal < BuildTool.SPIKES.ordinal) selectedTool = BuildTool.SPIKES
+                                }
+                                InventoryCategory.STRUCTURES -> buildPage = BuildPage.STRUCTURES
+                            }
+                        } else {
+                            inventoryCategory = category
+                            inventoryPageIndex = 0
+                        }
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 0.98f)
+                    }
+                    if (towerPageRect.contains(x, y)) { selectInventoryCategory(InventoryCategory.TOWERS); return true }
+                    if (trapPageRect.contains(x, y)) { selectInventoryCategory(InventoryCategory.TRAPS); return true }
+                    if (utilityPageRect.contains(x, y)) { selectInventoryCategory(InventoryCategory.STRUCTURES); return true }
+                    if (inventoryPageRect.contains(x, y)) {
+                        inventoryPageIndex = (inventoryPageIndex + 1) % inventoryPageCount()
+                        selectedInventorySelection = null
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 0.92f)
                         return true
                     }
-                    if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 4 else buildPage = BuildPage.TOWERS
-                    if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
-                    clearBuildSelections()
-                    rebuildToolRects()
-                    audio.play("ui_click", 0.28f, 1.02f)
-                    return true
-                }
-                if (trapPageRect.contains(x, y)) {
-                    if (challengeModifier == ChallengeModifier.TOWERS_ONLY) {
-                        setBanner("TOWERS ONLY CHALLENGE", 1.4f)
+                } else {
+                    if (towerPageRect.contains(x, y)) {
+                        if (challengeModifier == ChallengeModifier.TRAPS_ONLY) {
+                            setBanner("TRAPS ONLY CHALLENGE", 1.4f)
+                            return true
+                        }
+                        if (buildPage == BuildPage.TOWERS) towerPageIndex = (towerPageIndex + 1) % 4 else buildPage = BuildPage.TOWERS
+                        if (selectedTool.ordinal >= BuildTool.SPIKES.ordinal) selectedTool = BuildTool.BOLT
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 1.02f)
                         return true
                     }
-                    buildPage = BuildPage.TRAPS
-                    if (selectedTool.ordinal < BuildTool.SPIKES.ordinal) selectedTool = BuildTool.SPIKES
-                    clearBuildSelections()
-                    rebuildToolRects()
-                    audio.play("ui_click", 0.28f, 0.96f)
-                    return true
-                }
-                if (utilityPageRect.contains(x, y)) {
-                    if (buildPage == BuildPage.UTILITIES) utilityPageIndex = (utilityPageIndex + 1) % 5 else buildPage = BuildPage.UTILITIES
-                    clearBuildSelections()
-                    rebuildToolRects()
-                    audio.play("ui_click", 0.28f, 1.08f)
-                    return true
-                }
-                if (cachePageRect.contains(x, y)) {
-                    if (buildPage == BuildPage.CACHE) {
-                        val pages = max(1, (storedTraps.size + 4) / 5)
-                        cachePageIndex = (cachePageIndex + 1) % pages
-                    } else buildPage = BuildPage.CACHE
-                    clearBuildSelections()
-                    rebuildToolRects()
-                    audio.play("ui_click", 0.28f, 0.92f)
-                    return true
+                    if (trapPageRect.contains(x, y)) {
+                        if (challengeModifier == ChallengeModifier.TOWERS_ONLY) {
+                            setBanner("TOWERS ONLY CHALLENGE", 1.4f)
+                            return true
+                        }
+                        buildPage = BuildPage.TRAPS
+                        if (selectedTool.ordinal < BuildTool.SPIKES.ordinal) selectedTool = BuildTool.SPIKES
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 0.96f)
+                        return true
+                    }
+                    if (utilityPageRect.contains(x, y)) {
+                        if (buildPage == BuildPage.STRUCTURES) utilityPageIndex = (utilityPageIndex + 1) % 5 else buildPage = BuildPage.STRUCTURES
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 1.08f)
+                        return true
+                    }
+                    if (inventoryPageRect.contains(x, y)) {
+                        buildPage = BuildPage.INVENTORY
+                        inventoryPageIndex = 0
+                        clearBuildSelections()
+                        rebuildToolRects()
+                        audio.play("ui_click", 0.28f, 0.92f)
+                        return true
+                    }
                 }
                 for (entry in toolRects) if (entry.second.contains(x, y)) { selectTool(entry.first); return true }
                 for (entry in utilityRects) if (entry.second.contains(x, y)) {
@@ -3081,14 +3411,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     selectedUtilityKind = entry.first
                     audio.play("ui_click", 0.28f, 1.04f)
                     val kind = entry.first
-                    val status = if (kind == UtilityKind.BLOCK_GENERATOR) " • ${utilities.count { it.kind == kind }}/$MAX_BLOCK_GENERATORS ACTIVE" else ""
-                    setBanner("${kind.title.uppercase()}  •  ${kind.description}$status", 2.8f)
+                    val status = if (kind == UtilityKind.BLOCK_GENERATOR) "  ${utilities.count { it.kind == kind }}/$MAX_BLOCK_GENERATORS" else ""
+                    setBanner("${kind.title.uppercase()}$status", 0.9f)
                     return true
                 }
-                for (entry in cacheRects) if (entry.second.contains(x, y)) {
+                for (entry in inventoryRects) if (entry.second.contains(x, y)) {
                     clearBuildSelections()
-                    selectedStoredTrapIndex = entry.first
+                    selectedInventorySelection = entry.first
                     audio.play("ui_click", 0.28f, 0.98f)
+                    setBanner("FREE TO PLACE", 0.9f)
                     return true
                 }
             }
@@ -3124,7 +3455,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedUtility = null
         selectedCorruption = null
         selectedUtilityKind = null
-        selectedStoredTrapIndex = -1
+        selectedInventorySelection = null
     }
 
     private fun selectTool(tool: BuildTool) {
@@ -3134,7 +3465,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         clearBuildSelections()
         selectedTool = tool
         audio.play("ui_click", 0.28f, 1f + tool.ordinal * 0.025f)
-        setBanner("${tool.title.uppercase()}  •  ${toolDescription(tool)}", 2.8f)
+        setBanner(tool.title.uppercase(), 0.8f)
     }
 
     private fun extendPath(cell: GridCell) {
@@ -3204,7 +3535,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedUtility = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 1.12f)
-            setBanner("${existingTower.kind.title.uppercase()}  •  ${existingTower.kind.description}", 2.8f)
+            setBanner(existingTower.kind.title.uppercase(), 0.7f)
             return
         }
         val existingUtility = findUtility(cell.col, cell.row)
@@ -3214,8 +3545,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedTrap = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 0.92f)
-            val status = if (existingUtility.kind == UtilityKind.BLOCK_GENERATOR) " • ${utilities.count { it.kind == existingUtility.kind }}/$MAX_BLOCK_GENERATORS ACTIVE" else ""
-            setBanner("${existingUtility.kind.title.uppercase()}  •  ${existingUtility.kind.description}$status", 2.8f)
+            val status = if (existingUtility.kind == UtilityKind.BLOCK_GENERATOR) "  ${utilities.count { it.kind == existingUtility.kind }}/$MAX_BLOCK_GENERATORS" else ""
+            setBanner("${existingUtility.kind.title.uppercase()}$status", 0.7f)
             return
         }
         val existingTrap = findTrap(cell.col, cell.row)
@@ -3225,7 +3556,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             selectedUtility = null
             selectedCorruption = null
             audio.play("ui_click", 0.28f, 1.06f)
-            setBanner("${existingTrap.kind.title.uppercase()}  •  ${existingTrap.kind.description}", 2.8f)
+            setBanner(existingTrap.kind.title.uppercase(), 0.7f)
             return
         }
         if (phase != GamePhase.BUILD) return
@@ -3233,12 +3564,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         selectedTrap = null
         selectedUtility = null
         selectedCorruption = null
-        if (buildPage == BuildPage.UTILITIES && selectedUtilityKind != null) {
-            placeUtility(cell, selectedUtilityKind!!)
+        if (buildPage == BuildPage.STRUCTURES) {
+            val kind = selectedUtilityKind ?: return
+            placeUtility(cell, kind)
             return
         }
-        if (buildPage == BuildPage.CACHE && selectedStoredTrapIndex in storedTraps.indices) {
-            placeStoredTrap(cell)
+        if (buildPage == BuildPage.INVENTORY) {
+            val inventorySelection = selectedInventorySelection ?: return
+            if (isValidInventorySelection(inventorySelection)) placeStoredInventoryItem(cell, inventorySelection)
             return
         }
         when (selectedTool) {
@@ -3337,7 +3670,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun placeTrap(cell: GridCell, kind: TrapKind) {
         if (challengeModifier == ChallengeModifier.TOWERS_ONLY) return
-        if (!isPathCell(cell) || cell == pathCells.first() || cell == pathCells.last() || findTrap(cell.col, cell.row) != null) {
+        val gateCell = pathCells.firstOrNull()
+        val coreCell = pathCells.lastOrNull()
+        if (!isPathCell(cell) || cell == gateCell || cell == coreCell || findTrap(cell.col, cell.row) != null) {
             setBanner("TRAPS GO ON AN EMPTY PATH BLOCK", 1.5f)
             audio.play("ui_click", 0.24f, 0.7f)
             return
@@ -3416,53 +3751,185 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         saveRun()
     }
 
-    private fun storeSelectedTrap() {
-        val trap = selectedTrap ?: return
-        if (storedTraps.size >= cacheCapacity()) {
-            setBanner("CACHE FULL  ${storedTraps.size}/${cacheCapacity()}", 1.6f)
+    /** Stores either defense family without selling it; permanent rank state is retained. */
+    private fun storeSelectedDefense() {
+        val tower = selectedTower
+        val trap = selectedTrap
+        val category = if (tower != null) InventoryCategory.TOWERS else InventoryCategory.TRAPS
+        if (tower == null && trap == null) return
+        if (!hasInventoryRoom(category)) {
+            setBanner("${category.title} INVENTORY FULL  ${inventoryCount(category)}/${inventoryCapacity()}", 1.7f)
             return
         }
         val wrapped = supplyCount(CraftedItem.RECOVERY_WRAP) > 0
-        val cost = if (wrapped) 0 else trapStorageCost(trap)
+        val cost = if (wrapped) 0 else tower?.let { towerStorageCost(it) } ?: trap?.let { trapStorageCost(it) } ?: 0
         if (gold < cost) {
             setBanner("NEED $cost BLOCKS TO STORE", 1.6f)
             return
         }
         gold -= cost
         if (wrapped) consumeSupply(CraftedItem.RECOVERY_WRAP)
-        storedTraps.add(StoredTrap(trap.kind, trap.level, trap.overcharge, trap.imbuement))
-        traps.remove(trap)
+        val title: String
+        if (tower != null) {
+            storedTowers.add(StoredTower(tower.kind, tower.level, tower.overcharge, tower.evolution, tower.imbuement, tower.activationCount))
+            towers.remove(tower)
+            title = tower.kind.title
+        } else {
+            val storedTrap = trap ?: return
+            storedTraps.add(StoredTrap(storedTrap.kind, storedTrap.level, storedTrap.overcharge, storedTrap.imbuement, storedTrap.activationCount))
+            traps.remove(storedTrap)
+            title = storedTrap.kind.title
+        }
+        selectedTower = null
         selectedTrap = null
-        selectedStoredTrapIndex = storedTraps.lastIndex
-        buildPage = BuildPage.CACHE
-        rebuildToolRects()
-        setBanner("${trap.kind.title.uppercase()} CACHED  -$cost BLOCKS", 1.8f)
+        openInventoryAfterStore(category)
+        setBanner("${title.uppercase()} STORED${if (wrapped) "  •  WRAP USED" else "  •  -$cost BLOCKS"}", 1.8f)
         saveRun()
     }
 
-    private fun placeStoredTrap(cell: GridCell) {
-        if (challengeModifier == ChallengeModifier.TOWERS_ONLY) return
-        if (selectedStoredTrapIndex !in storedTraps.indices) return
-        if (!isPathCell(cell) || cell == pathCells.first() || cell == pathCells.last() || findTrap(cell.col, cell.row) != null) {
-            setBanner("CACHED TRAPS NEED AN EMPTY PATH BLOCK", 1.6f)
+    /** Stores a Structure, including wave-cycle progress and activation cadence. */
+    private fun storeSelectedStructure() {
+        val structure = selectedUtility ?: return
+        if (!hasInventoryRoom(InventoryCategory.STRUCTURES)) {
+            setBanner("STRUCTURES INVENTORY FULL  ${storedStructures.size}/${inventoryCapacity()}", 1.7f)
             return
         }
-        val stored = storedTraps.removeAt(selectedStoredTrapIndex)
+        // An online Inventory Depot can raise every shelf above 25. Do not let its own removal
+        // strand any shelf over the base limit it is about to restore.
+        if (lastDepotWouldOverfillInventory(structure, addingToStructureShelf = true)) {
+            setBanner("KEEP INVENTORY DEPOT ONLINE UNTIL EVERY SHELF IS 25 OR LOWER", 2f)
+            return
+        }
+        val wrapped = supplyCount(CraftedItem.RECOVERY_WRAP) > 0
+        val cost = if (wrapped) 0 else structureStorageCost(structure)
+        if (gold < cost) {
+            setBanner("NEED $cost BLOCKS TO STORE", 1.6f)
+            return
+        }
+        gold -= cost
+        if (wrapped) consumeSupply(CraftedItem.RECOVERY_WRAP)
+        storedStructures.add(
+            StoredStructure(
+                structure.kind,
+                structure.level,
+                structure.imbuement,
+                structure.productionProgress,
+                structure.activationCount
+            )
+        )
+        utilities.remove(structure)
+        selectedUtility = null
+        openInventoryAfterStore(InventoryCategory.STRUCTURES)
+        setBanner("${structure.kind.title.uppercase()} STORED${if (wrapped) "  •  WRAP USED" else "  •  -$cost BLOCKS"}", 1.8f)
+        saveRun()
+    }
+
+    private fun openInventoryAfterStore(category: InventoryCategory) {
+        buildPage = BuildPage.INVENTORY
+        inventoryCategory = category
+        inventoryPageIndex = max(0, (inventoryCount(category) - 1) / INVENTORY_PAGE_SIZE)
+        selectedInventorySelection = InventorySelection(category, inventoryCount(category) - 1)
+        rebuildToolRects()
+    }
+
+    private fun placeStoredInventoryItem(cell: GridCell, selection: InventorySelection) {
+        when (selection.category) {
+            InventoryCategory.TOWERS -> placeStoredTower(cell, selection)
+            InventoryCategory.TRAPS -> placeStoredTrap(cell, selection)
+            InventoryCategory.STRUCTURES -> placeStoredStructure(cell, selection)
+        }
+    }
+
+    /** Free re-placement of a tower deliberately skips escalating build costs. */
+    private fun placeStoredTower(cell: GridCell, selection: InventorySelection) {
+        if (challengeModifier == ChallengeModifier.TRAPS_ONLY || selection.index !in storedTowers.indices) return
+        if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findTrap(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row)?.kind == CorruptionKind.BROOD_NEST) {
+            setBanner("STORED TOWERS NEED A FREE TERRAIN BLOCK", 1.6f)
+            return
+        }
+        val stored = storedTowers.removeAt(selection.index)
+        val tower = Tower(cell.col, cell.row, stored.kind)
+        tower.level = stored.level
+        tower.overcharge = stored.overcharge
+        tower.evolution = stored.evolution?.takeIf { it.kind == stored.kind }
+        tower.imbuement = stored.imbuement
+        tower.activationCount = stored.activationCount
+        towers.add(tower)
+        finishInventoryDeployment(InventoryCategory.TOWERS)
+        burst(cell.col + 0.5f, cell.row + 0.5f, stored.kind.accent, 13, 0.8f)
+        setBanner("${stored.kind.title.uppercase()} REDEPLOYED FREE  •  ${stored.rankLabel()}", 1.7f)
+        saveRun()
+    }
+
+    /** Free re-placement of a trap keeps its upgrades and imbuement intact. */
+    private fun placeStoredTrap(cell: GridCell, selection: InventorySelection) {
+        if (challengeModifier == ChallengeModifier.TOWERS_ONLY || selection.index !in storedTraps.indices) return
+        val gateCell = pathCells.firstOrNull()
+        val coreCell = pathCells.lastOrNull()
+        if (!isPathCell(cell) || cell == gateCell || cell == coreCell || findTrap(cell.col, cell.row) != null) {
+            setBanner("STORED TRAPS NEED AN EMPTY PATH BLOCK", 1.6f)
+            return
+        }
+        val stored = storedTraps.removeAt(selection.index)
         val trap = SpikeTrap(nextTrapId++, cell.col, cell.row, stored.kind)
         trap.level = stored.level
         trap.overcharge = stored.overcharge
         trap.imbuement = stored.imbuement
+        trap.activationCount = stored.activationCount
         traps.add(trap)
-        selectedStoredTrapIndex = -1
-        cachePageIndex = min(cachePageIndex, max(0, (storedTraps.size - 1) / 5))
-        rebuildToolRects()
+        finishInventoryDeployment(InventoryCategory.TRAPS)
         burst(cell.col + 0.5f, cell.row + 0.5f, stored.kind.accent, 13, 0.8f)
-        setBanner("${stored.kind.title.uppercase()} RECOVERED  ${stored.rankLabel()}", 1.7f)
+        setBanner("${stored.kind.title.uppercase()} REDEPLOYED FREE  •  ${stored.rankLabel()}", 1.7f)
         saveRun()
+    }
+
+    /** Free re-placement of a Structure bypasses unlock/cost gates but preserves normal board limits. */
+    private fun placeStoredStructure(cell: GridCell, selection: InventorySelection) {
+        if (selection.index !in storedStructures.indices) return
+        val stored = storedStructures[selection.index]
+        if (!structurePlacementAllowed(cell, stored.kind)) return
+        storedStructures.removeAt(selection.index)
+        val structure = Utility(cell.col, cell.row, stored.kind)
+        structure.level = stored.level.coerceIn(1, structure.maxLevel())
+        structure.imbuement = stored.imbuement
+        structure.productionProgress = stored.productionProgress.coerceIn(0, 20)
+        structure.activationCount = stored.activationCount.coerceIn(0, 2_000_000_000)
+        utilities.add(structure)
+        selectedUtility = structure
+        selectedUtilityKind = null
+        finishInventoryDeployment(InventoryCategory.STRUCTURES)
+        burst(cell.col + 0.5f, cell.row + 0.5f, stored.kind.accent, 16, 0.95f)
+        setBanner("${stored.kind.title.uppercase()} REDEPLOYED FREE  •  ${stored.rankLabel()}", 1.8f)
+        saveRun()
+    }
+
+    private fun finishInventoryDeployment(category: InventoryCategory) {
+        selectedInventorySelection = null
+        inventoryPageIndex = min(inventoryPageIndex, inventoryPageCount(category) - 1)
+        rebuildToolRects()
     }
 
     private fun utilityUnlocked(kind: UtilityKind): Boolean {
         return waveNumber >= 10 || kind == UtilityKind.BLOCK_GENERATOR || kind == UtilityKind.SURVEYOR_STATION || kind == UtilityKind.SALVAGE_YARD
+    }
+
+    private fun structurePlacementAllowed(cell: GridCell, kind: UtilityKind): Boolean {
+        // Structures have no global cap: unique kinds remain unique while Block Generators can
+        // occupy up to five terrain cells. Stored redeployments obey these board rules too.
+        val copies = utilities.count { it.kind == kind }
+        if (kind == UtilityKind.BLOCK_GENERATOR && copies >= MAX_BLOCK_GENERATORS) {
+            setBanner("BLOCK GENERATOR LIMIT  $MAX_BLOCK_GENERATORS/$MAX_BLOCK_GENERATORS", 1.6f)
+            return false
+        }
+        if (kind != UtilityKind.BLOCK_GENERATOR && copies >= 1) {
+            setBanner("ONE COPY OF THIS STRUCTURE IS ALREADY ACTIVE", 1.5f)
+            return false
+        }
+        if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row) != null) {
+            setBanner("STRUCTURES NEED CLEAN FREE TERRAIN", 1.5f)
+            return false
+        }
+        return true
     }
 
     private fun placeUtility(cell: GridCell, kind: UtilityKind) {
@@ -3470,22 +3937,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("DEFEAT THE FIRST OVERGROWTH TO UNLOCK", 1.8f)
             return
         }
-        // v1.4.2 removes the global four-utility capacity. Keep one copy for each utility
-        // roster entry, while allowing a maximum of five Block Generators.
-        val copies = utilities.count { it.kind == kind }
-        if (kind == UtilityKind.BLOCK_GENERATOR) {
-            if (copies >= MAX_BLOCK_GENERATORS) {
-                setBanner("BLOCK GENERATOR LIMIT  $MAX_BLOCK_GENERATORS/$MAX_BLOCK_GENERATORS", 1.6f)
-                return
-            }
-        } else if (copies >= 1) {
-            setBanner("ONE COPY OF THIS UTILITY IS ALREADY ACTIVE", 1.5f)
-            return
-        }
-        if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row) != null) {
-            setBanner("UTILITIES NEED CLEAN FREE TERRAIN", 1.5f)
-            return
-        }
+        if (!structurePlacementAllowed(cell, kind)) return
         val cost = utilityPlacementCost(kind)
         if (gold < cost) {
             setBanner("NEED $cost BLOCKS", 1.5f)
@@ -3504,7 +3956,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun upgradeSelectedUtility() {
         val utility = selectedUtility ?: return
         if (utility.level >= utility.maxLevel()) {
-            setBanner("UTILITY AT MAXIMUM LEVEL", 1.4f)
+            setBanner("STRUCTURE AT MAXIMUM LEVEL", 1.4f)
             return
         }
         val hasGearset = supplyCount(CraftedItem.UTILITY_GEARSET) > 0
@@ -3528,6 +3980,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner("NO RECYCLING CHALLENGE", 1.5f)
             return
         }
+        if (lastDepotWouldOverfillInventory(utility, addingToStructureShelf = false)) {
+            setBanner("KEEP INVENTORY DEPOT ONLINE UNTIL EVERY SHELF IS 25 OR LOWER", 2f)
+            return
+        }
         val invested = utility.kind.cost + (utility.level - 1) * (utility.kind.cost / 2 + 70)
         val value = (invested * recyclingMultiplier()).toInt()
         gold = safeAdd(gold, value)
@@ -3536,7 +3992,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         utilities.remove(utility)
         selectedUtility = null
         rebuildToolRects()
-        setBanner("UTILITY RECYCLED  +$value BLOCKS  +$parts PARTS", 1.8f)
+        setBanner("STRUCTURE RECYCLED  +$value BLOCKS  +$parts PARTS", 1.8f)
         saveRun()
     }
 
@@ -3596,7 +4052,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             CraftedItem.TRAP_REFIT_KIT -> {
                 val index = storedTraps.indices.filter { storedTraps[it].level < 3 }.minByOrNull { storedTraps[it].level }
-                if (index == null) { setBanner("NO CACHED TRAP CAN BE REFIT", 1.5f); return }
+                if (index == null) { setBanner("NO STORED TRAP CAN BE REFIT", 1.5f); return }
                 storedTraps[index].level += 1
                 consumeSupply(item)
                 rebuildToolRects()
@@ -3820,13 +4276,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun extendReforgePath(cell: GridCell) {
-        if (pathComplete || pathCells.isEmpty()) return
-        val last = pathCells.last()
+        if (pathComplete) return
+        val last = pathCells.lastOrNull() ?: return
         val distance = abs(cell.col - last.col) + abs(cell.row - last.row)
         if (distance > 1) {
             var safety = 0
-            while (!pathComplete && pathCells.last() != cell && safety < COLS + ROWS) {
-                val current = pathCells.last()
+            while (!pathComplete && pathCells.lastOrNull() != cell && safety < COLS + ROWS) {
+                val current = pathCells.lastOrNull() ?: break
                 val dx = cell.col - current.col
                 val dy = cell.row - current.row
                 val next = if (abs(dx) >= abs(dy) && dx != 0) GridCell(current.col + if (dx > 0) 1 else -1, current.row) else GridCell(current.col, current.row + if (dy > 0) 1 else -1)
@@ -3895,8 +4351,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             return
         }
         val displaced = displacedReforgeTraps()
-        if (storedTraps.size + displaced.size > cacheCapacity()) {
-            setBanner("CACHE FULL  NEED ${storedTraps.size + displaced.size}/${cacheCapacity()} SLOTS", 1.9f)
+        if (storedTraps.size + displaced.size > inventoryCapacity()) {
+            setBanner("TRAP INVENTORY FULL  NEED ${storedTraps.size + displaced.size}/${inventoryCapacity()} SLOTS", 1.9f)
             return
         }
         val hasCoupler = supplyCount(CraftedItem.REFORGE_COUPLER) > 0 && reforgeCost > 0
@@ -3915,12 +4371,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         gold -= storageCost
         if (hasCoupler) consumeSupply(CraftedItem.REFORGE_COUPLER)
         repeat(wraps) { consumeSupply(CraftedItem.RECOVERY_WRAP) }
-        for (trap in displaced) storedTraps.add(StoredTrap(trap.kind, trap.level, trap.overcharge, trap.imbuement))
+        for (trap in displaced) storedTraps.add(StoredTrap(trap.kind, trap.level, trap.overcharge, trap.imbuement, trap.activationCount))
         traps.removeAll(displaced)
         reforgeOriginalPath.clear()
         phase = GamePhase.BUILD
         rebuildToolRects()
-        setBanner("REFORGED  -F$forgeCost  -$storageCost BLOCKS  ${displaced.size} CACHED", 2.5f)
+        setBanner("REFORGED  -F$forgeCost  -$storageCost BLOCKS  ${displaced.size} STORED", 2.5f)
         saveRun()
         audio.play("build", 0.62f, 0.86f)
     }
@@ -4130,77 +4586,147 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawTitle(canvas: Canvas) {
-        canvas.drawColor(Color.rgb(10, 17, 13))
-        drawTitleGrid(canvas)
-        drawRoundedRect(canvas, dp(18f), dp(16f), dp(62f), dp(60f), dp(12f), Color.rgb(190, 244, 78))
-        drawCenteredText(canvas, "B", dp(40f), dp(39f), dp(24f), Color.rgb(13, 22, 17), true, true)
-        drawText(canvas, "TECHTROY GAME LAB", dp(74f), dp(45f), dp(12f), Color.rgb(190, 244, 78), Paint.Align.LEFT, true)
-        drawRoundedRect(canvas, titleSoundRect.left, titleSoundRect.top, titleSoundRect.right, titleSoundRect.bottom, dp(11f), Color.rgb(26, 39, 31))
-        drawCenteredText(canvas, if (audio.isEnabled()) "SFX" else "OFF", titleSoundRect.centerX(), titleSoundRect.centerY(), dp(11f), Color.WHITE, true)
+        // The title is deliberately sparse: environment art sets the tone while the three
+        // primary actions remain the only text a new player has to parse.
+        drawCoverBitmap(canvas, sprites.titleBackground, RectF(0f, 0f, viewWidth, viewHeight))
+        paint.color = Color.argb(44, 2, 8, 5)
+        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
 
-        val titleY = viewHeight * 0.27f
-        drawCenteredText(canvas, "BLOCKHOLD DEFENSE", viewWidth * 0.5f, titleY, min(dp(51f), viewHeight * 0.105f), Color.WHITE, true, true)
-        drawCenteredText(canvas, "ENDLESS PATHFORGE", viewWidth * 0.5f, titleY + min(dp(45f), viewHeight * 0.09f), min(dp(18f), viewHeight * 0.038f), Color.rgb(190, 244, 78), true)
-        drawCenteredText(canvas, "DIG THE ROUTE   BUILD THE LINE   OUTLAST THE OVERGROWTH", viewWidth * 0.5f, titleY + min(dp(82f), viewHeight * 0.16f), min(dp(11f), viewHeight * 0.025f), Color.rgb(166, 180, 169), true)
+        // All title chrome below is pre-rendered sprite art. Canvas is only responsible for
+        // adaptive placement, labels, and hit feedback—not drawing flat placeholder buttons.
+        drawBitmapInRect(canvas, sprites.menuPanel, titlePanelRect)
+        val crestWidth = min(dp(360f), viewWidth * 0.38f)
+        val crestHeight = crestWidth * sprites.menuTitleCrest.height / sprites.menuTitleCrest.width
+        val crestY = max(crestHeight * 0.58f + dp(8f), titlePanelRect.top - crestHeight * 0.18f)
+        drawBitmapCentered(canvas, sprites.menuTitleCrest, viewWidth * 0.5f, crestY, crestWidth)
+        drawCenteredText(
+            canvas,
+            "BLOCKHOLD",
+            viewWidth * 0.5f,
+            crestY - crestHeight * 0.10f,
+            min(dp(34f), crestWidth * 0.088f),
+            Color.rgb(245, 249, 228),
+            true,
+            true
+        )
+        drawCenteredText(
+            canvas,
+            "DEFENSE",
+            viewWidth * 0.5f,
+            crestY + crestHeight * 0.23f,
+            min(dp(12f), crestWidth * 0.033f),
+            Color.rgb(190, 244, 78),
+            true
+        )
 
-        val featureY = viewHeight * 0.54f
-        val featureWidth = min(dp(160f), viewWidth * 0.20f)
-        val featureGap = dp(8f)
-        val total = featureWidth * 3f + featureGap * 2f
-        val startX = (viewWidth - total) * 0.5f
-        drawFeaturePill(canvas, startX, featureY, featureWidth, "01", "FORGE A MAZE")
-        drawFeaturePill(canvas, startX + featureWidth + featureGap, featureY, featureWidth, "02", "10 DEFENSES")
-        drawFeaturePill(canvas, startX + (featureWidth + featureGap) * 2f, featureY, featureWidth, "∞", "SURVIVE")
+        drawTitleButton(
+            canvas, titlePlayRect, "NEW RUN", sprites.menuIconPlay,
+            sprites.menuButtonPrimary, sprites.menuButtonPrimaryPressed,
+            TitleMenuAction.PLAY, true, Color.rgb(240, 255, 214)
+        )
+        drawTitleButton(
+            canvas, titleContinueRect, "CONTINUE", sprites.menuIconContinue,
+            sprites.menuButtonSecondary, sprites.menuButtonSecondaryPressed,
+            TitleMenuAction.CONTINUE, savedRunAvailable,
+            if (savedRunAvailable) Color.rgb(221, 250, 255) else Color.rgb(126, 141, 132)
+        )
+        drawTitleButton(
+            canvas, titleChallengeRect, "CHALLENGES", sprites.menuIconChallenge,
+            sprites.menuButtonChallenge, sprites.menuButtonChallengePressed,
+            TitleMenuAction.CHALLENGE, true, Color.rgb(244, 225, 255)
+        )
 
-        drawRoundedRect(canvas, titlePlayRect.left, titlePlayRect.top, titlePlayRect.right, titlePlayRect.bottom, dp(16f), Color.rgb(190, 244, 78))
-        drawCenteredText(canvas, "START NEW RUN", titlePlayRect.centerX(), titlePlayRect.centerY(), dp(15f), Color.rgb(12, 21, 16), true, true)
-        val continueBackground = if (savedRunAvailable) Color.rgb(93, 220, 255) else Color.rgb(27, 40, 32)
-        val continueText = if (savedRunAvailable) Color.rgb(11, 25, 28) else Color.rgb(91, 108, 96)
-        drawRoundedRect(canvas, titleContinueRect.left, titleContinueRect.top, titleContinueRect.right, titleContinueRect.bottom, dp(16f), continueBackground)
-        drawCenteredText(canvas, if (savedRunAvailable) "CONTINUE RUN" else "NO SAVED RUN", titleContinueRect.centerX(), titleContinueRect.centerY(), dp(15f), continueText, true, true)
-        drawRoundedRect(canvas, titleChallengeRect.left, titleChallengeRect.top, titleChallengeRect.right, titleChallengeRect.bottom, dp(12f), Color.rgb(43, 57, 46))
-        drawCenteredText(canvas, "SEEDED CHALLENGES", titleChallengeRect.centerX(), titleChallengeRect.centerY(), dp(11f), Color.rgb(224, 232, 226), true)
-        drawCenteredText(canvas, "BEST $bestWave  •  DAILY $bestDailyWave  •  CUSTOM $bestCustomWave  •  $versionLabel", viewWidth * 0.5f, viewHeight - dp(12f), dp(9f), Color.rgb(113, 130, 119), true)
+        val soundSprite = if (audio.isEnabled()) sprites.menuIconSoundOn else sprites.menuIconSoundOff
+        drawBitmapInRect(
+            canvas,
+            soundSprite,
+            titleSoundRect,
+            if (titlePressedAction == TitleMenuAction.SOUND) 205 else 255
+        )
+        if (versionLabel.isNotEmpty()) {
+            drawText(
+                canvas, versionLabel, viewWidth - dp(13f), viewHeight - dp(10f), dp(8f),
+                Color.argb(150, 202, 214, 202), Paint.Align.RIGHT, true
+            )
+        }
+    }
+
+    private fun drawTitleButton(
+        canvas: Canvas,
+        rect: RectF,
+        label: String,
+        icon: Bitmap,
+        normalSkin: Bitmap,
+        pressedSkin: Bitmap,
+        action: TitleMenuAction,
+        enabled: Boolean,
+        textColor: Int
+    ) {
+        val held = enabled && titlePressedAction == action
+        val skin = when {
+            !enabled -> sprites.menuButtonDisabled
+            held -> pressedSkin
+            else -> normalSkin
+        }
+        drawBitmapInRect(canvas, skin, rect, if (enabled) 255 else 190)
+        val iconSize = min(rect.height() * 0.68f, dp(38f))
+        val iconX = rect.left + rect.width() * 0.215f
+        val verticalNudge = if (held) rect.height() * 0.04f else 0f
+        spritePaint.alpha = if (enabled) 255 else 110
+        drawBitmapCentered(canvas, icon, iconX, rect.centerY() + verticalNudge, iconSize)
+        spritePaint.alpha = 255
+        drawCenteredText(
+            canvas,
+            label,
+            rect.left + rect.width() * 0.635f,
+            rect.centerY() + verticalNudge,
+            min(dp(16f), rect.height() * 0.255f),
+            textColor,
+            true,
+            true
+        )
     }
 
     private fun drawChallengeMenu(canvas: Canvas) {
-        canvas.drawColor(Color.rgb(10, 17, 13))
-        drawTitleGrid(canvas)
-        drawCenteredText(canvas, "OFFLINE SEEDED CHALLENGES", viewWidth * 0.5f, viewHeight * 0.13f, min(dp(35f), viewHeight * 0.075f), Color.WHITE, true, true)
-        drawCenteredText(canvas, "WAVES, PERKS, ELITES, AND CORRUPTION REPEAT FOR THE SAME SEED", viewWidth * 0.5f, viewHeight * 0.20f, dp(10f), Color.rgb(160, 179, 166), true)
+        drawCoverBitmap(canvas, sprites.titleBackground, RectF(0f, 0f, viewWidth, viewHeight))
+        paint.color = Color.argb(164, 4, 11, 8)
+        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        drawUiModal(canvas, RectF(viewWidth * 0.08f, viewHeight * 0.07f, viewWidth * 0.92f, viewHeight * 0.91f), 244)
+        drawBitmapCentered(canvas, sprites.uiIconSeed, viewWidth * 0.5f, viewHeight * 0.105f, min(dp(34f), viewHeight * 0.065f))
+        drawCenteredText(canvas, "CHALLENGES", viewWidth * 0.5f, viewHeight * 0.16f, min(dp(30f), viewHeight * 0.067f), Color.WHITE, true, true)
+        drawCenteredText(canvas, "DAILY OR CUSTOM SEED", viewWidth * 0.5f, viewHeight * 0.21f, dp(10f), Color.rgb(188, 204, 191), true)
         val calendar = Calendar.getInstance()
         val dailySeed = calendar.get(Calendar.YEAR).toLong() * 10000L + (calendar.get(Calendar.MONTH) + 1).toLong() * 100L + calendar.get(Calendar.DAY_OF_MONTH).toLong()
         drawChallengeCard(canvas, challengeDailyRect, "DAILY PATH", "SEED $dailySeed", modifierForSeed(dailySeed), Color.rgb(190, 244, 78))
         val customSeed = customSeedValue()
-        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "TAP CUSTOM SEED TO START", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
-        drawCenteredText(canvas, "SHAREABLE SEED  •  UP TO $MAX_SEED_CHARACTERS DIGITS", viewWidth * 0.5f, viewHeight * 0.59f, dp(10f), Color.rgb(147, 165, 153), true)
-        drawRoundedRect(canvas, seedInputRect.left, seedInputRect.top, seedInputRect.right, seedInputRect.bottom, dp(10f), Color.rgb(28, 43, 34))
-        strokePaint.strokeWidth = dp(if (seedInputActive) 2f else 1.2f)
-        strokePaint.color = if (seedInputActive) Color.rgb(93, 220, 255) else Color.rgb(63, 87, 70)
-        canvas.drawRoundRect(seedInputRect, dp(10f), dp(10f), strokePaint)
-        drawCenteredText(canvas, if (customSeedText.isEmpty()) "TAP TO ENTER SEED" else customSeedText, seedInputRect.centerX(), seedInputRect.centerY(), dp(18f), Color.WHITE, true)
-        drawCenteredText(canvas, "TAP FIELD TO TYPE  •  DIGITS ONLY  •  MAX $MAX_SEED_CHARACTERS", viewWidth * 0.5f, seedInputRect.bottom + dp(18f), dp(8.5f), Color.rgb(147, 165, 153), true)
-        drawCenteredText(canvas, "DAILY  W$bestDailyWave  ${formatNumber(bestDailyScore)}   •   CUSTOM  W$bestCustomWave  ${formatNumber(bestCustomScore)}", viewWidth * 0.5f, viewHeight * 0.80f, dp(10f), Color.rgb(190, 244, 78), true)
-        drawRoundedRect(canvas, challengeBackRect.left, challengeBackRect.top, challengeBackRect.right, challengeBackRect.bottom, dp(12f), Color.rgb(43, 57, 46))
-        drawCenteredText(canvas, "BACK", challengeBackRect.centerX(), challengeBackRect.centerY(), dp(11f), Color.WHITE, true)
+        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "SEED $customSeed", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
+        drawUiPanel(canvas, seedInputRect, active = seedInputActive)
+        drawBitmapCentered(canvas, sprites.uiIconSeed, seedInputRect.left + seedInputRect.width() * 0.12f, seedInputRect.centerY(), min(seedInputRect.height() * 0.54f, dp(25f)))
+        drawCenteredText(canvas, if (customSeedText.isEmpty()) "ENTER SEED" else customSeedText, seedInputRect.left + seedInputRect.width() * 0.58f, seedInputRect.centerY(), dp(18f), Color.WHITE, true)
+        drawCenteredText(canvas, "UP TO $MAX_SEED_CHARACTERS DIGITS  •  SAME SEED, SAME RUN", viewWidth * 0.5f, seedInputRect.bottom + dp(18f), dp(8.5f), Color.rgb(176, 193, 180), true)
+        drawCenteredText(canvas, "DAILY  W$bestDailyWave  •  CUSTOM  W$bestCustomWave", viewWidth * 0.5f, viewHeight * 0.80f, dp(10f), Color.rgb(190, 244, 78), true)
+        drawUiButton(canvas, challengeBackRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(10f), challengeBackRect.height() * 0.29f))
     }
 
     private fun drawChallengeCard(canvas: Canvas, rect: RectF, title: String, subtitle: String, modifier: ChallengeModifier, accent: Int) {
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(15f), Color.rgb(23, 37, 29))
-        strokePaint.strokeWidth = dp(2f)
-        strokePaint.color = accent
+        drawUiCard(canvas, rect)
+        strokePaint.strokeWidth = dp(1.5f)
+        strokePaint.color = Color.argb(172, Color.red(accent), Color.green(accent), Color.blue(accent))
         canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
+        drawBitmapCentered(canvas, sprites.uiIconSeed, rect.left + rect.width() * 0.13f, rect.top + rect.height() * 0.18f, min(rect.height() * 0.20f, dp(22f)))
         drawCenteredText(canvas, title, rect.centerX(), rect.top + rect.height() * 0.22f, dp(17f), accent, true, true)
-        drawCenteredText(canvas, subtitle, rect.centerX(), rect.top + rect.height() * 0.41f, min(dp(9f), rect.width() * 0.035f), Color.rgb(178, 194, 183), true)
+        drawCenteredText(canvas, subtitle, rect.centerX(), rect.top + rect.height() * 0.41f, min(dp(9f), rect.width() * 0.035f), Color.rgb(194, 207, 197), true)
         drawCenteredText(canvas, modifier.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.62f, dp(12f), Color.WHITE, true)
-        drawWrappedText(canvas, modifier.description, rect.centerX(), rect.top + rect.height() * 0.75f, rect.width() * 0.84f, dp(9f), Color.rgb(150, 169, 156), 2)
+        drawWrappedText(canvas, modifier.description, rect.centerX(), rect.top + rect.height() * 0.76f, rect.width() * 0.84f, dp(9f), Color.rgb(174, 191, 178), 2)
     }
 
     private fun drawPerkDraft(canvas: Canvas) {
         paint.color = Color.argb(232, 6, 12, 9)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-        drawCenteredText(canvas, "THE FORGE ANSWERS", viewWidth * 0.5f, viewHeight * 0.17f, min(dp(39f), viewHeight * 0.085f), Color.rgb(190, 244, 78), true, true)
-        drawCenteredText(canvas, "CHOOSE ONE PERSISTENT RUN PERK  •  PICKS CAN STACK", viewWidth * 0.5f, viewHeight * 0.25f, dp(10f), Color.rgb(166, 183, 171), true)
+        drawUiModal(canvas, RectF(viewWidth * 0.07f, viewHeight * 0.10f, viewWidth * 0.93f, viewHeight * 0.77f), 246)
+        drawBitmapCentered(canvas, sprites.uiIconUpgrade, viewWidth * 0.5f, viewHeight * 0.14f, min(dp(38f), viewHeight * 0.07f))
+        drawCenteredText(canvas, "FORGE PICK", viewWidth * 0.5f, viewHeight * 0.20f, min(dp(34f), viewHeight * 0.075f), Color.rgb(190, 244, 78), true, true)
+        drawCenteredText(canvas, "CHOOSE ONE  •  STACKS PERSIST", viewWidth * 0.5f, viewHeight * 0.26f, dp(10f), Color.rgb(194, 210, 197), true)
         perkChoices.forEachIndexed { index, perk ->
             if (index >= perkRects.size) return@forEachIndexed
             val rect = perkRects[index]
@@ -4211,8 +4737,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 PerkCategory.CORE -> Color.rgb(255, 119, 104)
                 PerkCategory.ROUTE -> Color.rgb(189, 136, 255)
             }
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(15f), Color.rgb(23, 37, 29))
-            strokePaint.strokeWidth = dp(2f)
+            drawUiCard(canvas, rect)
+            strokePaint.strokeWidth = dp(1.5f)
             strokePaint.color = accent
             canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
             drawCenteredText(canvas, perk.category.name, rect.centerX(), rect.top + rect.height() * 0.14f, dp(8f), accent, true)
@@ -4226,14 +4752,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val tower = evolutionTower ?: return
         paint.color = Color.argb(232, 6, 12, 9)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-        drawCenteredText(canvas, "EVOLUTION CORE", viewWidth * 0.5f, viewHeight * 0.17f, min(dp(39f), viewHeight * 0.085f), Color.rgb(255, 203, 81), true, true)
-        drawCenteredText(canvas, "${tower.kind.title.uppercase()}  •  CHOOSE ONE MUTUALLY EXCLUSIVE FORM", viewWidth * 0.5f, viewHeight * 0.25f, dp(10f), Color.rgb(177, 192, 181), true)
+        drawUiModal(canvas, RectF(viewWidth * 0.10f, viewHeight * 0.10f, viewWidth * 0.90f, viewHeight * 0.77f), 246)
+        drawBitmapCentered(canvas, sprites.uiIconEvolve, viewWidth * 0.5f, viewHeight * 0.14f, min(dp(38f), viewHeight * 0.07f))
+        drawCenteredText(canvas, "EVOLVE", viewWidth * 0.5f, viewHeight * 0.20f, min(dp(34f), viewHeight * 0.075f), Color.rgb(255, 203, 81), true, true)
+        drawCenteredText(canvas, "${tower.kind.title.uppercase()}  •  CHOOSE A FORM", viewWidth * 0.5f, viewHeight * 0.26f, dp(10f), Color.rgb(201, 214, 204), true)
         val options = TowerEvolution.choices(tower.kind)
         options.forEachIndexed { index, evolution ->
             if (index >= evolutionRects.size) return@forEachIndexed
             val rect = evolutionRects[index]
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(15f), Color.rgb(24, 38, 30))
-            strokePaint.strokeWidth = dp(2f)
+            drawUiCard(canvas, rect, active = true)
+            strokePaint.strokeWidth = dp(1.5f)
             strokePaint.color = tower.kind.accent
             canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
             drawWrappedText(canvas, evolution.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.28f, rect.width() * 0.84f, dp(17f), Color.WHITE, 2, true)
@@ -4243,16 +4771,22 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawWorkshop(canvas: Canvas) {
-        canvas.drawColor(Color.rgb(9, 15, 12))
-        drawTitleGrid(canvas)
-        drawRoundedRect(canvas, workshopBackRect.left, workshopBackRect.top, workshopBackRect.right, workshopBackRect.bottom, dp(10f), Color.rgb(35, 49, 39))
-        drawCenteredText(canvas, "BACK", workshopBackRect.centerX(), workshopBackRect.centerY(), dp(10f), Color.WHITE, true)
-        drawCenteredText(canvas, "FORGEWORKS", viewWidth * 0.5f, viewHeight * 0.075f, min(dp(31f), viewHeight * 0.067f), Color.rgb(255, 183, 105), true, true)
-        drawCenteredText(canvas, "WORKSHOP L${workshopLevel()}  •  $gold BLOCKS  •  $salvageParts PARTS  •  $growthEssence ESSENCE", viewWidth * 0.5f, viewHeight * 0.115f, dp(9f), Color.rgb(184, 199, 188), true)
+        drawCoverBitmap(canvas, sprites.titleBackground, RectF(0f, 0f, viewWidth, viewHeight))
+        paint.color = Color.argb(176, 4, 11, 8)
+        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        drawUiModal(canvas, RectF(viewWidth * 0.05f, viewHeight * 0.045f, viewWidth * 0.95f, viewHeight * 0.93f), 246)
+        drawUiButton(canvas, workshopBackRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), workshopBackRect.height() * 0.30f))
+        drawBitmapCentered(canvas, sprites.uiIconCraft, viewWidth * 0.5f, viewHeight * 0.062f, min(dp(30f), viewHeight * 0.055f))
+        drawCenteredText(canvas, "FORGEWORKS", viewWidth * 0.5f, viewHeight * 0.105f, min(dp(28f), viewHeight * 0.060f), Color.rgb(255, 203, 120), true, true)
+        drawCenteredText(canvas, "L${workshopLevel()}  •  B$gold  •  P$salvageParts  •  G$growthEssence", viewWidth * 0.5f, viewHeight * 0.132f, dp(8.5f), Color.rgb(205, 218, 207), true)
         for ((tab, rect) in workshopTabRects) {
             val active = workshopTab == tab
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(10f), if (active) Color.rgb(255, 183, 105) else Color.rgb(30, 44, 35))
-            drawCenteredText(canvas, tab.name, rect.centerX(), rect.centerY(), dp(10f), if (active) Color.rgb(26, 20, 13) else Color.WHITE, true)
+            val icon = when (tab) {
+                WorkshopTab.CRAFT -> sprites.uiIconCraft
+                WorkshopTab.IMBUE -> sprites.uiIconImbue
+                WorkshopTab.SUPPLIES -> sprites.uiIconSupplies
+            }
+            drawUiButton(canvas, rect, tab.name, icon, if (active) UiControlTone.PRIMARY else UiControlTone.SECONDARY, textColor = if (active) Color.rgb(239, 255, 217) else Color.WHITE, textSize = min(dp(9f), rect.height() * 0.25f))
         }
         val start = workshopPageIndex * 4
         when (workshopTab) {
@@ -4262,27 +4796,25 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 val targetName = imbuementTower?.kind?.title ?: imbuementTrap?.kind?.title ?: imbuementUtility?.kind?.title
                 val currentImbuement = imbuementTower?.imbuement ?: imbuementTrap?.imbuement ?: imbuementUtility?.imbuement
                 if (targetName == null) {
-                    drawCenteredText(canvas, "SELECT A LEVEL 3 STRUCTURE ON THE BOARD, THEN TAP IMBUE", viewWidth * 0.5f, viewHeight * 0.50f, dp(12f), Color.rgb(178, 194, 183), true)
+                    drawCenteredText(canvas, "SELECT A LV 3 STRUCTURE, THEN IMBUE", viewWidth * 0.5f, viewHeight * 0.50f, dp(12f), Color.rgb(202, 216, 205), true)
                 } else {
-                    drawCenteredText(canvas, "TARGET ${targetName.uppercase()} • 120 BLOCKS + 1 ESSENCE + 1 SIGIL${if (currentImbuement != null) " • REPLACES ${currentImbuement.title.uppercase()}" else ""}", viewWidth * 0.5f, viewHeight * 0.265f, dp(9f), Color.rgb(213, 182, 255), true)
+                    drawCenteredText(canvas, "${targetName.uppercase()}  •  120B + 1G + 1 SIGIL${if (currentImbuement != null) "  •  REPLACES ${currentImbuement.title.uppercase()}" else ""}", viewWidth * 0.5f, viewHeight * 0.265f, dp(9f), Color.rgb(226, 205, 250), true)
                     Imbuement.values().drop(start).take(4).forEachIndexed { local, imbuement -> drawImbuementCard(canvas, workshopCardRects[local], imbuement) }
                 }
             }
         }
         val totalEntries = if (workshopTab == WorkshopTab.IMBUE) Imbuement.values().size else CraftedItem.values().size
         val pages = max(1, (totalEntries + 3) / 4)
-        drawRoundedRect(canvas, workshopPreviousRect.left, workshopPreviousRect.top, workshopPreviousRect.right, workshopPreviousRect.bottom, dp(10f), Color.rgb(31, 45, 36))
-        drawCenteredText(canvas, "PREVIOUS", workshopPreviousRect.centerX(), workshopPreviousRect.centerY(), dp(9f), Color.WHITE, true)
-        drawRoundedRect(canvas, workshopNextRect.left, workshopNextRect.top, workshopNextRect.right, workshopNextRect.bottom, dp(10f), Color.rgb(31, 45, 36))
-        drawCenteredText(canvas, "NEXT  ${workshopPageIndex + 1}/$pages", workshopNextRect.centerX(), workshopNextRect.centerY(), dp(9f), Color.WHITE, true)
-        if (bannerTimer > 0f) drawCenteredText(canvas, bannerText, viewWidth * 0.5f, viewHeight * 0.94f, dp(10f), Color.rgb(190, 244, 78), true)
+        drawUiButton(canvas, workshopPreviousRect, "", sprites.uiIconPrevious, UiControlTone.SECONDARY)
+        drawUiButton(canvas, workshopNextRect, "${workshopPageIndex + 1}/$pages", sprites.uiIconNext, UiControlTone.SECONDARY, textSize = min(dp(9f), workshopNextRect.height() * 0.25f))
+        if (bannerTimer > 0f) drawCenteredText(canvas, bannerText, viewWidth * 0.5f, viewHeight * 0.94f, dp(10f), Color.rgb(220, 244, 196), true)
     }
 
     private fun drawCraftCard(canvas: Canvas, rect: RectF, item: CraftedItem) {
         val unlocked = workshopLevel() >= item.workshopLevel
         val blockCost = craftedBlockCost(item)
         val affordable = unlocked && gold >= blockCost && salvageParts >= item.partCost && growthEssence >= item.essenceCost && supplyCount(item) < item.maxStack
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(12f), if (affordable) Color.rgb(30, 48, 37) else Color.rgb(27, 35, 30))
+        drawUiCard(canvas, rect, active = affordable)
         strokePaint.strokeWidth = dp(1.5f)
         strokePaint.color = if (affordable) Color.rgb(255, 183, 105) else Color.rgb(65, 77, 68)
         canvas.drawRoundRect(rect, dp(12f), dp(12f), strokePaint)
@@ -4295,7 +4827,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun drawSupplyCard(canvas: Canvas, rect: RectF, item: CraftedItem) {
         val count = supplyCount(item)
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(12f), if (count > 0) Color.rgb(30, 48, 37) else Color.rgb(25, 34, 29))
+        drawUiCard(canvas, rect, active = count > 0)
         spritePaint.alpha = if (count > 0) 255 else 90
         drawBitmapCentered(canvas, sprites.craftedItem(item), rect.left + rect.height() * 0.22f, rect.top + rect.height() * 0.23f, rect.height() * 0.31f)
         spritePaint.alpha = 255
@@ -4307,8 +4839,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun drawImbuementCard(canvas: Canvas, rect: RectF, imbuement: Imbuement) {
         val compatible = imbuementCompatible(imbuement)
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(12f), if (compatible) Color.rgb(30, 41, 35) else Color.rgb(25, 30, 27))
-        strokePaint.strokeWidth = dp(2f)
+        drawUiCard(canvas, rect, active = compatible)
+        strokePaint.strokeWidth = dp(1.5f)
         strokePaint.color = if (compatible) imbuement.accent else Color.rgb(64, 72, 67)
         canvas.drawRoundRect(rect, dp(12f), dp(12f), strokePaint)
         spritePaint.alpha = if (compatible) 255 else 70
@@ -4317,40 +4849,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, imbuement.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.24f, dp(12f), if (compatible) imbuement.accent else Color.rgb(105, 116, 109), true)
         drawWrappedText(canvas, imbuement.description, rect.centerX(), rect.top + rect.height() * 0.55f, rect.width() * 0.86f, dp(8f), if (compatible) Color.rgb(179, 194, 183) else Color.rgb(103, 114, 107), 3)
         drawCenteredText(canvas, if (compatible) "BIND SIGIL" else "NO EFFECT ON TARGET", rect.centerX(), rect.top + rect.height() * 0.84f, dp(8f), if (compatible) Color.WHITE else Color.rgb(126, 137, 130), true)
-    }
-
-    private fun drawTitleGrid(canvas: Canvas) {
-        val block = max(dp(54f), viewHeight * 0.115f)
-        val offset = (ambientTime * dp(5f)) % block
-        var row = -1
-        var y = -block + offset
-        while (y < viewHeight + block) {
-            var col = -1
-            var x = -block
-            while (x < viewWidth + block) {
-                paint.style = Paint.Style.FILL
-                paint.color = if ((col + row) % 2 == 0) Color.rgb(14, 25, 19) else Color.rgb(12, 22, 17)
-                canvas.drawRect(x + 1f, y + 1f, x + block - 1f, y + block - 1f, paint)
-                if (abs((col * 31 + row * 17) % 7) == 2) {
-                    paint.color = Color.rgb(21, 38, 28)
-                    canvas.drawRect(x + block * 0.22f, y + block * 0.24f, x + block * 0.31f, y + block * 0.33f, paint)
-                }
-                x += block
-                col += 1
-            }
-            y += block
-            row += 1
-        }
-        paint.color = Color.argb(135, 8, 14, 11)
-        canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-    }
-
-    private fun drawFeaturePill(canvas: Canvas, x: Float, y: Float, width: Float, number: String, label: String) {
-        val height = min(dp(54f), viewHeight * 0.105f)
-        drawRoundedRect(canvas, x, y, x + width, y + height, dp(12f), Color.rgb(22, 34, 27))
-        drawRoundedRect(canvas, x + dp(8f), y + dp(8f), x + dp(42f), y + height - dp(8f), dp(9f), Color.rgb(39, 56, 44))
-        drawCenteredText(canvas, number, x + dp(25f), y + height * 0.5f, dp(12f), Color.rgb(190, 244, 78), true)
-        drawText(canvas, label, x + dp(50f), y + height * 0.56f, min(dp(10f), width * 0.070f), Color.rgb(218, 226, 220), Paint.Align.LEFT, true)
     }
 
     private fun drawBoard(canvas: Canvas) {
@@ -4502,7 +5000,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val x = (x1 + x2) * 0.5f
             val y = (y1 + y2) * 0.5f
             val width = min(tileSize * 2.8f, paint.measureText(name) + dp(10f))
-            drawRoundedRect(canvas, x - width * 0.5f, y - dp(9f), x + width * 0.5f, y + dp(9f), dp(7f), Color.argb(220, 15, 28, 20))
+            drawBitmapInRect(canvas, sprites.uiBanner, RectF(x - width * 0.5f, y - dp(9f), x + width * 0.5f, y + dp(9f)), 220)
             drawCenteredText(canvas, name, x, y, max(dp(6f), tileSize * 0.10f), Color.rgb(190, 244, 78), true)
         }
     }
@@ -4851,7 +5349,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     /**
      * v1.4.3: animated arcane Hex shackle. Replaces the old flat purple disc
-     * with the literal text "HEX" that both towers and utilities used to draw.
+     * with the literal text "HEX" that both towers and Structures used to draw.
      */
     private fun drawHexShackle(canvas: Canvas, x: Float, y: Float) {
         val frames = sprites.statusHex.frameCount
@@ -5123,98 +5621,224 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawTopBar(canvas: Canvas) {
-        paint.color = Color.rgb(13, 22, 17)
-        canvas.drawRect(0f, 0f, viewWidth, topBarHeight, paint)
-        paint.color = Color.rgb(190, 244, 78)
-        canvas.drawRect(0f, topBarHeight - max(2f, dp(2f)), viewWidth, topBarHeight, paint)
+        // Keep the live command rail readable in combat: sprites carry resource identity while
+        // text is reserved for values and the one-word state/action a player must act on.
+        drawBitmapInRect(canvas, sprites.hudTopRail, RectF(0f, 0f, viewWidth, topBarHeight))
+        drawTopStatus(canvas)
+        drawTopStats(canvas)
+        val compactControls = primaryActionRect.width() <= dp(92f)
 
-        drawRoundedRect(canvas, dp(10f), dp(8f), dp(48f), topBarHeight - dp(8f), dp(10f), Color.rgb(190, 244, 78))
-        drawCenteredText(canvas, "B", dp(29f), topBarHeight * 0.5f, min(dp(21f), topBarHeight * 0.42f), Color.rgb(13, 22, 17), true, true)
-        drawText(canvas, "BLOCKHOLD", dp(58f), topBarHeight * 0.43f, min(dp(14f), topBarHeight * 0.27f), Color.WHITE, Paint.Align.LEFT, true, true)
-        val forgeResources = if (phase == GamePhase.WAVE) "F$forgeCharges E$evolutionCores" else "F$forgeCharges E$evolutionCores P$salvageParts G$growthEssence"
-        val stackLabel = if (phase == GamePhase.WAVE && activeWaveNumbers.size > 1) " • STACK ${activeWaveNumbers.size}" else ""
-        drawText(canvas, "${phaseLabel()}$stackLabel • $forgeResources", dp(58f), topBarHeight * 0.72f, min(dp(7.5f), topBarHeight * 0.16f), Color.rgb(139, 157, 144), Paint.Align.LEFT, true)
-
-        val statStart = min(viewWidth * 0.27f, dp(265f))
-        val statGap = min(dp(102f), viewWidth * 0.115f)
-        drawStat(canvas, statStart, "BLOCKS", formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
-        drawStat(canvas, statStart + statGap, "CORE", "$lives/$maxCore", Color.rgb(255, 111, 100))
-        drawStat(canvas, statStart + statGap * 2f, "WAVE", waveNumber.toString(), Color.rgb(93, 220, 255))
-        // Forge charge pulse on the resource strip under the title
-        if (forgePulse > 0.02f) {
-            paint.color = Color.argb((forgePulse * 90f).toInt().coerceIn(0, 255), 255, 187, 116)
-            canvas.drawCircle(dp(72f), topBarHeight * 0.72f, dp(14f) * forgePulse, paint)
-        }
-
+        // These secondary controls are deliberately icon-only. Their forged glyphs are more
+        // legible than repeating Reset/Reforge/Cancel copy beside the primary command.
         when {
-            phase == GamePhase.REFORGE -> drawTopButton(canvas, resetPathRect, "CANCEL", Color.rgb(67, 42, 37), Color.rgb(255, 188, 126), true)
-            waveNumber == 0 && (phase == GamePhase.DIG || phase == GamePhase.BUILD) -> drawTopButton(canvas, resetPathRect, "RESET", Color.rgb(36, 50, 40), Color.rgb(214, 224, 216), true)
-            phase == GamePhase.BUILD -> drawTopButton(canvas, resetPathRect, "REFORGE $forgeCharges", Color.rgb(53, 43, 68), Color.rgb(213, 182, 255), true)
+            phase == GamePhase.REFORGE -> drawUiButton(canvas, resetPathRect, "", sprites.uiIconBack, UiControlTone.WARNING, textColor = Color.rgb(255, 225, 201))
+            waveNumber == 0 && (phase == GamePhase.DIG || phase == GamePhase.BUILD) -> drawUiButton(canvas, resetPathRect, "", sprites.uiIconReset, UiControlTone.SECONDARY)
+            phase == GamePhase.BUILD -> drawUiButton(canvas, resetPathRect, "", sprites.uiIconReforge, UiControlTone.ACCENT, textColor = Color.rgb(237, 217, 255))
         }
         val canStart = when {
             phase == GamePhase.BUILD && pathComplete -> true
-            phase == GamePhase.REFORGE && pathComplete && effectiveReforgeCost() <= forgeCharges && reforgeRecoveryCost() <= gold && storedTraps.size + displacedReforgeTraps().size <= cacheCapacity() -> true
+            phase == GamePhase.REFORGE && pathComplete && effectiveReforgeCost() <= forgeCharges && reforgeRecoveryCost() <= gold && storedTraps.size + displacedReforgeTraps().size <= inventoryCapacity() -> true
             phase == GamePhase.WAVE && activeWaveNumbers.isNotEmpty() -> true
             else -> false
         }
         val actionLabel = when (phase) {
-            GamePhase.DIG -> "CONNECT CORE"
-            GamePhase.BUILD -> if (nextWaveTimer > 0f) "NEXT WAVE" else "START WAVE ${waveNumber + 1}"
-            GamePhase.REFORGE -> "CONFIRM F${effectiveReforgeCost()}  B${reforgeRecoveryCost()}"
-            GamePhase.WAVE -> "NEXT WAVE"
-            else -> "STANDBY"
+            GamePhase.DIG -> if (compactControls) "" else "ROUTE"
+            // The wave stat carries the number on roomy screens; retain it only when that stat
+            // contracts away on compact devices.
+            GamePhase.BUILD -> if (compactControls) "W${waveNumber + 1}" else "START"
+            GamePhase.REFORGE -> if (compactControls) "" else "CONFIRM"
+            GamePhase.WAVE -> if (compactControls) "" else "STACK"
+            else -> ""
         }
-        drawTopButton(canvas, primaryActionRect, actionLabel, if (canStart) Color.rgb(190, 244, 78) else Color.rgb(31, 44, 35), if (canStart) Color.rgb(13, 22, 17) else Color.rgb(104, 123, 110), canStart)
-        drawTopButton(canvas, soundRect, if (audio.isEnabled()) "SFX" else "OFF", Color.rgb(31, 44, 35), Color.WHITE, true)
-        drawTopButton(canvas, feedbackToggleRect, if (feedbackEnabled) "TXT" else "OFF", Color.rgb(31, 44, 35), if (feedbackEnabled) Color.rgb(190, 244, 78) else Color.rgb(104, 123, 110), true)
-        drawTopButton(canvas, pauseRect, "II", Color.rgb(31, 44, 35), Color.WHITE, true)
+        val actionIcon = when (phase) {
+            GamePhase.DIG -> sprites.uiIconRoute
+            GamePhase.REFORGE -> sprites.uiIconReforge
+            GamePhase.WAVE -> sprites.uiIconStack
+            else -> sprites.uiIconLaunch
+        }
+        val actionTone = if (phase == GamePhase.WAVE) UiControlTone.ACCENT else UiControlTone.PRIMARY
+        drawUiButton(
+            canvas,
+            primaryActionRect,
+            actionLabel,
+            actionIcon,
+            actionTone,
+            canStart,
+            if (canStart) Color.rgb(240, 255, 214) else Color.rgb(124, 140, 129),
+            min(dp(9f), primaryActionRect.height() * 0.26f)
+        )
+        drawUiButton(canvas, soundRect, "", if (audio.isEnabled()) sprites.menuIconSoundOn else sprites.menuIconSoundOff, UiControlTone.SECONDARY)
+        drawUiButton(canvas, feedbackToggleRect, "", sprites.uiIconFeedback, if (feedbackEnabled) UiControlTone.SECONDARY else UiControlTone.WARNING)
+        drawUiButton(canvas, pauseRect, "", sprites.uiIconPause, UiControlTone.SECONDARY)
     }
 
-    private fun drawStat(canvas: Canvas, x: Float, label: String, value: String, accent: Int, pulse: Float = 0f) {
-        drawText(canvas, label, x, topBarHeight * 0.37f, min(dp(8f), topBarHeight * 0.16f), Color.rgb(115, 135, 121), Paint.Align.LEFT, true)
-        val valueSize = min(dp(15f), topBarHeight * 0.30f) * (1f + pulse * 0.18f)
+    /** The left status group carries only phase, Forge Charges, and Evolution Cores. */
+    private fun drawTopStatus(canvas: Canvas) {
+        val left = dp(8f)
+        val right = topStatusRight()
+        val available = right - left
+        if (available <= dp(36f)) return
+        val compact = available < dp(135f)
+        val ultraCompact = available < dp(90f)
+        val phaseIconSize = min(if (ultraCompact) dp(14f) else if (compact) dp(16f) else dp(20f), topBarHeight * 0.31f)
+        drawBitmapCentered(canvas, phaseStatusIcon(), left + phaseIconSize * 0.55f, topBarHeight * 0.31f, phaseIconSize)
+        if (!ultraCompact) {
+            drawText(
+                canvas,
+                compactPhaseLabel(),
+                left + phaseIconSize + dp(4f),
+                topBarHeight * 0.38f,
+                min(if (compact) dp(8.5f) else dp(10.5f), topBarHeight * 0.21f),
+                Color.rgb(236, 244, 228),
+                Paint.Align.LEFT,
+                true,
+                true
+            )
+        }
+
+        val iconSize = min(if (ultraCompact) dp(13f) else if (compact) dp(16f) else dp(19f), topBarHeight * 0.28f)
+        val textSize = min(if (ultraCompact) dp(7f) else if (compact) dp(8f) else dp(9.5f), topBarHeight * 0.17f)
+        val entries = listOf(
+            Pair(sprites.uiIconReforge, formatNumber(forgeCharges)),
+            Pair(sprites.uiIconEvolve, formatNumber(evolutionCores))
+        )
+        val gap = if (ultraCompact) dp(3f) else dp(7f)
+        val total = entries.fold(gap * (entries.size - 1)) { totalWidth, entry ->
+            totalWidth + spriteValueWidth(iconSize, entry.second, textSize)
+        }
+        var x = left + max(0f, (available - total) * 0.5f)
+        val y = topBarHeight * 0.72f
+        entries.forEachIndexed { index, entry ->
+            x = drawSpriteValue(canvas, entry.first, entry.second, x, y, iconSize, textSize, if (index == 0) Color.rgb(255, 204, 102) else Color.rgb(219, 182, 255))
+            if (index < entries.lastIndex) x += gap
+        }
+    }
+
+    private fun topStatusRight(): Float {
+        // On compact landscape screens reserve room for the Blocks + heart/Core pair first.
+        val desired = if (viewWidth < dp(520f)) dp(82f) else max(dp(104f), min(viewWidth * 0.22f, dp(210f)))
+        return min(desired, resetPathRect.left - dp(6f))
+    }
+
+    private fun phaseStatusIcon(): Bitmap = when (phase) {
+        GamePhase.DIG -> sprites.uiIconRoute
+        GamePhase.BUILD -> sprites.uiIconLaunch
+        GamePhase.REFORGE -> sprites.uiIconReforge
+        GamePhase.WAVE -> sprites.uiIconWave
+        GamePhase.PAUSED -> sprites.uiIconPause
+        GamePhase.PERK_DRAFT, GamePhase.EVOLUTION_DRAFT -> sprites.uiIconEvolve
+        else -> sprites.uiIconLaunch
+    }
+
+    private fun compactPhaseLabel(): String = when (phase) {
+        GamePhase.DIG -> "ROUTE"
+        GamePhase.BUILD -> "BUILD"
+        GamePhase.REFORGE -> "REFORGE"
+        GamePhase.PERK_DRAFT -> "PERKS"
+        GamePhase.EVOLUTION_DRAFT -> "EVOLVE"
+        GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "WAVE ×${activeWaveNumbers.size}" else "WAVE"
+        GamePhase.PAUSED -> "PAUSED"
+        else -> "READY"
+    }
+
+    /** Draws a sprite counter and returns the x coordinate immediately after it. */
+    private fun drawSpriteValue(canvas: Canvas, icon: Bitmap, value: String, x: Float, centerY: Float, iconSize: Float, textSize: Float, color: Int): Float {
+        drawBitmapCentered(canvas, icon, x + iconSize * 0.5f, centerY, iconSize)
+        val textLeft = x + iconSize + dp(3f)
+        drawText(canvas, value, textLeft, centerY + textSize * 0.34f, textSize, color, Paint.Align.LEFT, true, true)
+        return textLeft + spriteValueTextWidth(value, textSize)
+    }
+
+    private fun spriteValueWidth(iconSize: Float, value: String, textSize: Float): Float =
+        iconSize + dp(3f) + spriteValueTextWidth(value, textSize)
+
+    private fun spriteValueTextWidth(value: String, textSize: Float): Float {
+        paint.textSize = textSize
+        paint.typeface = blackTypeface
+        return paint.measureText(value)
+    }
+
+    /**
+     * Fit the live resource chips between the compact phase/readout group and right-side actions.
+     * Blocks, Core, and Wave remain visible in that order; Core uses its own heart sprite and a
+     * short label instead of a wordy health line.
+     */
+    private fun drawTopStats(canvas: Canvas) {
+        val left = topStatusRight()
+        val right = resetPathRect.left - dp(6f)
+        val available = right - left
+        val gap = min(dp(7f), max(dp(3f), available * 0.025f))
+        val minWidth = dp(42f)
+        val count = when {
+            available >= minWidth * 3f + gap * 2f -> 3
+            available >= minWidth * 2f + gap -> 2
+            available >= minWidth -> 1
+            else -> 0
+        }
+        if (count == 0) return
+        val width = min(dp(88f), (available - gap * (count - 1)).coerceAtLeast(minWidth) / count)
+        fun statRect(index: Int): RectF {
+            val statLeft = left + index * (width + gap)
+            return RectF(statLeft, dp(7f), statLeft + width, topBarHeight - dp(7f))
+        }
+        drawStat(canvas, statRect(0), sprites.uiIconBlocks, formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
+        if (count >= 2) drawStat(canvas, statRect(1), sprites.uiIconHeart, "$lives/$maxCore", Color.rgb(255, 111, 100), label = "CORE")
+        if (count >= 3) {
+            val displayedWave = if (phase == GamePhase.BUILD || phase == GamePhase.DIG || phase == GamePhase.REFORGE) waveNumber + 1 else waveNumber
+            drawStat(canvas, statRect(2), sprites.uiIconWave, displayedWave.toString(), Color.rgb(93, 220, 255))
+        }
+    }
+
+    private fun drawStat(canvas: Canvas, rect: RectF, icon: Bitmap, value: String, accent: Int, pulse: Float = 0f, label: String = "") {
+        drawBitmapInRect(canvas, sprites.uiStatFrame, rect)
+        val iconSize = min(rect.height() * 0.57f, rect.width() * 0.35f)
+        drawBitmapCentered(canvas, icon, rect.left + rect.width() * 0.25f, rect.centerY(), iconSize)
         if (pulse > 0.02f) {
             paint.color = Color.argb((pulse * 70f).toInt().coerceIn(0, 255), Color.red(accent), Color.green(accent), Color.blue(accent))
-            canvas.drawCircle(x + dp(22f), topBarHeight * 0.62f, dp(16f) * pulse, paint)
+            canvas.drawCircle(rect.centerX(), rect.centerY(), rect.height() * 0.44f * pulse, paint)
         }
-        drawText(canvas, value, x, topBarHeight * 0.70f, valueSize, accent, Paint.Align.LEFT, true, true)
-    }
-
-    private fun drawTopButton(canvas: Canvas, rect: RectF, label: String, background: Int, foreground: Int, active: Boolean) {
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(10f), background)
-        if (active) {
-            strokePaint.strokeWidth = max(1f, dp(1f))
-            strokePaint.color = Color.argb(55, 255, 255, 255)
-            canvas.drawRoundRect(rect, dp(10f), dp(10f), strokePaint)
-        }
-        drawCenteredText(canvas, label, rect.centerX(), rect.centerY(), min(dp(9f), rect.height() * 0.27f), foreground, true)
-    }
-
-    private fun phaseLabel(): String {
-        return when (phase) {
-            GamePhase.DIG -> if (gameMode == GameMode.ENDLESS) "PATH FORGE" else "${gameMode.name} $runSeed"
-            GamePhase.BUILD -> if (gameMode == GameMode.ENDLESS) "ENDLESS BUILD" else challengeModifier.title.uppercase()
-            GamePhase.REFORGE -> "PATH REFORGE"
-            GamePhase.PERK_DRAFT -> "FORGE PERK"
-            GamePhase.EVOLUTION_DRAFT -> "EVOLUTION"
-            GamePhase.WAVE -> waveTheme
-            GamePhase.PAUSED -> "RUN PAUSED"
-            else -> "ENDLESS PATHFORGE"
+        val valueX = rect.left + rect.width() * 0.66f
+        if (label.isNotEmpty()) {
+            val labelSize = min(min(dp(6.5f), rect.height() * 0.15f), rect.width() * 0.15f)
+            val valueSize = min(min(dp(14f), topBarHeight * 0.28f), rect.width() * 0.21f)
+            drawCenteredText(canvas, label, valueX, rect.centerY() - rect.height() * 0.17f, labelSize, Color.rgb(255, 214, 205), true)
+            drawCenteredText(canvas, value, valueX, rect.centerY() + rect.height() * 0.17f, valueSize, accent, true, true)
+        } else {
+            val valueSize = min(min(dp(15f), topBarHeight * 0.30f), rect.width() * 0.25f) * (1f + pulse * 0.18f)
+            drawCenteredText(canvas, value, valueX, rect.centerY(), valueSize, accent, true, true)
         }
     }
 
     private fun drawBottomBar(canvas: Canvas) {
-        val top = viewHeight - bottomBarHeight
-        paint.color = Color.rgb(13, 22, 17)
-        canvas.drawRect(0f, top, viewWidth, viewHeight, paint)
-        paint.color = Color.rgb(32, 47, 37)
-        canvas.drawRect(0f, top, viewWidth, top + max(1f, dp(1f)), paint)
+        val shelfBounds = RectF(0f, viewHeight - bottomBarHeight, viewWidth, viewHeight)
+        val showsInspection = (selectedCorruption != null || selectedUtility != null || selectedTower != null || selectedTrap != null) &&
+            (phase == GamePhase.BUILD || phase == GamePhase.WAVE)
         when {
-            phase == GamePhase.DIG || phase == GamePhase.REFORGE -> drawPathForgePanel(canvas)
-            selectedCorruption != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawCorruptionPanel(canvas)
-            selectedUtility != null && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawUtilityPanel(canvas)
-            (selectedTower != null || selectedTrap != null) && (phase == GamePhase.BUILD || phase == GamePhase.WAVE) -> drawDefensePanel(canvas)
-            else -> drawToolBar(canvas)
+            phase == GamePhase.DIG || phase == GamePhase.REFORGE -> {
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawPathForgePanel(canvas)
+            }
+            selectedCorruption != null && showsInspection -> {
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawCorruptionPanel(canvas)
+            }
+            selectedUtility != null && showsInspection -> {
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawUtilityPanel(canvas)
+            }
+            (selectedTower != null || selectedTrap != null) && showsInspection -> {
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawDefensePanel(canvas)
+            }
+            else -> {
+                // The rail and its build cards are one placement shelf. Translating both—not the
+                // inspection surface above—makes the wave transition unambiguous.
+                canvas.save()
+                canvas.translate(0f, buildShelfOffsetY())
+                drawBitmapInRect(canvas, sprites.hudBottomRail, shelfBounds)
+                drawToolBar(canvas)
+                canvas.restore()
+            }
         }
     }
 
@@ -5223,41 +5847,55 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val bottom = viewHeight - dp(13f)
         val width = min(viewWidth - dp(28f), dp(650f))
         val left = (viewWidth - width) * 0.5f
-        drawRoundedRect(canvas, left, top, left + width, bottom, dp(14f), Color.rgb(24, 38, 29))
         val reforging = phase == GamePhase.REFORGE
-        drawCenteredText(canvas, if (reforging) "PREVIEW THE NEW ROUTE" else "DRAW THE ONLY ROUTE", left + width * 0.31f, top + (bottom - top) * 0.38f, min(dp(15f), bottomBarHeight * 0.16f), Color.rgb(190, 244, 78), true, true)
-        drawCenteredText(canvas, if (reforging) "STRUCTURES BLOCK THE PATH • F${effectiveReforgeCost()} • RECOVERY ${reforgeRecoveryCost()} B • ${displacedReforgeTraps().size} TRAPS" else "DRAG BLOCK BY BLOCK • BACKTRACK TO UNDO", left + width * 0.31f, top + (bottom - top) * 0.69f, min(dp(9f), bottomBarHeight * 0.095f), Color.rgb(172, 188, 177), true)
-        drawBitmapCentered(canvas, sprites.path, left + width * 0.72f, (top + bottom) * 0.5f, min(bottom - top, dp(76f)))
+        drawUiPanel(canvas, left, top, left + width, bottom, active = reforging)
+        drawBitmapCentered(canvas, sprites.uiIconRoute, left + width * 0.13f, (top + bottom) * 0.5f, min(bottom - top, dp(58f)))
+        drawCenteredText(canvas, if (reforging) "REFORGE ROUTE" else "DRAW ROUTE", left + width * 0.45f, top + (bottom - top) * 0.37f, min(dp(15f), bottomBarHeight * 0.16f), Color.rgb(232, 248, 212), true, true)
+        val routeDetail = if (reforging) {
+            "F${effectiveReforgeCost()}  •  B${reforgeRecoveryCost()}  •  ${displacedReforgeTraps().size} TRAPS"
+        } else {
+            "DRAG  •  BACKTRACK TO UNDO"
+        }
+        drawCenteredText(canvas, routeDetail, left + width * 0.45f, top + (bottom - top) * 0.69f, min(dp(9f), bottomBarHeight * 0.095f), Color.rgb(190, 207, 193), true)
+        drawBitmapCentered(canvas, sprites.path, left + width * 0.74f, (top + bottom) * 0.5f, min(bottom - top, dp(64f)))
         val limit = currentPathLimit()
         drawCenteredText(canvas, "${pathCells.size}/$limit", left + width * 0.89f, (top + bottom) * 0.5f, dp(13f), Color.WHITE, true)
     }
 
     private fun drawToolBar(canvas: Canvas) {
-        drawPageTab(canvas, towerPageRect, if (challengeModifier == ChallengeModifier.TRAPS_ONLY) "LOCK" else "TWR ${towerPageIndex + 1}/4", buildPage == BuildPage.TOWERS, Color.rgb(190, 244, 78))
-        drawPageTab(canvas, trapPageRect, if (challengeModifier == ChallengeModifier.TOWERS_ONLY) "LOCK" else "TRAP", buildPage == BuildPage.TRAPS, Color.rgb(93, 220, 255))
-        drawPageTab(canvas, utilityPageRect, "UTIL ${utilityPageIndex + 1}/5", buildPage == BuildPage.UTILITIES, Color.rgb(255, 203, 81))
-        drawPageTab(canvas, cachePageRect, "CACHE ${storedTraps.size}/${cacheCapacity()}", buildPage == BuildPage.CACHE, Color.rgb(195, 120, 255))
+        val towersLocked = challengeModifier == ChallengeModifier.TRAPS_ONLY
+        val trapsLocked = challengeModifier == ChallengeModifier.TOWERS_ONLY
+        if (buildPage == BuildPage.INVENTORY) {
+            // The three left tabs become explicit shelf selectors while Inventory is open. Tap an
+            // active shelf again to return to its matching build catalog; the fourth tab pages it.
+            drawPageTab(canvas, towerPageRect, "TWR ${storedTowers.size}/${inventoryCapacity()}", inventoryCategory == InventoryCategory.TOWERS, sprites.uiIconTowers)
+            drawPageTab(canvas, trapPageRect, "TRP ${storedTraps.size}/${inventoryCapacity()}", inventoryCategory == InventoryCategory.TRAPS, sprites.uiIconTraps)
+            drawPageTab(canvas, utilityPageRect, "STR ${storedStructures.size}/${inventoryCapacity()}", inventoryCategory == InventoryCategory.STRUCTURES, sprites.uiIconUtilities)
+            drawPageTab(canvas, inventoryPageRect, "INV ${inventoryPageIndex + 1}/${inventoryPageCount()}", true, sprites.uiIconCache)
+        } else {
+            drawPageTab(canvas, towerPageRect, if (towersLocked) "LOCK" else "TWR ${towerPageIndex + 1}/4", buildPage == BuildPage.TOWERS, if (towersLocked) sprites.uiIconLock else sprites.uiIconTowers, towersLocked)
+            drawPageTab(canvas, trapPageRect, if (trapsLocked) "LOCK" else "TRAPS", buildPage == BuildPage.TRAPS, if (trapsLocked) sprites.uiIconLock else sprites.uiIconTraps, trapsLocked)
+            drawPageTab(canvas, utilityPageRect, "STR ${utilityPageIndex + 1}/5", buildPage == BuildPage.STRUCTURES, sprites.uiIconUtilities)
+            drawPageTab(canvas, inventoryPageRect, "INVENTORY", false, sprites.uiIconCache)
+        }
         for ((tool, rect) in toolRects) {
             val selected = selectedTool == tool && ((buildPage == BuildPage.TOWERS && tool.ordinal < BuildTool.SPIKES.ordinal) || (buildPage == BuildPage.TRAPS && tool.ordinal >= BuildTool.SPIKES.ordinal))
             val toolCost = toolPlacementCost(tool)
             val affordable = gold >= toolCost
-            val accent = toolAccent(tool)
-            val background = if (selected) Color.argb(220, Color.red(accent), Color.green(accent), Color.blue(accent)) else Color.rgb(25, 38, 30)
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), background)
-            if (selected) {
-                strokePaint.strokeWidth = max(2f, dp(2f))
-                strokePaint.color = Color.WHITE
-                canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint)
-            }
-            drawToolIcon(canvas, tool, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.32f, if (selected) Color.rgb(13, 22, 17) else accent)
+            drawBitmapInRect(canvas, if (selected) sprites.uiBuildSlotSelected else sprites.uiBuildSlot, rect, if (affordable || selected) 255 else 205)
+            drawToolIcon(canvas, tool, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.32f)
             drawCenteredText(canvas, tool.title, rect.centerX(), rect.top + rect.height() * 0.68f, min(dp(9f), rect.width() * 0.12f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
             drawCenteredText(canvas, toolCost.toString(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(8f), rect.width() * 0.105f), if (selected) Color.rgb(22, 38, 27) else if (affordable) Color.rgb(190, 244, 78) else Color.rgb(255, 105, 94), true)
         }
         for ((kind, rect) in utilityRects) {
             val selected = selectedUtilityKind == kind
             val unlocked = utilityUnlocked(kind)
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) kind.accent else Color.rgb(25, 38, 30))
-            if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
+            val slotSkin = when {
+                selected -> sprites.uiBuildSlotSelected
+                !unlocked -> sprites.uiBuildSlotDisabled
+                else -> sprites.uiBuildSlot
+            }
+            drawBitmapInRect(canvas, slotSkin, rect)
             spritePaint.alpha = if (unlocked) 255 else 95
             drawSpriteFrameCentered(
                 canvas,
@@ -5284,47 +5922,55 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             drawCenteredText(canvas, utilityFooter, rect.centerX(), rect.top + rect.height() * 0.88f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(12, 22, 17) else footerColor, true)
         }
-        for ((index, rect) in cacheRects) {
-            val stored = storedTraps[index]
-            val selected = selectedStoredTrapIndex == index
-            drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(11f), if (selected) stored.kind.accent else Color.rgb(25, 38, 30))
-            if (selected) { strokePaint.strokeWidth = dp(2f); strokePaint.color = Color.WHITE; canvas.drawRoundRect(rect, dp(11f), dp(11f), strokePaint) }
-            drawSpriteFrameCentered(canvas, sprites.trap(stored.kind), 0, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
-            drawCenteredText(canvas, stored.kind.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
-            drawCenteredText(canvas, stored.rankLabel(), rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(7f), rect.width() * 0.08f), if (stored.imbuement != null) stored.imbuement!!.accent else Color.rgb(190, 244, 78), true)
+        for ((selection, rect) in inventoryRects) {
+            val selected = selectedInventorySelection == selection
+            drawBitmapInRect(canvas, if (selected) sprites.uiBuildSlotSelected else sprites.uiBuildSlot, rect)
+            when (selection.category) {
+                InventoryCategory.TOWERS -> storedTowers.getOrNull(selection.index)?.let { stored ->
+                    drawToolIcon(canvas, buildToolForTowerKind(stored.kind), rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.32f)
+                }
+                InventoryCategory.TRAPS -> storedTraps.getOrNull(selection.index)?.let { stored ->
+                    drawSpriteFrameCentered(canvas, sprites.trap(stored.kind), 0, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.50f)
+                }
+                InventoryCategory.STRUCTURES -> storedStructures.getOrNull(selection.index)?.let { stored ->
+                    drawSpriteFrameCentered(canvas, sprites.utility(stored.kind), 1, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.54f)
+                }
+            }
+            drawCenteredText(canvas, inventoryItemTitle(selection).uppercase(), rect.centerX(), rect.top + rect.height() * 0.69f, min(dp(8f), rect.width() * 0.09f), if (selected) Color.rgb(13, 22, 17) else Color.WHITE, true)
+            val stateColor = inventoryItemImbuement(selection)?.accent ?: Color.rgb(190, 244, 78)
+            drawCenteredText(canvas, "FREE  •  ${inventoryItemRank(selection)}", rect.centerX(), rect.top + rect.height() * 0.87f, min(dp(7f), rect.width() * 0.08f), if (selected) Color.rgb(22, 38, 27) else stateColor, true)
         }
-        if (buildPage == BuildPage.CACHE && storedTraps.isEmpty()) drawCenteredText(canvas, "CACHE EMPTY  •  STORE A PLACED TRAP", (cachePageRect.right + viewWidth) * 0.5f, viewHeight - bottomBarHeight * 0.5f, dp(11f), Color.rgb(137, 153, 142), true)
+        if (buildPage == BuildPage.INVENTORY && inventoryCount(inventoryCategory) == 0) {
+            val hint = "${inventoryCategory.title} INVENTORY EMPTY  •  STORE A PLACED ${if (inventoryCategory == InventoryCategory.STRUCTURES) "STRUCTURE" else inventoryCategory.title.dropLast(1)}"
+            drawCenteredText(canvas, hint, (inventoryPageRect.right + viewWidth) * 0.5f, viewHeight - bottomBarHeight * 0.5f, dp(10f), Color.rgb(137, 153, 142), true)
+        }
     }
 
-    private fun drawPageTab(canvas: Canvas, rect: RectF, label: String, selected: Boolean, accent: Int) {
-        drawRoundedRect(canvas, rect.left, rect.top, rect.right, rect.bottom, dp(9f), if (selected) accent else Color.rgb(27, 42, 33))
-        drawCenteredText(canvas, label, rect.centerX(), rect.centerY(), min(dp(9f), rect.width() * 0.12f), if (selected) Color.rgb(12, 22, 17) else Color.rgb(177, 192, 181), true)
+    private fun buildToolForTowerKind(kind: TowerKind): BuildTool = when (kind) {
+        TowerKind.BOLT -> BuildTool.BOLT
+        TowerKind.FROST -> BuildTool.FROST
+        TowerKind.CANNON -> BuildTool.CANNON
+        TowerKind.EMBER -> BuildTool.EMBER
+        TowerKind.BEACON -> BuildTool.BEACON
+        TowerKind.THORN -> BuildTool.THORN
+        TowerKind.LANCE -> BuildTool.LANCE
+        TowerKind.MIRE -> BuildTool.MIRE
+        TowerKind.GALE -> BuildTool.GALE
+        TowerKind.SUNFORGE -> BuildTool.SUNFORGE
+        TowerKind.LODESTONE -> BuildTool.LODESTONE
+        TowerKind.HOWL -> BuildTool.HOWL
+        TowerKind.VITRIOL -> BuildTool.VITRIOL
+        TowerKind.GRAVEBOLT -> BuildTool.GRAVEBOLT
+        TowerKind.AEGIS_LOOM -> BuildTool.AEGIS_LOOM
     }
 
-    private fun toolAccent(tool: BuildTool): Int {
-        return when (tool) {
-            BuildTool.BOLT -> TowerKind.BOLT.accent
-            BuildTool.FROST -> TowerKind.FROST.accent
-            BuildTool.CANNON -> TowerKind.CANNON.accent
-            BuildTool.EMBER -> TowerKind.EMBER.accent
-            BuildTool.BEACON -> TowerKind.BEACON.accent
-            BuildTool.THORN -> TowerKind.THORN.accent
-            BuildTool.LANCE -> TowerKind.LANCE.accent
-            BuildTool.MIRE -> TowerKind.MIRE.accent
-            BuildTool.GALE -> TowerKind.GALE.accent
-            BuildTool.SUNFORGE -> TowerKind.SUNFORGE.accent
-            BuildTool.LODESTONE -> TowerKind.LODESTONE.accent
-            BuildTool.HOWL -> TowerKind.HOWL.accent
-            BuildTool.VITRIOL -> TowerKind.VITRIOL.accent
-            BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT.accent
-            BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM.accent
-            BuildTool.SPIKES -> TrapKind.SPIKE.accent
-            BuildTool.ROOT -> TrapKind.ROOT.accent
-            BuildTool.RUNE -> TrapKind.EMBER.accent
-            BuildTool.ARC -> TrapKind.ARC.accent
-            BuildTool.CRUSHER -> TrapKind.CRUSHER.accent
-            BuildTool.DIG -> Color.rgb(153, 125, 82)
-        }
+    private fun drawPageTab(canvas: Canvas, rect: RectF, label: String, selected: Boolean, icon: Bitmap, locked: Boolean = false) {
+        val skin = if (selected && !locked) sprites.uiTabSelected else sprites.uiTab
+        drawBitmapInRect(canvas, skin, rect, if (locked) 160 else 255)
+        spritePaint.alpha = if (locked) 92 else 255
+        drawBitmapCentered(canvas, icon, rect.centerX(), rect.top + rect.height() * 0.34f, min(rect.width(), rect.height()) * 0.38f)
+        spritePaint.alpha = 255
+        drawCenteredText(canvas, label, rect.centerX(), rect.top + rect.height() * 0.72f, min(dp(8f), rect.width() * 0.105f), if (selected && !locked) Color.rgb(12, 22, 17) else Color.rgb(214, 225, 216), true)
     }
 
     private fun toolTrapKind(tool: BuildTool): TrapKind? {
@@ -5338,33 +5984,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
-    private fun toolDescription(tool: BuildTool): String {
-        return when (tool) {
-            BuildTool.BOLT -> TowerKind.BOLT.description
-            BuildTool.FROST -> TowerKind.FROST.description
-            BuildTool.CANNON -> TowerKind.CANNON.description
-            BuildTool.EMBER -> TowerKind.EMBER.description
-            BuildTool.BEACON -> TowerKind.BEACON.description
-            BuildTool.THORN -> TowerKind.THORN.description
-            BuildTool.LANCE -> TowerKind.LANCE.description
-            BuildTool.MIRE -> TowerKind.MIRE.description
-            BuildTool.GALE -> TowerKind.GALE.description
-            BuildTool.SUNFORGE -> TowerKind.SUNFORGE.description
-            BuildTool.LODESTONE -> TowerKind.LODESTONE.description
-            BuildTool.HOWL -> TowerKind.HOWL.description
-            BuildTool.VITRIOL -> TowerKind.VITRIOL.description
-            BuildTool.GRAVEBOLT -> TowerKind.GRAVEBOLT.description
-            BuildTool.AEGIS_LOOM -> TowerKind.AEGIS_LOOM.description
-            BuildTool.SPIKES -> TrapKind.SPIKE.description
-            BuildTool.ROOT -> TrapKind.ROOT.description
-            BuildTool.RUNE -> TrapKind.EMBER.description
-            BuildTool.ARC -> TrapKind.ARC.description
-            BuildTool.CRUSHER -> TrapKind.CRUSHER.description
-            BuildTool.DIG -> "Draw the route one block at a time"
-        }
-    }
-
-    private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float, color: Int) {
+    private fun drawToolIcon(canvas: Canvas, tool: BuildTool, x: Float, y: Float, size: Float) {
         val towerLayers: Pair<Bitmap, SpriteStrip>? = when (tool) {
             BuildTool.BOLT -> Pair(sprites.towerBase, sprites.greenTurret)
             BuildTool.FROST -> Pair(sprites.frostBase, sprites.paleTurret)
@@ -5401,99 +6021,109 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             drawSpriteFrameCentered(canvas, sprites.trap(trapKind), 0, x, y, size * 2.1f)
             return
         }
-        paint.color = color
-        canvas.drawRect(x - size * 0.45f, y - size * 0.14f, x + size * 0.45f, y + size * 0.14f, paint)
+        drawBitmapCentered(canvas, sprites.uiIconRoute, x, y, size * 2.1f)
     }
 
     private fun drawDefensePanel(canvas: Canvas) {
         val tower = selectedTower
         val trap = selectedTrap
         val title = if (tower != null && tower.evolution != null) tower.evolution!!.title else tower?.kind?.title ?: trap?.kind?.title ?: return
-        val accent = tower?.kind?.accent ?: trap?.kind?.accent ?: Color.WHITE
         var cost = tower?.upgradeCost() ?: trap?.upgradeCost() ?: 0
         if ((tower?.level ?: trap?.level ?: 1) >= 3) cost = max(1, cost - (cost * perkCount(ForgePerk.EFFICIENT_OVERCHARGE) * 0.20f).toInt())
-        val canBuy = gold >= cost
+        val canEvolve = tower?.canEvolve() == true
+        val canBuy = if (canEvolve) evolutionCores > 0 else gold >= cost
         val damage = tower?.currentDamage() ?: trap?.currentDamage() ?: 0f
         val range = tower?.currentRange()
         val rank = tower?.rankLabel() ?: trap?.rankLabel().orEmpty()
-        val sellValue = tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: 0
         val definition = tower?.evolution?.description ?: tower?.kind?.description ?: trap?.kind?.description ?: ""
-        drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
-        drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(11f), Color.WHITE, true)
-        val upgradeColor = if (canBuy) accent else Color.rgb(27, 42, 33)
-        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), upgradeColor)
-        val titleColor = if (canBuy) Color.rgb(12, 21, 16) else Color.rgb(150, 168, 156)
-        drawCenteredText(canvas, "UPGRADE ${title.uppercase()}  •  $rank", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
-        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.50f, upgradeRect.width() * 0.90f, dp(8f), titleColor, 2)
-        val stats = if (range != null) "DMG ${damage.toInt()}  RANGE ${oneDecimal(range)}  •  $cost BLOCKS" else "DMG ${damage.toInt()}  •  $cost BLOCKS"
+        drawUiButton(canvas, backRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), backRect.height() * 0.34f))
+        drawUiPanel(canvas, upgradeRect, active = canBuy)
+        drawBitmapCentered(canvas, if (canEvolve) sprites.uiIconEvolve else sprites.uiIconUpgrade, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.27f, min(upgradeRect.height() * 0.24f, dp(27f)))
+        val titleColor = if (canBuy) Color.rgb(238, 252, 222) else Color.rgb(150, 168, 156)
+        val upgradeTitle = if (canEvolve) "EVOLVE ${title.uppercase()}" else "UPGRADE ${title.uppercase()}  •  $rank"
+        drawCenteredText(canvas, upgradeTitle, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.030f), titleColor, true)
+        val detail = if (canEvolve) "Choose one permanent evolution path. Stored towers keep that path." else definition
+        drawWrappedText(canvas, detail, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.50f, upgradeRect.width() * 0.90f, dp(8f), titleColor, 2)
+        val stats = if (canEvolve) "${evolutionCores} CORE  •  READY" else if (range != null) "DMG ${damage.toInt()}  •  RNG ${oneDecimal(range)}  •  ${cost}B" else "DMG ${damage.toInt()}  •  ${cost}B"
         drawCenteredText(canvas, stats, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.81f, min(dp(9f), upgradeRect.width() * 0.026f), titleColor, true)
-        val canEvolve = tower?.canEvolve() == true
-        val storeLabel = when { canEvolve -> "EVOLVE • $evolutionCores CORE"; trap != null -> "STORE • ${trapStorageCost(trap)} B"; else -> "EVOLUTION LOCKED" }
-        drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (canEvolve) Color.rgb(68, 55, 30) else if (trap != null) Color.rgb(35, 54, 68) else Color.rgb(31, 40, 34))
-        drawCenteredText(canvas, storeLabel, storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (canEvolve) Color.rgb(255, 222, 126) else Color.rgb(186, 221, 241), true)
+        val category = if (tower != null) InventoryCategory.TOWERS else InventoryCategory.TRAPS
+        val wrapped = supplyCount(CraftedItem.RECOVERY_WRAP) > 0
+        val storageCost = if (wrapped) 0 else tower?.let { towerStorageCost(it) } ?: trap?.let { trapStorageCost(it) } ?: 0
+        val storageEnabled = hasInventoryRoom(category) && (wrapped || gold >= storageCost)
+        val storageLabel = if (wrapped) "STORE  •  WRAP FREE" else "STORE  •  ${storageCost}B"
+        drawUiButton(canvas, storeRect, storageLabel, sprites.uiIconStore, UiControlTone.SECONDARY, storageEnabled, if (storageEnabled) Color.rgb(190, 220, 240) else Color.rgb(138, 151, 142), min(dp(7.5f), storeRect.height() * 0.34f))
         val existingImbuement = tower?.imbuement ?: trap?.imbuement
-        drawRoundedRect(canvas, imbueRect.left, imbueRect.top, imbueRect.right, imbueRect.bottom, dp(7f), Color.rgb(53, 43, 68))
-        drawCenteredText(canvas, if (existingImbuement == null) "IMBUE" else "IMBUED • ${existingImbuement.title.uppercase()}", imbueRect.centerX(), imbueRect.centerY(), min(dp(8f), imbueRect.height() * 0.43f), existingImbuement?.accent ?: Color.rgb(213, 182, 255), true)
+        drawUiButton(canvas, imbueRect, if (existingImbuement == null) "IMBUE" else "IMBUED  •  ${existingImbuement.title.uppercase()}", sprites.uiIconImbue, UiControlTone.ACCENT, textColor = existingImbuement?.accent ?: Color.rgb(232, 216, 255), textSize = min(dp(7.5f), imbueRect.height() * 0.34f))
         val recycleLocked = challengeModifier == ChallengeModifier.NO_RECYCLING
-        drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(7f), if (recycleLocked) Color.rgb(35, 36, 34) else Color.rgb(50, 37, 32))
-        drawCenteredText(canvas, if (recycleLocked) "NO RECYCLING" else "RECYCLE • +$sellValue", sellRect.centerX(), sellRect.centerY(), min(dp(8f), sellRect.height() * 0.43f), Color.rgb(255, 188, 126), true)
+        drawUiButton(canvas, sellRect, if (recycleLocked) "NO RECYCLING" else "RECYCLE  •  +${tower?.sellValue(recyclingMultiplier()) ?: trap?.sellValue(recyclingMultiplier()) ?: 0}", sprites.uiIconRecycle, UiControlTone.WARNING, !recycleLocked, Color.rgb(255, 217, 193), min(dp(7.5f), sellRect.height() * 0.34f))
     }
 
     private fun drawUtilityPanel(canvas: Canvas) {
         val utility = selectedUtility ?: return
         val cost = if (utility.level < utility.maxLevel()) utility.upgradeCost() else 0
         val canUpgrade = utility.level < utility.maxLevel() && gold >= cost
-        val utilityTextColor = if (canUpgrade) Color.rgb(12, 21, 16) else Color.WHITE
-        drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
-        drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(10f), Color.WHITE, true)
-        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (canUpgrade) utility.kind.accent else Color.rgb(31, 43, 35))
-        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LEVEL ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.03f), utilityTextColor, true)
+        val structureTextColor = if (canUpgrade) Color.rgb(238, 252, 222) else Color.rgb(190, 204, 194)
+        drawUiButton(canvas, backRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), backRect.height() * 0.34f))
+        drawUiPanel(canvas, upgradeRect, active = canUpgrade)
+        drawBitmapCentered(canvas, sprites.uiIconUpgrade, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.27f, min(upgradeRect.height() * 0.24f, dp(27f)))
+        drawCenteredText(canvas, "${utility.kind.title.uppercase()}  •  LV ${utility.level}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.25f, min(dp(10f), upgradeRect.width() * 0.03f), structureTextColor, true)
         val definition = if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
-            "Produces ${utility.blockOutput()} Blocks after every cleared wave"
+            "+${utility.blockOutput()} BLOCKS AFTER EACH WAVE"
         } else {
             utility.kind.description
         }
-        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), 2)
+        drawWrappedText(canvas, definition, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.51f, upgradeRect.width() * 0.90f, dp(8f), structureTextColor, 2)
+        val upgradeFooter = if (utility.level < utility.maxLevel()) "UPGRADE  •  ${cost}B" else "MAX LEVEL"
         if (utility.kind == UtilityKind.BLOCK_GENERATOR) {
             val activeGenerators = utilities.count { it.kind == UtilityKind.BLOCK_GENERATOR }
-            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  ${if (utility.level < utility.maxLevel()) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL"}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+            drawCenteredText(canvas, "$activeGenerators/$MAX_BLOCK_GENERATORS ACTIVE  •  $upgradeFooter", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), structureTextColor, true)
         } else {
-            drawCenteredText(canvas, if (utility.level < utility.maxLevel()) "UPGRADE $cost BLOCKS" else "MAXIMUM LEVEL", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), if (canUpgrade) Color.rgb(22, 38, 27) else Color.rgb(168, 184, 172), true)
+            drawCenteredText(canvas, upgradeFooter, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.82f, min(dp(8f), upgradeRect.width() * 0.026f), structureTextColor, true)
         }
-        drawRoundedRect(canvas, storeRect.left, storeRect.top, storeRect.right, storeRect.bottom, dp(7f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(81, 49, 31) else Color.rgb(31, 40, 34))
-        drawCenteredText(canvas, if (utility.kind == UtilityKind.FORGE_WORKSHOP) "OPEN FORGEWORKS" else "PASSIVE UTILITY", storeRect.centerX(), storeRect.centerY(), min(dp(8f), storeRect.height() * 0.43f), if (utility.kind == UtilityKind.FORGE_WORKSHOP) Color.rgb(255, 187, 116) else Color.rgb(137, 153, 142), true)
-        drawRoundedRect(canvas, imbueRect.left, imbueRect.top, imbueRect.right, imbueRect.bottom, dp(7f), Color.rgb(53, 43, 68))
-        drawCenteredText(canvas, if (utility.imbuement == null) "IMBUE" else "IMBUED • ${utility.imbuement!!.title.uppercase()}", imbueRect.centerX(), imbueRect.centerY(), min(dp(8f), imbueRect.height() * 0.43f), utility.imbuement?.accent ?: Color.rgb(213, 182, 255), true)
-        drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(7f), Color.rgb(50, 37, 32))
-        drawCenteredText(canvas, if (challengeModifier == ChallengeModifier.NO_RECYCLING) "NO RECYCLING" else "RECYCLE UTILITY", sellRect.centerX(), sellRect.centerY(), min(dp(8f), sellRect.height() * 0.43f), Color.rgb(255, 188, 126), true)
+        val wrapped = supplyCount(CraftedItem.RECOVERY_WRAP) > 0
+        val storageCost = if (wrapped) 0 else structureStorageCost(utility)
+        val storageEnabled = canStoreStructure(utility) && (wrapped || gold >= storageCost)
+        val storageLabel = if (wrapped) "STORE  •  WRAP FREE" else "STORE  •  ${storageCost}B"
+        val workshop = utility.kind == UtilityKind.FORGE_WORKSHOP
+        if (workshop) {
+            drawUiButton(canvas, workshopRect, "FORGEWORKS", sprites.uiIconStore, UiControlTone.PRIMARY, textColor = Color.rgb(239, 250, 211), textSize = min(dp(6.8f), workshopRect.height() * 0.31f))
+            drawUiButton(canvas, structureStoreRect, storageLabel, sprites.uiIconStore, UiControlTone.SECONDARY, storageEnabled, if (storageEnabled) Color.rgb(190, 220, 240) else Color.rgb(138, 151, 142), min(dp(6.4f), structureStoreRect.height() * 0.30f))
+        } else {
+            drawUiButton(canvas, storeRect, storageLabel, sprites.uiIconStore, UiControlTone.SECONDARY, storageEnabled, if (storageEnabled) Color.rgb(190, 220, 240) else Color.rgb(138, 151, 142), min(dp(7.5f), storeRect.height() * 0.34f))
+        }
+        drawUiButton(canvas, imbueRect, if (utility.imbuement == null) "IMBUE" else "IMBUED  •  ${utility.imbuement!!.title.uppercase()}", sprites.uiIconImbue, UiControlTone.ACCENT, textColor = utility.imbuement?.accent ?: Color.rgb(232, 216, 255), textSize = min(dp(7.5f), imbueRect.height() * 0.34f))
+        val recycleLocked = challengeModifier == ChallengeModifier.NO_RECYCLING
+        drawUiButton(canvas, sellRect, if (recycleLocked) "NO RECYCLING" else "RECYCLE", sprites.uiIconRecycle, UiControlTone.WARNING, !recycleLocked, Color.rgb(255, 217, 193), min(dp(7.5f), sellRect.height() * 0.34f))
     }
 
     private fun drawCorruptionPanel(canvas: Canvas) {
         val corruption = selectedCorruption ?: return
         val cost = corruptionCleanseCost(corruption)
         val vial = corruptionUsesVial(corruption)
-        drawRoundedRect(canvas, backRect.left, backRect.top, backRect.right, backRect.bottom, dp(12f), Color.rgb(25, 38, 30))
-        drawCenteredText(canvas, "BACK", backRect.centerX(), backRect.centerY(), dp(11f), Color.WHITE, true)
-        drawRoundedRect(canvas, upgradeRect.left, upgradeRect.top, upgradeRect.right, upgradeRect.bottom, dp(12f), if (forgeCharges >= cost) corruption.kind.accent else Color.rgb(42, 37, 42))
-        drawCenteredText(canvas, "CLEANSE ${corruption.kind.title.uppercase()}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, dp(10f), Color.WHITE, true)
+        val canCleanse = forgeCharges >= cost
+        drawUiButton(canvas, backRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(8f), backRect.height() * 0.34f))
+        drawUiPanel(canvas, upgradeRect, active = canCleanse)
+        drawBitmapCentered(canvas, sprites.uiIconRecycle, upgradeRect.left + upgradeRect.width() * 0.10f, upgradeRect.top + upgradeRect.height() * 0.31f, min(upgradeRect.height() * 0.24f, dp(27f)))
+        drawCenteredText(canvas, "CLEANSE ${corruption.kind.title.uppercase()}", upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.37f, dp(10f), if (canCleanse) Color.rgb(240, 252, 227) else Color.rgb(177, 188, 180), true)
         drawWrappedText(canvas, corruption.kind.description, upgradeRect.centerX(), upgradeRect.top + upgradeRect.height() * 0.69f, upgradeRect.width() * 0.90f, dp(8f), Color.rgb(224, 230, 225), 2)
-        drawRoundedRect(canvas, sellRect.left, sellRect.top, sellRect.right, sellRect.bottom, dp(12f), Color.rgb(53, 43, 68))
-        drawCenteredText(canvas, "$cost FORGE${if (vial) " + VIAL" else ""}", sellRect.centerX(), sellRect.top + sellRect.height() * 0.40f, dp(10f), Color.rgb(213, 182, 255), true)
-        drawCenteredText(canvas, "YOU HAVE $forgeCharges", sellRect.centerX(), sellRect.top + sellRect.height() * 0.70f, dp(8f), Color.rgb(175, 157, 194), true)
+        drawUiPanel(canvas, sellRect, active = canCleanse)
+        drawBitmapCentered(canvas, sprites.uiIconImbue, sellRect.left + sellRect.width() * 0.18f, sellRect.centerY(), min(sellRect.height() * 0.52f, dp(22f)))
+        drawCenteredText(canvas, "${cost} FORGE${if (vial) " + VIAL" else ""}", sellRect.left + sellRect.width() * 0.60f, sellRect.top + sellRect.height() * 0.40f, dp(10f), Color.rgb(232, 216, 255), true)
+        drawCenteredText(canvas, "YOU HAVE $forgeCharges", sellRect.left + sellRect.width() * 0.60f, sellRect.top + sellRect.height() * 0.70f, dp(8f), Color.rgb(190, 174, 208), true)
     }
 
     private fun drawBanner(canvas: Canvas) {
         if (!feedbackEnabled) return
         val timed = bannerTimer > 0f
+        // Persistent copy is intentionally sparse. The rail already identifies the phase and
+        // resources, so this panel is reserved for an active timer, route costs, survey intel,
+        // or a short-lived gameplay result/error.
         val instruction = when {
             timed -> bannerText
-            phase == GamePhase.DIG -> "DRAG ONE BLOCK AT A TIME  •  BACKTRACK TO UNDO  •  MAX ${currentPathLimit()}"
-            phase == GamePhase.REFORGE -> "PREVIEW • CONFIRM/CANCEL • F${effectiveReforgeCost()}/$forgeCharges • RECOVERY ${reforgeRecoveryCost()} B • CACHE ${storedTraps.size + displacedReforgeTraps().size}/${cacheCapacity()}"
-            phase == GamePhase.BUILD && nextWaveTimer > 0f -> "NEXT WAVE IN ${nextWaveCountdownSeconds()}S  •  TAP NEXT WAVE TO LAUNCH NOW"
-            phase == GamePhase.BUILD && waveNumber == 0 && towers.isEmpty() -> "CHOOSE A DEFENSE BELOW  •  TAP A FREE BLOCK TO BUILD"
+            phase == GamePhase.DIG -> "ROUTE  ${pathCells.size}/${currentPathLimit()}"
+            phase == GamePhase.REFORGE -> "${effectiveReforgeCost()} FORGE  •  ${reforgeRecoveryCost()} BLOCKS"
+            phase == GamePhase.BUILD && nextWaveTimer > 0f -> "W${waveNumber + 1}  •  ${nextWaveCountdownSeconds()}S"
             phase == GamePhase.BUILD && surveyAvailable() -> surveyPreviewText(waveNumber + 1)
-            phase == GamePhase.BUILD -> "BUILD DEFENSES AND INFRASTRUCTURE  •  NEXT WAVE AUTO-LAUNCHES IN 10S"
-            phase == GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "$waveTheme  •  ${activeWaveNumbers.size} WAVES STACKED  •  TOWERS ARE AUTONOMOUS" else "$waveTheme  •  TAP NEXT WAVE TO STACK"
             else -> ""
         }
         if (instruction.isEmpty()) return
@@ -5501,8 +6131,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val enter = if (timed) (elapsed / 0.22f).coerceIn(0f, 1f) else 1f
         val enterEase = 1f - (1f - enter) * (1f - enter)
         val fadeOut = if (timed && bannerTimer in 0f..0.38f) (bannerTimer / 0.38f) else 1f
-        val alpha = (if (timed) 235f * fadeOut else 200f).toInt().coerceIn(0, 255)
-        val baseWidth = min(viewWidth * 0.34f, dp(310f))
+        val alpha = (if (timed) 235f * fadeOut else 212f).toInt().coerceIn(0, 255)
+        val baseWidth = min(viewWidth * 0.31f, dp(290f))
         val baseHeight = min(dp(54f), max(dp(42f), tileSize * 0.78f))
         val widthScale = if (timed) 0.82f + 0.18f * enterEase else 1f
         val heightScale = if (timed) 0.88f + 0.20f * enterEase else 1f
@@ -5510,58 +6140,64 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val height = baseHeight * heightScale
         val left = dp(12f)
         val top = topBarHeight + dp(9f) - (1f - enterEase) * dp(8f)
-        if (timed) {
-            val rim = Color.argb((alpha * 0.55f).toInt().coerceIn(0, 255), 190, 244, 78)
-            drawRoundedRect(canvas, left - dp(2f), top - dp(2f), left + width + dp(2f), top + height + dp(2f), dp(10f), rim)
-            paint.color = Color.argb((alpha * 0.18f).toInt().coerceIn(0, 255), 190, 244, 78)
-            canvas.drawRoundRect(left, top + height * 0.35f, left + width, top + height + dp(6f), dp(12f), dp(12f), paint)
+        drawBitmapInRect(canvas, sprites.uiBanner, RectF(left, top, left + width, top + height), alpha)
+        val icon = when (phase) {
+            GamePhase.DIG, GamePhase.REFORGE -> sprites.uiIconRoute
+            GamePhase.WAVE -> sprites.uiIconStack
+            else -> sprites.uiIconLaunch
         }
-        drawRoundedRect(canvas, left, top, left + width, top + height, dp(10f), Color.argb(alpha, 14, 23, 18))
+        spritePaint.alpha = alpha
+        drawBitmapCentered(canvas, icon, left + width * 0.105f, top + height * 0.47f, min(height * 0.52f, dp(26f)))
+        spritePaint.alpha = 255
         val textSize = min(dp(9f), height * 0.24f) * (if (timed) 0.92f + 0.12f * enterEase else 1f)
         drawWrappedText(
             canvas,
             instruction,
-            left + width * 0.5f,
+            left + width * 0.56f,
             top + height * 0.47f,
-            width - dp(18f),
+            width * 0.77f,
             textSize,
-            Color.argb(min(255, alpha + 25), 224, 232, 226),
+            Color.argb(min(255, alpha + 25), 234, 240, 226),
             2,
             true
         )
         if (timed && bannerDuration > 0.01f) {
             val progress = (bannerTimer / bannerDuration).coerceIn(0f, 1f)
             paint.color = Color.argb((alpha * 0.85f).toInt().coerceIn(0, 255), 190, 244, 78)
-            canvas.drawRect(left + dp(8f), top + height - dp(3f), left + dp(8f) + (width - dp(16f)) * progress, top + height - dp(1f), paint)
+            canvas.drawRect(left + dp(18f), top + height - dp(4f), left + dp(18f) + (width - dp(36f)) * progress, top + height - dp(2f), paint)
         }
     }
 
     private fun drawPauseOverlay(canvas: Canvas) {
         paint.color = Color.argb(218, 7, 13, 10)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-        drawCenteredText(canvas, "RUN PAUSED", viewWidth * 0.5f, viewHeight * 0.34f, min(dp(43f), viewHeight * 0.10f), Color.WHITE, true, true)
-        val note = if (phaseBeforePause == GamePhase.WAVE) "RESUME THIS WAVE  •  MENU RETURNS TO LAST CHECKPOINT" else "PATH, DEFENSES, SCORE, AND WAVE ARE SAVED"
-        drawCenteredText(canvas, note, viewWidth * 0.5f, viewHeight * 0.44f, dp(11f), Color.rgb(153, 171, 159), true)
-        drawEndButtons(canvas, "RESUME", "MAIN MENU")
+        drawUiModal(canvas, RectF(viewWidth * 0.18f, viewHeight * 0.18f, viewWidth * 0.82f, viewHeight * 0.84f), 248)
+        drawBitmapCentered(canvas, sprites.uiIconPause, viewWidth * 0.5f, viewHeight * 0.28f, min(dp(46f), viewHeight * 0.09f))
+        drawCenteredText(canvas, "RUN PAUSED", viewWidth * 0.5f, viewHeight * 0.37f, min(dp(37f), viewHeight * 0.085f), Color.WHITE, true, true)
+        val note = if (phaseBeforePause == GamePhase.WAVE) "RESUME WAVE  •  MENU RETURNS TO CHECKPOINT" else "PROGRESS SAVED"
+        drawCenteredText(canvas, note, viewWidth * 0.5f, viewHeight * 0.46f, dp(11f), Color.rgb(192, 207, 195), true)
+        drawEndButtons(canvas, "RESUME", "MENU")
     }
 
     private fun drawEndOverlay(canvas: Canvas) {
         paint.color = Color.argb(226, 7, 13, 10)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        drawUiModal(canvas, RectF(viewWidth * 0.15f, viewHeight * 0.14f, viewWidth * 0.85f, viewHeight * 0.88f), 248)
         val victory = phase == GamePhase.VICTORY
         val accent = if (victory) Color.rgb(190, 244, 78) else Color.rgb(255, 102, 92)
+        drawBitmapCentered(canvas, if (victory) sprites.uiIconCore else sprites.uiIconRecycle, viewWidth * 0.5f, viewHeight * 0.20f, min(dp(44f), viewHeight * 0.08f))
         drawCenteredText(canvas, if (victory) "CORE SECURED" else "CORE BREACHED", viewWidth * 0.5f, viewHeight * 0.28f, min(dp(48f), viewHeight * 0.105f), accent, true, true)
-        drawCenteredText(canvas, if (victory) "ENDLESS MODE COMPLETE" else "THE RUN ENDS  THE HIGH WAVE REMAINS", viewWidth * 0.5f, viewHeight * 0.39f, dp(12f), Color.rgb(184, 198, 188), true)
+        drawCenteredText(canvas, if (victory) "RUN COMPLETE" else "HIGH WAVE RECORDED", viewWidth * 0.5f, viewHeight * 0.39f, dp(12f), Color.rgb(202, 214, 204), true)
         val cardWidth = min(dp(400f), viewWidth * 0.60f)
         val cardLeft = (viewWidth - cardWidth) * 0.5f
         val cardTop = viewHeight * 0.47f
         val cardBottom = viewHeight * 0.63f
-        drawRoundedRect(canvas, cardLeft, cardTop, cardLeft + cardWidth, cardBottom, dp(14f), Color.rgb(20, 32, 25))
+        drawUiPanel(canvas, cardLeft, cardTop, cardLeft + cardWidth, cardBottom, active = victory)
         drawResultStat(canvas, cardLeft + cardWidth * 0.18f, cardTop, cardBottom, "SCORE", formatNumber(score), accent)
         drawResultStat(canvas, cardLeft + cardWidth * 0.50f, cardTop, cardBottom, "WAVE", waveNumber.toString(), Color.rgb(93, 220, 255))
         val modeBest = when (gameMode) { GameMode.ENDLESS -> bestWave; GameMode.DAILY -> bestDailyWave; GameMode.CUSTOM -> bestCustomWave }
-        drawResultStat(canvas, cardLeft + cardWidth * 0.82f, cardTop, cardBottom, "BEST WAVE", modeBest.toString(), Color.rgb(255, 188, 96))
-        drawEndButtons(canvas, if (gameMode == GameMode.ENDLESS) "NEW RUN" else "RETRY SEED", "MAIN MENU")
+        drawResultStat(canvas, cardLeft + cardWidth * 0.82f, cardTop, cardBottom, "BEST", modeBest.toString(), Color.rgb(255, 188, 96))
+        drawEndButtons(canvas, if (gameMode == GameMode.ENDLESS) "NEW RUN" else "RETRY", "MENU")
     }
 
     private fun drawResultStat(canvas: Canvas, x: Float, top: Float, bottom: Float, label: String, value: String, color: Int) {
@@ -5570,10 +6206,95 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawEndButtons(canvas: Canvas, primary: String, secondary: String) {
-        drawRoundedRect(canvas, endPrimaryRect.left, endPrimaryRect.top, endPrimaryRect.right, endPrimaryRect.bottom, dp(14f), Color.rgb(190, 244, 78))
-        drawCenteredText(canvas, primary, endPrimaryRect.centerX(), endPrimaryRect.centerY(), dp(13f), Color.rgb(12, 21, 16), true)
-        drawRoundedRect(canvas, endSecondaryRect.left, endSecondaryRect.top, endSecondaryRect.right, endSecondaryRect.bottom, dp(14f), Color.rgb(29, 43, 34))
-        drawCenteredText(canvas, secondary, endSecondaryRect.centerX(), endSecondaryRect.centerY(), dp(13f), Color.WHITE, true)
+        drawUiButton(canvas, endPrimaryRect, primary, sprites.uiIconLaunch, UiControlTone.PRIMARY, textColor = Color.rgb(240, 255, 214), textSize = min(dp(12f), endPrimaryRect.height() * 0.30f))
+        drawUiButton(canvas, endSecondaryRect, secondary, sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(12f), endSecondaryRect.height() * 0.30f))
+    }
+
+    /** Draw a menu/environment bitmap into a responsive rectangle without changing its crop ratio. */
+    private fun drawCoverBitmap(canvas: Canvas, bitmap: Bitmap, destination: RectF) {
+        val sourceAspect = bitmap.width.toFloat() / max(1, bitmap.height).toFloat()
+        val destinationAspect = destination.width() / max(1f, destination.height())
+        val source = if (sourceAspect > destinationAspect) {
+            val width = (bitmap.height * destinationAspect).toInt().coerceIn(1, bitmap.width)
+            val left = (bitmap.width - width) / 2
+            Rect(left, 0, left + width, bitmap.height)
+        } else {
+            val height = (bitmap.width / destinationAspect).toInt().coerceIn(1, bitmap.height)
+            val top = (bitmap.height - height) / 2
+            Rect(0, top, bitmap.width, top + height)
+        }
+        canvas.drawBitmap(bitmap, source, destination, spritePaint)
+    }
+
+    /** Draw an authored PNG skin at the supplied hit rectangle, retaining any alpha in the sprite. */
+    private fun drawBitmapInRect(canvas: Canvas, bitmap: Bitmap, destination: RectF, alpha: Int = 255) {
+        val previousAlpha = spritePaint.alpha
+        spritePaint.alpha = alpha.coerceIn(0, 255)
+        canvas.drawBitmap(bitmap, null, destination, spritePaint)
+        spritePaint.alpha = previousAlpha
+    }
+
+    /** Shared sprite surfaces replace the former flat rounded Canvas panels throughout live play. */
+    private fun drawUiPanel(canvas: Canvas, rect: RectF, active: Boolean = false, alpha: Int = 255) {
+        drawBitmapInRect(canvas, if (active) sprites.uiPanelActive else sprites.uiPanel, rect, alpha)
+    }
+
+    private fun drawUiPanel(canvas: Canvas, left: Float, top: Float, right: Float, bottom: Float, active: Boolean = false, alpha: Int = 255) {
+        drawUiPanel(canvas, RectF(left, top, right, bottom), active, alpha)
+    }
+
+    private fun drawUiCard(canvas: Canvas, rect: RectF, active: Boolean = false, alpha: Int = 255) {
+        drawBitmapInRect(canvas, if (active) sprites.uiCardActive else sprites.uiCard, rect, alpha)
+    }
+
+    private fun drawUiModal(canvas: Canvas, rect: RectF, alpha: Int = 255) {
+        drawBitmapInRect(canvas, sprites.uiModal, rect, alpha)
+    }
+
+    /**
+     * Draw a labeled, art-backed in-game control. Text stays live so costs, wave numbers, and
+     * save-state labels remain accurate while the button, framing, and icon are authored sprites.
+     */
+    private fun drawUiButton(
+        canvas: Canvas,
+        rect: RectF,
+        label: String,
+        icon: Bitmap? = null,
+        tone: UiControlTone = UiControlTone.SECONDARY,
+        enabled: Boolean = true,
+        textColor: Int = Color.WHITE,
+        textSize: Float = min(dp(10f), rect.height() * 0.28f),
+        pressed: Boolean = false
+    ) {
+        val held = enabled && (pressed || (uiTouchActive && rect.contains(uiTouchX, uiTouchY)))
+        val skin = if (!enabled) {
+            sprites.uiButtonDisabled
+        } else {
+            when (tone) {
+                UiControlTone.PRIMARY -> if (held) sprites.uiButtonPrimaryPressed else sprites.uiButtonPrimary
+                UiControlTone.SECONDARY -> if (held) sprites.uiButtonSecondaryPressed else sprites.uiButtonSecondary
+                UiControlTone.ACCENT -> if (held) sprites.uiButtonAccentPressed else sprites.uiButtonAccent
+                UiControlTone.WARNING -> if (held) sprites.uiButtonWarningPressed else sprites.uiButtonWarning
+            }
+        }
+        drawBitmapInRect(canvas, skin, rect, if (enabled) 255 else 175)
+        if (icon != null) {
+            val iconOnly = label.isEmpty()
+            val iconSize = if (iconOnly) {
+                min(rect.width(), rect.height()) * 0.66f
+            } else {
+                min(rect.height() * 0.54f, rect.width() * 0.20f)
+            }
+            val iconX = if (iconOnly) rect.centerX() else rect.left + rect.width() * 0.19f
+            spritePaint.alpha = if (enabled) 255 else 105
+            drawBitmapCentered(canvas, icon, iconX, rect.centerY(), iconSize)
+            spritePaint.alpha = 255
+            if (!iconOnly) {
+                drawCenteredText(canvas, label, rect.left + rect.width() * 0.60f, rect.centerY(), textSize, textColor, true)
+            }
+        } else {
+            drawCenteredText(canvas, label, rect.centerX(), rect.centerY(), textSize, textColor, true)
+        }
     }
 
     private fun drawSpriteFrameCentered(canvas: Canvas, strip: SpriteStrip, frame: Int, x: Float, y: Float, size: Float, rotation: Float = 0f) {
@@ -5606,12 +6327,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         } else {
             canvas.drawBitmap(bitmap, null, destination, spritePaint)
         }
-    }
-
-    private fun drawRoundedRect(canvas: Canvas, left: Float, top: Float, right: Float, bottom: Float, radius: Float, color: Int) {
-        paint.style = Paint.Style.FILL
-        paint.color = color
-        canvas.drawRoundRect(left, top, right, bottom, radius, radius, paint)
     }
 
     private fun drawText(

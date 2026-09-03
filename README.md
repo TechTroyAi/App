@@ -6,16 +6,16 @@ The game uses its own identity and mechanics. It does not include Minecraft name
 
 ## Build status and installation
 
-**v1.4.3 is a complete art release: the source is finished but not yet built.** The whole sprite set has been recreated in a unified *fantasy × machinery* style (see "v1.4.3 art overhaul" below) and the manifest is stamped `1.4.3` / `versionCode 17`. The APK has **not** been produced yet — the build session had no JDK and no reachable Android SDK, Gradle, or Maven mirror, so `scripts/build-apk.sh` could not run. Build it on a machine with JDK 17 + the Android SDK; the retained v1.4.2 release key must be reused so the update installs over v1.4.2 without an uninstall.
+**The current source targets v1.4.3 / `versionCode 17`.** It includes the completed gameplay art overhaul plus the sprite-led Fantasy Machinery title/playable-interface passes and the Inventory revision described below. The retained signed v1.4.3 artifact was built before these UI and Inventory passes, so it must **not** be described as containing the current refresh.
 
-The last **built and retained** artifact remains `artifacts/Blockhold-Defense-v1.4.2-installable.apk` (versionName `1.4.2`, versionCode `16`), which passes the hosted Android debug build, `scripts/verify-apk.py`, and `scripts/verify-dex-shape.py` with zero failures. It is signed with a **new** release key (the v1.4.1 private key was lost), so installing it over v1.4.1 requires a one-time uninstall; the v1.4.2 key is backed up for reuse by all future releases — see `artifacts/README.md`.
+`artifacts/Blockhold-Defense-v1.4.3-installable.apk` is the latest built and retained installable package (SHA-256 `478648d470c627c929844804163bde28890c7bc12b329368193d324bf9dd0fee`). It passed the recorded APK/Dex verification, but it is a previous v1.4.3 source snapshot. This checkout has no release-signing material, so a new release-signed artifact cannot be made here; CI can build and verify a current debug APK. See `artifacts/README.md` for the retained artifact's signing history and `docs/SIGNING.md` before producing a new distributable package.
 
 | Item | Value |
 | --- | --- |
 | Public name | Blockhold Defense |
 | Modes | Endless Pathforge, daily challenge, custom seed |
 | Application ID | `ai.techtroy.blockhold` |
-| Version | `1.4.3` (`17`) — source; latest built APK is `1.4.2` (`16`) |
+| Version | `1.4.3` (`17`) — current source; retained signed APK predates the interface refresh |
 | Minimum Android | Android 7.0 / API 24 |
 | Target SDK | API 35 |
 | Orientation | Landscape |
@@ -28,9 +28,9 @@ See `artifacts/README.md` for artifact hashes and signing status, `docs/VERIFICA
 
 1. Drag from the gate on the left through adjacent blocks until the route reaches the glowing core on the right.
 2. Backtrack over the previous block to undo a segment. The route locks when it reaches the core.
-3. Switch among **Towers**, **Traps**, **Utilities**, and **Cache** in the bottom build bar.
-4. Put towers and Utilities on clean free terrain; place traps directly on empty route blocks.
-5. Tap any structure between waves to upgrade it, Overcharge/evolve eligible defenses, open Forgeworks, imbue it, store placed traps, or recycle it.
+3. Switch among **Towers**, **Traps**, **Structures**, and **Inventory** in the bottom build bar.
+4. Put towers and Structures on clean free terrain; place traps directly on empty route blocks.
+5. Tap any placed tower, trap, or Structure to upgrade it, Overcharge/evolve eligible defenses, open Forgeworks, imbue it, store it, or recycle it.
 6. Start the next wave. Combat, targeting, status effects, and projectiles are automatic.
 7. Every five cleared waves, choose one of three persistent Forge Perks.
 8. Bosses every ten waves spread corruption and award Forge Charges plus Evolution Cores.
@@ -71,16 +71,20 @@ Towers and traps have three normal levels. After level three, repeatable **Overc
 
 ## Forgeworks Update
 
-### Forge Cache
+### Inventory
 
-Only traps already placed on the battlefield can be stored. **Store** pays a Block recovery fee and preserves the trap's type, level, Overcharge rank, and imbuement; placing that exact cached trap again is free. **Recycle** instead destroys the trap for Blocks and Salvage Parts. Reforge-displaced traps also require open Cache slots and recovery Blocks. The base Cache holds four traps; a Cache Depot expands capacity and lowers recovery fees.
+**Inventory** replaces the former Cache. It has three independent shelves: **Towers**, **Traps**, and **Structures**. Each shelf begins with **25 slots**; an **Inventory Depot** expands every shelf and lowers recovery fees.
 
-### Utilities
+Select any placed tower, trap, or Structure and choose **Store** to pay its recovery fee without destroying it. Stored objects retain their permanent state: levels, Overcharge, evolution branch, imbuement, Structure production progress, and activation cadence. A **Recovery Wrap** makes the next Inventory recovery free. Selecting a stored card and placing it on a valid cell is always **free**—it never pays an escalating construction cost again.
 
-Utilities never attack, occupy clean free terrain, and have three upgrade levels. v1.4.2 has no global active-utility capacity limit: each utility kind is unique, while up to **five Block Generators** may be placed at once. Selecting a utility shows its definition and upgrade action:
+The Inventory view exposes the three shelf counts separately. Its Tower, Trap, and Structure tabs choose a shelf; tap the active shelf tab to return to that build catalog. Reforge-displaced traps use open **Trap Inventory** slots and their normal recovery cost.
+
+### Structures
+
+**Structures** replace the former Utilities category. Structures never attack, occupy clean free terrain, and have three upgrade levels. There is no global active-Structure cap: each Structure kind is unique, while up to **five Block Generators** may be placed at once. Selecting a Structure shows its definition, upgrade action, Store action, and recycle action:
 
 - **Block Generator:** produces Blocks after every cleared wave; upgrades increase output
-- **Cache Depot:** expands trap storage and lowers recovery fees
+- **Inventory Depot:** expands every Inventory shelf and lowers recovery fees
 - **Forge Workshop:** repairs, fabricates supplies, and binds sigils
 - **Purifier Totem:** reduces nearby corruption cleansing costs
 - **Surveyor Station:** reveals approaching waves and elite threats
@@ -99,9 +103,13 @@ Utilities never attack, occupy clean free terrain, and have three upgrade levels
 
 ### Crafting, Supplies, and Imbuement
 
-Elite enemies, bosses, recycling, cleansing, and Utilities supply **Salvage Parts** and **Growth Essence**. A Forge Workshop converts those materials and Blocks into eight bounded Supply stacks: Core Patch, Recovery Wrap, Purifier Vial, Reforge Coupler, Utility Gearset, Survey Lens, Trap Refit Kit, and Blank Sigil. Supplies are used only between waves; context-sensitive Supplies activate automatically when their matching action is taken.
+Elite enemies, bosses, recycling, cleansing, and Structures supply **Salvage Parts** and **Growth Essence**. A Forge Workshop converts those materials and Blocks into bounded Supply stacks: Core Patch, Recovery Wrap, Purifier Vial, Reforge Coupler, Structure Gearset, Survey Lens, Trap Refit Kit, and Blank Sigil. Supplies are used only between waves; context-sensitive Supplies activate automatically when their matching action is taken.
 
-A level-three Workshop can consume a Blank Sigil, Growth Essence, and Blocks to give one eligible level-three structure a persistent run imbuement: **Might**, **Tempo**, **Reach**, **Clarity**, **Echoes**, or **Conservation**. A structure has one slot, and a replacement destroys its old effect. Cached traps retain their imbuement.
+A level-three Workshop can consume a Blank Sigil, Growth Essence, and Blocks to give one eligible level-three structure a persistent run imbuement. Stored towers, traps, and Structures retain their imbuement when they are redeployed.
+
+### Combat shelf behavior
+
+Starting a wave slides the **placement shelf** down and fully off-screen. It does not suppress inspection: during combat, tap any placed tower, trap, Structure, or corruption to open its normal inspection/action panel.
 
 ## Enemy roster
 
@@ -136,7 +144,7 @@ Every fifth cleared wave presents a deterministic three-card draft. The 25 persi
 
 ### Path Reforging and corruption
 
-Overgrowth bosses award limited **Forge Charges**. Between waves, the Reforge control opens a full route preview: redraw from gate to core, backtrack to undo, then confirm the displayed Forge, recovery, and Cache-capacity costs or cancel to restore the original route. Towers and Utilities are impassable. Traps displaced by the confirmed route enter the exact-item Forge Cache only when the recovery fee and capacity requirements are met.
+Overgrowth bosses award limited **Forge Charges**. Between waves, the Reforge control opens a full route preview: redraw from gate to core, backtrack to undo, then confirm the displayed Forge and Trap Inventory recovery costs or cancel to restore the original route. Towers and Structures are impassable. Traps displaced by the confirmed route enter the exact-item Trap Inventory only when the recovery fee and shelf capacity requirements are met.
 
 Boss cycles add up to six readable mutation types, with intensity rising by tier:
 
@@ -167,17 +175,31 @@ A run records:
 
 - Forged route
 - Towers, levels, and Overcharge ranks
-- Traps plus exact cached-trap records preserving type, level, Overcharge, and imbuement
-- Utilities, Supplies, materials, Survey Lens duration, and structure imbuements
+- Exact Tower, Trap, and Structure Inventory records preserving permanent state
+- Structures, Supplies, materials, Survey Lens duration, and structure imbuements
 - Perk stacks, tower evolution branches, corruption, Forge Charges, and Evolution Cores
 - Mode, numeric seed, modifier, Blocks, core health, score, and completed wave
 - Separate Endless, Daily, and Custom score/high-wave records
 
-The bounded version-three save reader migrates v1.0/v1.1 checkpoints, including legacy aggregate trap inventory, while supplying safe defaults for Forgeworks fields. Checkpoints are written only between waves, including pending perk drafts. Leaving during a live wave returns **Continue** to the last safe build checkpoint.
+The bounded version-four save reader migrates legacy trap-only Cache records into the dedicated Trap Inventory while supplying safe defaults for Tower and Structure shelves. Checkpoints preserve all three Inventory shelves. Leaving during a live wave returns **Continue** to the last safe build checkpoint.
 
 ## v1.4.3 art overhaul
 
 v1.4.3 replaces **every** gameplay drawable with a single coherent **fantasy × machinery** sprite set — brass gearwork and rune-lit metal for everything the player builds, purely organic flesh, fungus, and bramble for everything that attacks it. All art is strict top-down to match the game camera.
+
+### Sprite-led title menu
+
+The title screen begins the same UI treatment: a forge-room cover background, framed machinery plate, crest, three large skinned actions, and a compact sound control. The screen now limits visible copy to the game identity and **NEW RUN**, **CONTINUE**, and **CHALLENGES**; redundant taglines, feature pills, score/footer copy, and "no saved run" copy are removed. Normal, pressed, and disabled states use authored sprites, while the existing New Run, saved-run Continue, Challenges, and sound-toggle behavior remains intact.
+
+The title assets are loaded by `SpriteCatalog.kt` from `drawable-nodpi` and scale as an aspect-preserving group inside the central plate on landscape devices. Canonical source/review material and the deterministic UI generator live in `artwork/menu-production/`; `title-menu-preview.png` is a 1920×1080 review composition made from the exact packaged PNGs.
+
+### Sprite-led playable interface
+
+The playable screen now uses the same forged visual language rather than flat code-drawn chrome: continuous top/bottom rails, framed live-resource slots, compact category tabs, build-slot skins, contextual banner, selection panels, craft/supply/sigil cards, modal shells, and action controls are all authored sprites. The reusable button family supplies normal, held, and disabled skins; category and action icons keep common controls readable without adding explanatory copy.
+
+The revised Command Rail is concise and visual. A phase glyph and sprite-led Forge Charge/Evolution Core readouts replace letter shorthand; Blocks, Wave, and the heart-led **Core** frame retain their live values. The top-right control keeps its existing behavior—start a build-phase wave, stack an active wave, or confirm a reforge—but now pairs a launch/stack/forge icon with a short state label. On roomy layouts the Wave frame identifies the upcoming or active wave; compact layouts retain `W<n>` on the action itself. Its contextual panel reads `W<n> • <seconds>S` only during the automatic countdown instead of repeating a tutorial sentence. One-shot gameplay outcomes still use the same art-backed banner when detail matters.
+
+`GameView.kt` retains Canvas text only for live values and short gameplay labels; `SpriteCatalog.kt` loads 50 dedicated HUD/interface PNGs from `drawable-nodpi`. Existing hit rectangles, gameplay dispatch, seeded challenge input, Forgeworks logic, and pause/end behavior remain unchanged. The deterministic producer and review contact sheet live in `artwork/hud-production/` and `tools/generate_game_ui_sprites.py`.
 
 | Family | Count | Size | Notes |
 | --- | --- | --- | --- |
@@ -197,6 +219,7 @@ v1.4.3 replaces **every** gameplay drawable with a single coherent **fantasy × 
 | **Enemies** | **30** | 192×64 | **True 3-keyframe animation** |
 | Terrain tiles | 2 | 128×128 | Seamless full-bleed grass and road |
 | Landmarks | 2 | 192×64 | Animated spawn gate and core reactor |
+| **HUD and in-game interface** | **50** | **128×128 to 1024×256** | **Rails, surfaces, controls, slots, tabs, banner, and icons** |
 
 ### True enemy animation
 
@@ -232,7 +255,7 @@ Two rules matter when adding art. Pale or bright-neutral subjects (bone, salt, s
 
 ## Visual and audio assets
 
-The game uses a coherent top-down sprite layer instead of color-only entities. Forgeworks adds 40 Utility, corruption, evolution, Supply, imbuement, material, and Cache images. A fully original dark industrial forge-fantasy revision is now replacing the earlier mixed layer in reviewed batches; the completed original roster covers all five base towers, all ten tower evolutions, all eight crafted supplies, all six bound sigils, all three resources, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, terrain, gate, and core. Every packaged gameplay drawable is active original Blockhold Defense artwork. Limited animation production now includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. High-resolution sources and processing records live under `artwork/prototype/` and `artwork/style-production/`. Remaining Kenney visuals are CC0 and retain an auditable record in `docs/ASSET_LICENSES.md` until their categories are replaced.
+The game uses a coherent top-down sprite layer instead of color-only entities or flat interface chrome. Forgeworks adds Structure, corruption, evolution, Supply, imbuement, material, and Inventory images; the Fantasy Machinery pass adds a title family plus 50 playable HUD/interface exports, including the dedicated heart icon for Core health. The fully original dark industrial forge-fantasy roster covers all towers, evolutions, crafted supplies, sigils, resources, traps, enemies, Structures, corruption mutations, terrain, landmarks, and the full player-facing interface. Limited animation production includes the complete enemy roster, ambient Enemy Gate and Player Core loops, trigger-driven sequences for all five traps, and firing motion for the Bolt, Frost, and Cannon tower top layers. Gameplay source/processing records live under `artwork/prototype/` and `artwork/style-production/`; interface generators and visual QA live under `artwork/menu-production/` and `artwork/hud-production/`. No Kenney or other third-party visuals remain in the packaged runtime assets; the historical CC0 record is retained in `docs/ASSET_LICENSES.md`.
 
 All sound effects are original deterministic synthesis. Regenerate them with:
 
@@ -270,13 +293,17 @@ app/src/main/java/ai/techtroy/blockhold/GameView.kt      Input, endless simulati
 app/src/main/java/ai/techtroy/blockhold/GameModels.kt    Rosters, entities, balance, progression
 app/src/main/java/ai/techtroy/blockhold/SpriteCatalog.kt Offline sprite loader
 app/src/main/java/ai/techtroy/blockhold/AudioEngine.kt   Native SoundPool playback
-app/src/main/res/drawable-nodpi/                         CC0 gameplay sprite layer
-app/src/main/assets/licenses/                            Pack license texts
+app/src/main/res/drawable-nodpi/                         Original gameplay and Fantasy Machinery UI sprites
+app/src/main/assets/licenses/                            Historical pack license texts
 docs/ASSET_LICENSES.md                                   Source/license audit
 docs/SIGNING.md                                          Permanent signing procedure
-artwork/                                                 Original icon source and store export
+artwork/                                                 Original source art, processing records, and review boards
+artwork/menu-production/                                 Title-menu source and 1920×1080 visual QA preview
+artwork/hud-production/                                  Playable-interface source record and sprite review sheet
 tools/generate_sfx.py                                    Reproducible original audio
 tools/generate_forgeworks_art.sh                         Reproducible Forgeworks art
+tools/generate_menu_ui_sprites.py                        Deterministic title-menu UI sprite exports
+tools/generate_game_ui_sprites.py                        Deterministic playable HUD/interface sprite exports
 ```
 
 ## Testing note

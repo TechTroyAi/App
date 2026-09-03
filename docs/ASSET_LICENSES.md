@@ -36,7 +36,7 @@ The Blockhold route-and-core icon family, store icon, interface composition, tar
 
 The initial v1.2 Forgeworks pass added 33 repository-generated vector-style PNG compositions through `tools/generate_forgeworks_art.sh`. Those placeholders and the seven former CC0-derived Utility compositions have since been replaced by the reviewed original sprite-production batches retained under `artwork/style-production/`.
 
-`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `140d418d9a907132e9cfd74a532ad31b1511994254b42f3b4721865425967c2c`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
+`docs/ASSET_HASHES_SHA256.txt` records every bundled PNG, launcher image, WAV, and license file by repository path and SHA-256. Its current visual-production manifest SHA-256 is `048f38a9473a0c079f0664cda9db31a94ef4067be516313f0d36ae75045fe085`. The original upstream ZIP archives were not retained in Git; the bundled license hashes, retrieval snapshots, and per-output hashes are the permanent release audit baseline.
 
 ## Original sprite-revision production
 
@@ -44,7 +44,11 @@ The approved 2026-08-27 visual revision is produced specifically for Blockhold D
 
 The completed roster covers all five base towers, all ten tower evolutions, all eight crafted supplies, all six bound sigils, all three resource icons, all five traps, all five regular enemies, all five elites, The Overgrowth boss, all seven Utilities, all six corruption mutations, grass terrain, route terrain, enemy gate, and player core. Layered towers preserve gameplay rotation and animation. `tools/process_sprite_prototypes.py` and the numbered batch processors provide the reproducible processing stage; opposite terrain edges are checked pixel-for-pixel before integration.
 
-All 70 PNGs under `app/src/main/res/drawable-nodpi/` are active original Blockhold Defense assets. Every `SpriteCatalog` runtime load maps to one of those files, and no obsolete third-party drawable is packaged.
+All 256 PNGs under `app/src/main/res/drawable-nodpi/` are active original Blockhold Defense assets. Every `SpriteCatalog` runtime load maps to one of those files, and no obsolete third-party drawable is packaged.
+
+The 15 `menu_*.png` exports added for the v1.4.3 Fantasy Machinery title-menu pass are project-owned original artwork: the forge-room background, central plate and crest, authored normal/held/disabled button skins, and action/sound icons. Their source, deterministic UI-sprite generator, and review compositions are retained in `artwork/menu-production/`.
+
+The 50 `hud_*.png` and `ui_*.png` exports added for the v1.4.3 playable-interface pass are likewise project-owned original artwork: HUD rails, panels, cards, modal shells, tabs, build slots, banner, normal/held/disabled controls, and functional icons, including the Core-health heart medallion. `tools/generate_game_ui_sprites.py` deterministically generates this family from the project-owned raster primitives shared with the title-menu generator; its visual QA sheet and integration notes live in `artwork/hud-production/`.
 
 The limited-animation extension is retained under `artwork/animation-production/`. It uses the approved project-specific high-resolution concepts and neutral gameplay sprites as identity references, then packages reviewed poses into anchored horizontal strips. Animation Batches 01–06 add original movement poses for all five regular enemies, all five elites, and The Overgrowth, ambient states for both landmarks, trigger states for all five traps, and firing states for the Bolt, Frost, and Cannon tower tops without introducing third-party source pixels.
 
