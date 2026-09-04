@@ -204,6 +204,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     /** G3 run-summary tracking. */
     private var runKills = 0
     private var runGoldEarned = 0
+    private var runTimeSec = 0f
+    /** H5 full-screen fade on run transitions (1 = opaque, decays to 0). */
+    private var screenFade = 0f
     /** G2 wave-preview toggle. */
     private var wavePreviewOpen = false
 
@@ -339,8 +342,6 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     /** B5 challenge random-seed / copy-seed. */
     private val seedRandomRect = RectF()
     private val seedCopyRect = RectF()
-    /** B2 shared dim is drawn inline; these remember the challenge tap-to-start hitbox. */
-    private val challengeStartRect = RectF()
 
     /**
      * The game is a custom SurfaceView, so the challenge seed uses a lightweight input connection
@@ -760,6 +761,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (bannerTimer > 0f) bannerTimer -= delta
         if (challengeCopiedTimer > 0f) challengeCopiedTimer -= delta
         if (incomeLabelTimer > 0f) incomeLabelTimer -= delta
+        if (screenFade > 0f) screenFade = max(0f, screenFade - delta / 0.35f)
+        // G3 run clock ticks in live phases only, never on menus or drafts.
+        if (phase == GamePhase.BUILD || phase == GamePhase.WAVE) runTimeSec += delta
         // G1 simulation speed: gameplay ticks scale, visuals stay real-time.
         val simDelta = delta * gameSpeed
         goldPulse = max(0f, goldPulse - delta * 2.8f)
@@ -1860,7 +1864,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             if (batch.timer > 0f) continue
             if (damageNumbersMode == 0 || batch.crit) {
                 val jitter = (random.nextFloat() - 0.5f) * 24f / max(1f, tileSize)
-                val text = if (batch.hits > 1) "${batch.total.toInt()}" else batch.total.toInt().toString()
+                val text = batch.total.toInt().toString()
                 val color = if (batch.crit) Color.rgb(255, 214, 64) else Color.rgb(235, 240, 228)
                 floatingLabels.add(
                     FloatingLabel(
@@ -2347,6 +2351,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun finishRun(victory: Boolean) {
         phase = if (victory) GamePhase.VICTORY else GamePhase.GAME_OVER
+        screenFade = 1f
         activeWaveNumbers.clear()
         pendingPerkWaves.clear()
         waveQueue.clear()
@@ -2909,7 +2914,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             .putInt("run_lives", lives)
             .putInt("run_max_core", maxCore)
             .putInt("run_score", score)
-            .putInt("run_wave", waveNumber)
+            // E2 mid-wave builds checkpoint at the last cleared wave so CONTINUE
+            // replays (never skips) the wave that was in flight.
+            .putInt("run_wave", if (phase == GamePhase.WAVE) lastClearedWave else waveNumber)
             .putInt("run_forge_charges", forgeCharges)
             .putInt("run_evolution_cores", evolutionCores)
             .putInt("run_salvage_parts", salvageParts)
@@ -3222,6 +3229,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         pauseConfirmRestart = false
         runKills = 0
         runGoldEarned = 0
+        runTimeSec = 0f
+        screenFade = 1f
         wavePreviewOpen = false
         evolutionCores = 0
         salvageParts = 0
@@ -3518,6 +3527,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun nextWaveCountdownSeconds(): Int = max(1, (nextWaveTimer + 0.99f).toInt())
+
+    /** G3 run clock for the end-of-run summary, e.g. "12:34". */
+    private fun runClockLabel(): String {
+        val total = runTimeSec.toInt()
+        return "%d:%02d".format(total / 60, total % 60)
+    }
 
     /** Shortened countdown label, e.g. "1M" at 60s or "45S" below a minute. */
     private fun countdownLabel(): String {
@@ -5079,6 +5094,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             GamePhase.EVOLUTION_DRAFT -> drawEvolutionDraft(canvas)
             else -> Unit
         }
+        // H5 transition fade lands last so it veils every layer equally.
+        if (screenFade > 0f) {
+            paint.color = Color.argb((screenFade * 255f).toInt().coerceIn(0, 255), 4, 6, 5)
+            canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
+        }
     }
 
     private fun drawTitle(canvas: Canvas) {
@@ -5216,13 +5236,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val customSeed = customSeedValue()
         drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "SEED $customSeed  •  BEST W$bestCustomWave", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
         // B4 explicit affordance: the cards already start their run on tap.
-        drawCenteredText(canvas, "TAP A CARD TO START", viewWidth * 0.5f, viewHeight * 0.558f, dp(9f), Color.rgb(190, 244, 78), true, true)
+        // Micro-labels hide on short landscape displays where the stack has no slack.
+        val roomyChallenge = viewHeight >= dp(520f)
+        if (roomyChallenge) drawCenteredText(canvas, "TAP A CARD TO START", viewWidth * 0.5f, viewHeight * 0.558f, dp(9f), Color.rgb(190, 244, 78), true, true)
         drawUiPanel(canvas, seedInputRect, active = seedInputActive)
         drawBitmapCentered(canvas, sprites.uiIconSeed, seedInputRect.left + seedInputRect.width() * 0.12f, seedInputRect.centerY(), min(seedInputRect.height() * 0.54f, dp(25f)))
         drawCenteredText(canvas, if (customSeedText.isEmpty()) "ENTER SEED" else customSeedText, seedInputRect.left + seedInputRect.width() * 0.58f, seedInputRect.centerY(), dp(18f), Color.WHITE, true)
         drawUiButton(canvas, seedRandomRect, "RANDOM", null, UiControlTone.ACCENT, textSize = min(dp(10f), seedRandomRect.height() * 0.30f))
         drawUiButton(canvas, seedCopyRect, if (challengeCopiedTimer > 0f) "COPIED!" else "COPY SEED", null, UiControlTone.SECONDARY, textSize = min(dp(10f), seedCopyRect.height() * 0.30f))
-        drawCenteredText(canvas, "UP TO $MAX_SEED_CHARACTERS DIGITS  •  SAME SEED, SAME RUN", viewWidth * 0.5f, seedCopyRect.bottom + dp(16f), dp(8.5f), Color.rgb(176, 193, 180), true)
+        if (roomyChallenge) drawCenteredText(canvas, "UP TO $MAX_SEED_CHARACTERS DIGITS  •  SAME SEED, SAME RUN", viewWidth * 0.5f, seedCopyRect.bottom + dp(16f), dp(8.5f), Color.rgb(176, 193, 180), true)
         drawUiButton(canvas, challengeBackRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(10f), challengeBackRect.height() * 0.29f))
     }
 
@@ -7048,9 +7070,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         // C4 RESTART joins RESUME/MENU as three stacked actions; MENU and RESTART
         // both arm a tap-again confirmation (C2) so a mis-tap never kills a run.
         val buttonWidth = min(dp(300f), modal.width() * 0.74f)
-        val buttonHeight = min(dp(48f), viewHeight * 0.062f)
-        val buttonGap = dp(8f)
+        val buttonGap = dp(7f)
         var buttonTop = viewHeight * 0.60f
+        // Short landscape displays shrink the stack instead of escaping the modal.
+        val buttonHeight = min(min(dp(48f), viewHeight * 0.062f), (modal.bottom - dp(8f) - buttonTop - buttonGap * 2f) / 3f).coerceAtLeast(dp(16f))
         pauseResumeRect.set(viewWidth * 0.5f - buttonWidth * 0.5f, buttonTop, viewWidth * 0.5f + buttonWidth * 0.5f, buttonTop + buttonHeight)
         buttonTop += buttonHeight + buttonGap
         pauseRestartRect.set(viewWidth * 0.5f - buttonWidth * 0.5f, buttonTop, viewWidth * 0.5f + buttonWidth * 0.5f, buttonTop + buttonHeight)
@@ -7092,6 +7115,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawResultStat(canvas, cardLeft + cardWidth * 0.50f, cardTop, cardBottom, "WAVE", waveNumber.toString(), Color.rgb(93, 220, 255))
         val modeBest = when (gameMode) { GameMode.ENDLESS -> bestWave; GameMode.DAILY -> bestDailyWave; GameMode.CUSTOM -> bestCustomWave }
         drawResultStat(canvas, cardLeft + cardWidth * 0.82f, cardTop, cardBottom, "BEST", modeBest.toString(), Color.rgb(255, 188, 96))
+        // G3 run summary: kills, earnings, and clock under the headline stats.
+        drawCenteredText(
+            canvas, "$runKills KILLS  •  ${scoreWithCommas(runGoldEarned)} EARNED  •  ${runClockLabel()}",
+            viewWidth * 0.5f, viewHeight * 0.665f, dp(11f), Color.rgb(232, 240, 224), true, false, true
+        )
         drawEndButtons(canvas, if (gameMode == GameMode.ENDLESS) "NEW RUN" else "RETRY", "MENU")
     }
 
