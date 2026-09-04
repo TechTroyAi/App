@@ -2287,12 +2287,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         advanceAfterDraft("FORGE PERK  ${perk.title.uppercase()}")
     }
 
-    /** D2 skip the draft for a small consolation payout, then advance like a pick. */
+    /** D2 skip the draft for a wave-scaled consolation payout, then advance like a pick. */
     private fun skipPerkDraft() {
         if (phase != GamePhase.PERK_DRAFT) return
-        gold = safeAdd(gold, 20)
+        val consolation = perkSkipGold()
+        gold = safeAdd(gold, consolation)
         audio.play("ui_click", 0.4f, 0.9f)
-        advanceAfterDraft("DRAFT SKIPPED  •  +20G")
+        advanceAfterDraft("DRAFT SKIPPED  •  +${consolation}G")
     }
 
     /** D1 reroll the current three perks for a flat block fee. */
@@ -3525,6 +3526,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         groups[groups.size - 1] = groups.last().trimStart('0').ifEmpty { "0" }
         return groups.reversed().joinToString(",")
     }
+
+    /** D2 skip payout scales so it stays a real choice at 40K gold: 20 + wave x 5. */
+    private fun perkSkipGold(): Int = 20 + max(0, waveNumber) * 5
 
     private fun nextWaveCountdownSeconds(): Int = max(1, (nextWaveTimer + 0.99f).toInt())
 
@@ -5319,7 +5323,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         )
         val canReroll = gold >= perkRerollCost
         drawUiButton(canvas, forgeRerollRect, "REROLL ${perkRerollCost}G", sprites.uiIconReset, UiControlTone.ACCENT, enabled = canReroll, textSize = min(dp(10f), draftButtonHeight * 0.30f))
-        drawUiButton(canvas, forgeSkipRect, "SKIP +20G", null, UiControlTone.SECONDARY, textSize = min(dp(10f), draftButtonHeight * 0.30f))
+        drawUiButton(canvas, forgeSkipRect, "SKIP +${perkSkipGold()}G", null, UiControlTone.SECONDARY, textSize = min(dp(10f), draftButtonHeight * 0.30f))
     }
 
     private fun drawEvolutionDraft(canvas: Canvas) {
@@ -5469,10 +5473,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 paint.color = Color.argb((28 * fade).toInt().coerceIn(0, 255), 255, 250, 210)
                 canvas.drawCircle(sx, sy, tileSize * 0.07f, paint)
             }
-            // F2 static flow chevrons every third segment so route direction reads
-            // even when the shimmer is elsewhere.
+            // F2 flow chevrons every third segment, marching at 0.5 tiles/sec so
+            // route direction reads even when the shimmer is elsewhere.
             strokePaint.strokeWidth = max(2f, tileSize * 0.05f)
             strokePaint.color = Color.argb(95, 255, 241, 195)
+            val flowT = (ambientTime * 0.5f) % 1f
             var segment = 0
             while (segment < segmentCount) {
                 val a = pathCells[segment]
@@ -5484,8 +5489,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 val len = max(1f, sqrt(dx * dx + dy * dy))
                 val ux = dx / len
                 val uy = dy / len
-                val mx = x1 + dx * 0.5f
-                val my = y1 + dy * 0.5f
+                val mx = x1 + dx * flowT
+                val my = y1 + dy * flowT
                 val s = tileSize * 0.15f
                 val tx = mx + ux * s
                 val ty = my + uy * s
@@ -6135,8 +6140,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val x = gridX(enemy.x)
         val bob = if (dying) 0f else sin(enemy.animation) * tileSize * 0.025f
         val y = gridY(enemy.y) + bob + if (dying) deathT * tileSize * 0.12f else 0f
-        // F5 bosses stand a head taller than the pack so they never hide in it.
-        val size = tileSize * enemy.kind.scale * (if (enemy.kind.boss) 1.18f else 1f) * if (dying) (1f - deathT * 0.35f) else 1f
+        // F5 bosses loom over the pack so they never hide in it (tuned up from
+        // 1.18x: at phone size anything smaller does not read as a boss).
+        val size = tileSize * enemy.kind.scale * (if (enemy.kind.boss) 1.45f else 1f) * if (dying) (1f - deathT * 0.35f) else 1f
         val healthRatio = max(0f, enemy.health / enemy.maxHealth)
         val stealthFade = if (enemy.stealthed) 0.45f else 1f
         val bodyAlpha = (if (dying) (1f - deathT).coerceIn(0f, 1f) else 1f) * stealthFade
