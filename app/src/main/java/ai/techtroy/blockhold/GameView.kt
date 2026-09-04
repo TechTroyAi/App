@@ -797,10 +797,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         flushDamageBatches(delta)
     }
 
-    /** The build shelf, not inspection panels, leaves the screen during combat. */
+    /** E2 the placement shelf stays docked during combat so mid-wave building is one tap away. */
     private fun updateBuildShelfSlide(delta: Float) {
-        val combatHidden = phase == GamePhase.WAVE || (phase == GamePhase.PAUSED && phaseBeforePause == GamePhase.WAVE)
-        val target = if (combatHidden) 1f else 0f
+        val target = 0f
         val step = delta / BUILD_SHELF_SLIDE_DURATION
         buildShelfSlide = if (target > buildShelfSlide) min(target, buildShelfSlide + step) else max(target, buildShelfSlide - step)
     }
@@ -926,6 +925,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     }
                     lives = max(0, lives - coreDamage)
                     floatingLabels.add(FloatingLabel("-$coreDamage CORE", enemy.x, enemy.y, Color.rgb(255, 107, 96)))
+                    // E7 every leak names the remaining core so the cost is unmissable.
+                    if (lives > 0) setBanner("-$coreDamage CORE  •  $lives LEFT", 1.6f)
                 }
                 audio.play("base_hit", 0.75f, if (enemy.kind.boss) 0.72f else 1f)
                 screenShake = 0.35f
@@ -2602,6 +2603,42 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         return when (level) { 1 -> "SURVEY • WAVE $wave $theme"; 2 -> "SURVEY • WAVE $wave $theme • ~$count HOSTILES"; else -> "SURVEY • WAVE $wave $theme • ~$count • $threat" }
     }
 
+    /** E6 the live boss feeding the HUD boss bar, if any. */
+    private fun bossEnemy(): Enemy? = enemies.firstOrNull { it.alive && !it.dying && it.kind.boss }
+
+    /** G2 next-wave intel: theme, body count, and elite/boss threat lines. */
+    private fun nextWavePreviewLines(): List<String> {
+        val wave = waveNumber + 1
+        val theme = when (wave % 8) {
+            1 -> "SWARM FRONT"
+            2 -> "RUSH FRONT"
+            3 -> "ARMORED FRONT"
+            4 -> "REGENERATION BROOD"
+            5 -> "SABOTAGE FRONT"
+            6 -> "SIEGE COLUMN"
+            7 -> "SPLIT SWARM"
+            else -> "MIXED ASSAULT"
+        }
+        val count = min(54, 8 + (wave * 0.65f).toInt()) + if (wave % 8 == 1) 8 else 0
+        val lines = ArrayList<String>()
+        lines.add("NEXT  W$wave  •  $theme  •  ~$count HOSTILES")
+        if (wave % 10 == 0) {
+            val tier = wave / 10
+            val bossName = when {
+                wave % 30 == 0 -> "MUTATED OVERGROWTH"
+                tier % 5 == 1 -> "IRON MONARCH"
+                tier % 5 == 2 -> "SPORE SOVEREIGN"
+                tier % 5 == 3 -> "TIDAL ROOT"
+                tier % 5 == 4 -> "ASHEN CHOIR"
+                else -> "MUTATED OVERGROWTH"
+            }
+            lines.add("BOSS  $bossName  TIER $tier")
+        } else if (wave % 5 == 0) {
+            lines.add("ELITE SIGNAL")
+        }
+        return lines
+    }
+
     private fun waveHealthScale(wave: Int): Float {
         val exponentialWave = min(80, max(0, wave - 1))
         val tail = max(0, wave - 81)
@@ -3741,7 +3778,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
             }
 
-            if (phase == GamePhase.BUILD && buildShelfReadyForInput() && event.action == MotionEvent.ACTION_UP) {
+            if ((phase == GamePhase.BUILD || phase == GamePhase.WAVE) && buildShelfReadyForInput() && event.action == MotionEvent.ACTION_UP) {
                 if (buildPage == BuildPage.INVENTORY) {
                     fun selectInventoryCategory(category: InventoryCategory) {
                         if (inventoryCategory == category) {
@@ -3842,6 +3879,26 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
             }
 
+            // Combat chips sit above the board, so they claim taps before grid cells do.
+            if ((phase == GamePhase.BUILD || phase == GamePhase.WAVE) && event.action == MotionEvent.ACTION_UP) {
+                when {
+                    speedRect.contains(x, y) -> {
+                        gameSpeed = gameSpeed % 3 + 1
+                        audio.play("ui_click", 0.4f, 0.9f + gameSpeed * 0.1f)
+                        return true
+                    }
+                    damageModeRect.contains(x, y) -> {
+                        damageNumbersMode = (damageNumbersMode + 1) % 3
+                        audio.play("ui_click", 0.4f, 1f)
+                        return true
+                    }
+                    wavePreviewRect.contains(x, y) -> {
+                        wavePreviewOpen = !wavePreviewOpen
+                        audio.play("ui_click", 0.4f, 1f)
+                        return true
+                    }
+                }
+            }
             val cell = screenToCell(x, y)
             if (cell != null && !suppressGridTap) {
                 if ((phase == GamePhase.DIG || phase == GamePhase.REFORGE) && event.action == MotionEvent.ACTION_DOWN) {
@@ -3877,7 +3934,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun selectTool(tool: BuildTool) {
-        if (phase != GamePhase.BUILD) return
+        // E2 the placement shelf stays docked during waves, so tools select in WAVE too.
+        if (phase != GamePhase.BUILD && phase != GamePhase.WAVE) return
+        if (tool == BuildTool.DIG && phase == GamePhase.WAVE) {
+            setBanner("CANNOT DIG DURING A WAVE", 1.4f)
+            return
+        }
         if (challengeModifier == ChallengeModifier.TRAPS_ONLY && tool.ordinal < BuildTool.SPIKES.ordinal) return
         if (challengeModifier == ChallengeModifier.TOWERS_ONLY && tool.ordinal >= BuildTool.SPIKES.ordinal) return
         clearBuildSelections()
@@ -3977,7 +4039,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             setBanner(existingTrap.kind.title.uppercase(), 0.7f)
             return
         }
-        if (phase != GamePhase.BUILD) return
+        if (phase != GamePhase.BUILD && phase != GamePhase.WAVE) return
         selectedTower = null
         selectedTrap = null
         selectedUtility = null
@@ -4999,6 +5061,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             paint.color = Color.argb((overdriveFlash * 120f).toInt().coerceIn(0, 255), 255, 215, 80)
             canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
         }
+        if (phase == GamePhase.BUILD || phase == GamePhase.WAVE) drawCombatChips(canvas)
         when (phase) {
             GamePhase.PAUSED -> drawPauseOverlay(canvas)
             GamePhase.VICTORY, GamePhase.GAME_OVER -> drawEndOverlay(canvas)
@@ -6117,6 +6180,64 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         // The matching restore lives at the end of drawBoard.
     }
 
+    /**
+     * E6 boss bar plus the G1 speed, F4 damage-mode, and G2 preview chips. All three
+     * chips float over the board's top-right so the crowded command rail stays untouched.
+     */
+    private fun drawCombatChips(canvas: Canvas) {
+        var chipTop = viewportTop + dp(4f)
+        // E6 boss HP bar: full-width red strip directly under the top rail.
+        val boss = bossEnemy()
+        if (boss != null) {
+            val barHeight = dp(20f)
+            val barLeft = dp(10f)
+            val barRight = viewWidth - dp(10f)
+            paint.color = Color.argb(215, 26, 10, 10)
+            canvas.drawRoundRect(barLeft, chipTop, barRight, chipTop + barHeight, dp(6f), dp(6f), paint)
+            val ratio = (boss.health / max(1f, boss.maxHealth)).coerceIn(0f, 1f)
+            paint.color = Color.rgb(214, 48, 38)
+            canvas.drawRoundRect(barLeft + dp(2f), chipTop + dp(2f), barLeft + dp(2f) + (barRight - barLeft - dp(4f)) * ratio, chipTop + barHeight - dp(2f), dp(4f), dp(4f), paint)
+            drawCenteredText(
+                canvas, "BOSS  ${boss.kind.title.uppercase()}  •  ${(ratio * 100f).toInt()}%",
+                (barLeft + barRight) * 0.5f, chipTop + barHeight * 0.5f, dp(10f),
+                Color.rgb(255, 236, 228), true, false, true
+            )
+            chipTop += barHeight + dp(5f)
+        }
+        val chipHeight = dp(30f)
+        val chipGap = dp(6f)
+        val previewWidth = dp(72f)
+        val damageWidth = min(dp(118f), viewWidth * 0.20f)
+        val speedWidth = dp(58f)
+        var chipRight = viewWidth - dp(8f)
+        speedRect.set(chipRight - speedWidth, chipTop, chipRight, chipTop + chipHeight)
+        chipRight -= speedWidth + chipGap
+        damageModeRect.set(chipRight - damageWidth, chipTop, chipRight, chipTop + chipHeight)
+        chipRight -= damageWidth + chipGap
+        wavePreviewRect.set(chipRight - previewWidth, chipTop, chipRight, chipTop + chipHeight)
+        val chipText = min(dp(10f), chipHeight * 0.32f)
+        drawUiButton(canvas, wavePreviewRect, "NEXT", sprites.uiIconWave, UiControlTone.SECONDARY, textSize = chipText)
+        drawUiButton(canvas, damageModeRect, DAMAGE_MODE_LABELS[damageNumbersMode], null, UiControlTone.SECONDARY, textSize = chipText)
+        drawUiButton(canvas, speedRect, "${gameSpeed}×", null, if (gameSpeed > 1) UiControlTone.ACCENT else UiControlTone.SECONDARY, textSize = chipText)
+        // G2 preview panel drops below the chips while open.
+        if (wavePreviewOpen) {
+            val lines = nextWavePreviewLines()
+            val panelWidth = min(dp(320f), viewWidth * 0.52f)
+            val lineHeight = dp(20f)
+            val panelHeight = lineHeight * lines.size + dp(14f)
+            val panelTop = chipTop + chipHeight + dp(5f)
+            val panelRight = viewWidth - dp(8f)
+            drawUiPanel(canvas, panelRight - panelWidth, panelTop, panelRight, panelTop + panelHeight)
+            lines.forEachIndexed { index, line ->
+                drawCenteredText(
+                    canvas, line, panelRight - panelWidth * 0.5f,
+                    panelTop + dp(9f) + lineHeight * (index + 0.5f), dp(9.5f),
+                    if (index == 0) Color.rgb(240, 246, 232) else Color.rgb(255, 150, 130), true
+                )
+            }
+        }
+    }
+
     private fun drawTopBar(canvas: Canvas) {
         // Keep the live command rail readable in combat: sprites carry resource identity while
         // text is reserved for values and the one-word state/action a player must act on.
@@ -6308,12 +6429,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun compactPhaseLabel(): String = when (phase) {
         GamePhase.DIG -> "ROUTE"
-        GamePhase.BUILD -> "BUILD"
-        GamePhase.REFORGE -> "REFORGE"
+        // E1 the phase readout always carries the wave number so it survives even when
+        // the wave stat contracts away on compact displays.
+        GamePhase.BUILD -> "BUILD W${waveNumber + 1}"
+        GamePhase.REFORGE -> "REFORGE W${waveNumber + 1}"
         GamePhase.PERK_DRAFT -> "PERKS"
         GamePhase.EVOLUTION_DRAFT -> "EVOLVE"
-        GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "WAVE ×${activeWaveNumbers.size}" else "WAVE"
-        GamePhase.PAUSED -> "PAUSED"
+        GamePhase.WAVE -> if (activeWaveNumbers.size > 1) "W$waveNumber ×${activeWaveNumbers.size}" else "WAVE $waveNumber"
+        GamePhase.PAUSED -> if (phaseBeforePause == GamePhase.WAVE) "PAUSED W$waveNumber" else "PAUSED W${waveNumber + 1}"
         else -> "READY"
     }
 
@@ -6357,11 +6480,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val statLeft = left + index * (width + gap)
             return RectF(statLeft, dp(7f), statLeft + width, topBarHeight - dp(7f))
         }
-        drawStat(canvas, statRect(0), sprites.uiIconBlocks, formatNumber(gold), Color.rgb(190, 244, 78), goldPulse)
+        drawStat(canvas, statRect(0), sprites.uiIconBlocks, formatNumber(gold), Color.rgb(190, 244, 78), goldPulse, label = "GOLD")
         if (count >= 2) drawStat(canvas, statRect(1), sprites.uiIconHeart, "$lives/$maxCore", Color.rgb(255, 111, 100), label = "CORE")
         if (count >= 3) {
             val displayedWave = if (phase == GamePhase.BUILD || phase == GamePhase.DIG || phase == GamePhase.REFORGE) waveNumber + 1 else waveNumber
-            drawStat(canvas, statRect(2), sprites.uiIconWave, displayedWave.toString(), Color.rgb(93, 220, 255))
+            // E1 the wave readout always carries its number AND its label.
+            drawStat(canvas, statRect(2), sprites.uiIconWave, displayedWave.toString(), Color.rgb(93, 220, 255), label = "WAVE")
         }
     }
 
