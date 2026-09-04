@@ -331,6 +331,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val pauseRestartRect = RectF()
     private val pauseMenuRect = RectF()
     private val pauseSoundRect = RectF()
+    /** F8 live corruption counter chip (set in drawCombatChips; empty when clean). */
+    private val corruptionChipRect = RectF()
     /** D1 forge reroll / skip. */
     private val forgeRerollRect = RectF()
     private val forgeSkipRect = RectF()
@@ -3882,6 +3884,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             // Combat chips sit above the board, so they claim taps before grid cells do.
             if ((phase == GamePhase.BUILD || phase == GamePhase.WAVE) && event.action == MotionEvent.ACTION_UP) {
                 when {
+                    !corruptionChipRect.isEmpty && corruptionChipRect.contains(x, y) -> {
+                        selectedCorruption = corruptions.firstOrNull()
+                        selectedTower = null
+                        selectedTrap = null
+                        selectedUtility = null
+                        audio.play("ui_click", 0.3f, 0.9f)
+                        return true
+                    }
                     speedRect.contains(x, y) -> {
                         gameSpeed = gameSpeed % 3 + 1
                         audio.play("ui_click", 0.4f, 0.9f + gameSpeed * 0.1f)
@@ -4393,20 +4403,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         return waveNumber >= 10 || kind == UtilityKind.BLOCK_GENERATOR || kind == UtilityKind.SURVEYOR_STATION || kind == UtilityKind.SALVAGE_YARD
     }
 
-    private fun structurePlacementAllowed(cell: GridCell, kind: UtilityKind): Boolean {
+    private fun structurePlacementAllowed(cell: GridCell, kind: UtilityKind, quiet: Boolean = false): Boolean {
         // Structures have no global cap: unique kinds remain unique while Block Generators can
         // occupy up to five terrain cells. Stored redeployments obey these board rules too.
         val copies = utilities.count { it.kind == kind }
         if (kind == UtilityKind.BLOCK_GENERATOR && copies >= MAX_BLOCK_GENERATORS) {
-            setBanner("BLOCK GENERATOR LIMIT  $MAX_BLOCK_GENERATORS/$MAX_BLOCK_GENERATORS", 1.6f)
+            if (!quiet) setBanner("BLOCK GENERATOR LIMIT  $MAX_BLOCK_GENERATORS/$MAX_BLOCK_GENERATORS", 1.6f)
             return false
         }
         if (kind != UtilityKind.BLOCK_GENERATOR && copies >= 1) {
-            setBanner("ONE COPY OF THIS STRUCTURE IS ALREADY ACTIVE", 1.5f)
+            if (!quiet) setBanner("ONE COPY OF THIS STRUCTURE IS ALREADY ACTIVE", 1.5f)
             return false
         }
         if (isPathCell(cell) || findTower(cell.col, cell.row) != null || findUtility(cell.col, cell.row) != null || findCorruption(cell.col, cell.row) != null) {
-            setBanner("STRUCTURES NEED CLEAN FREE TERRAIN", 1.5f)
+            if (!quiet) setBanner("STRUCTURES NEED CLEAN FREE TERRAIN", 1.5f)
             return false
         }
         return true
@@ -5405,6 +5415,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val row0 = max(0, ((viewportTop - boardTop) / tileSize).toInt() - 1)
         val col1 = min(COLS - 1, ((viewportRight - boardLeft) / tileSize).toInt() + 1)
         val row1 = min(ROWS - 1, ((viewportBottom - boardTop) / tileSize).toInt() + 1)
+        resolvePlacementTint()
         for (row in row0..row1) for (col in col0..col1) drawTerrainTile(canvas, col, row)
 
         if (pathCells.size > 1) {
@@ -5435,6 +5446,32 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 val fade = if (t < 0.15f) t / 0.15f else if (t > 0.85f) (1f - t) / 0.15f else 1f
                 paint.color = Color.argb((28 * fade).toInt().coerceIn(0, 255), 255, 250, 210)
                 canvas.drawCircle(sx, sy, tileSize * 0.07f, paint)
+            }
+            // F2 static flow chevrons every third segment so route direction reads
+            // even when the shimmer is elsewhere.
+            strokePaint.strokeWidth = max(2f, tileSize * 0.05f)
+            strokePaint.color = Color.argb(95, 255, 241, 195)
+            var segment = 0
+            while (segment < segmentCount) {
+                val a = pathCells[segment]
+                val b = pathCells[segment + 1]
+                val x1 = cellCenterX(a.col)
+                val y1 = cellCenterY(a.row)
+                val dx = cellCenterX(b.col) - x1
+                val dy = cellCenterY(b.row) - y1
+                val len = max(1f, sqrt(dx * dx + dy * dy))
+                val ux = dx / len
+                val uy = dy / len
+                val mx = x1 + dx * 0.5f
+                val my = y1 + dy * 0.5f
+                val s = tileSize * 0.15f
+                val tx = mx + ux * s
+                val ty = my + uy * s
+                val px = -uy
+                val py = ux
+                canvas.drawLine(tx, ty, mx - ux * s * 0.5f + px * s * 0.75f, my - uy * s * 0.5f + py * s * 0.75f, strokePaint)
+                canvas.drawLine(tx, ty, mx - ux * s * 0.5f - px * s * 0.75f, my - uy * s * 0.5f - py * s * 0.75f, strokePaint)
+                segment += 3
             }
         }
 
@@ -5590,6 +5627,73 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         strokePaint.style = Paint.Style.STROKE
     }
 
+    /** F3 which placement rule tints the board this frame, if any. */
+    private enum class PlacementTint { TOWER, TRAP, STRUCTURE }
+
+    private var placementTintKind: PlacementTint? = null
+    private var placementTintAffordable = true
+    private var placementStructureKind: UtilityKind? = null
+
+    /** F3 resolve the armed placement tool (if any) into one board-wide tint rule. */
+    private fun resolvePlacementTint() {
+        placementTintKind = null
+        placementTintAffordable = true
+        placementStructureKind = null
+        if (phase != GamePhase.BUILD && phase != GamePhase.WAVE) return
+        when (buildPage) {
+            BuildPage.TOWERS -> {
+                if (challengeModifier == ChallengeModifier.TRAPS_ONLY) return
+                if (selectedTool == BuildTool.DIG || selectedTool.ordinal >= BuildTool.SPIKES.ordinal) return
+                placementTintKind = PlacementTint.TOWER
+                placementTintAffordable = gold >= towerPlacementCost(towerKindForTool(selectedTool))
+            }
+            BuildPage.TRAPS -> {
+                if (challengeModifier == ChallengeModifier.TOWERS_ONLY) return
+                if (selectedTool.ordinal < BuildTool.SPIKES.ordinal) return
+                placementTintKind = PlacementTint.TRAP
+                val kind = when (selectedTool) {
+                    BuildTool.ROOT -> TrapKind.ROOT
+                    BuildTool.RUNE -> TrapKind.EMBER
+                    BuildTool.ARC -> TrapKind.ARC
+                    BuildTool.CRUSHER -> TrapKind.CRUSHER
+                    else -> TrapKind.SPIKE
+                }
+                placementTintAffordable = gold >= trapPlacementCost(kind)
+            }
+            BuildPage.STRUCTURES -> {
+                val kind = selectedUtilityKind ?: return
+                if (!utilityUnlocked(kind)) return
+                placementTintKind = PlacementTint.STRUCTURE
+                placementStructureKind = kind
+                placementTintAffordable = gold >= utilityPlacementCost(kind)
+            }
+            BuildPage.INVENTORY -> {
+                // Stored redeployments are free: tint by the selected stash category.
+                when (selectedInventorySelection?.category) {
+                    InventoryCategory.TOWERS -> placementTintKind = PlacementTint.TOWER
+                    InventoryCategory.TRAPS -> placementTintKind = PlacementTint.TRAP
+                    InventoryCategory.STRUCTURES -> placementTintKind = PlacementTint.STRUCTURE
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private fun placementTintValid(col: Int, row: Int): Boolean {
+        val cell = GridCell(col, row)
+        return when (placementTintKind) {
+            PlacementTint.TOWER -> !isPathCell(cell) && findTower(col, row) == null && findTrap(col, row) == null &&
+                findUtility(col, row) == null && findCorruption(col, row)?.kind != CorruptionKind.BROOD_NEST
+            PlacementTint.TRAP -> isPathCell(cell) && cell != pathCells.firstOrNull() && cell != pathCells.lastOrNull() && findTrap(col, row) == null
+            PlacementTint.STRUCTURE -> {
+                val kind = placementStructureKind
+                if (kind != null) structurePlacementAllowed(cell, kind, quiet = true)
+                else !isPathCell(cell) && findTower(col, row) == null && findUtility(col, row) == null && findCorruption(col, row) == null
+            }
+            null -> false
+        }
+    }
+
     private fun drawTerrainTile(canvas: Canvas, col: Int, row: Int) {
         val left = boardLeft + col * tileSize
         val top = boardTop + row * tileSize
@@ -5636,6 +5740,12 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 paint.color = Color.argb((8 + sway * 10).toInt().coerceIn(0, 255), 90, 160, 70)
                 canvas.drawCircle(left + tileSize * 0.72f, top + tileSize * 0.28f + tip, tileSize * 0.05f, paint)
             }
+        }
+        // F3 placement validity wash while a build tool is armed.
+        if (placementTintKind != null) {
+            val valid = placementTintAffordable && placementTintValid(col, row)
+            paint.color = if (valid) Color.argb(38, 120, 255, 140) else Color.argb(24, 255, 90, 80)
+            canvas.drawRect(destination, paint)
         }
         strokePaint.style = Paint.Style.STROKE
         strokePaint.strokeWidth = max(1f, tileSize * 0.015f)
@@ -5702,6 +5812,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             trap.pulse > 0.20f -> 1
             else -> 0
         }
+        // F1 traps ring in their own accent so trap jobs read like tower roles.
+        strokePaint.style = Paint.Style.STROKE
+        strokePaint.strokeWidth = tileSize * 0.04f
+        strokePaint.color = Color.argb(140, Color.red(trap.kind.accent), Color.green(trap.kind.accent), Color.blue(trap.kind.accent))
+        canvas.drawCircle(x, y, tileSize * 0.37f, strokePaint)
         if (selected) {
             strokePaint.strokeWidth = tileSize * 0.05f
             strokePaint.color = Color.WHITE
@@ -5722,10 +5837,24 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val y = cellCenterY(tower.row)
         paint.color = Color.argb(80, 0, 0, 0)
         canvas.drawOval(x - tileSize * 0.30f, y + tileSize * 0.23f, x + tileSize * 0.30f, y + tileSize * 0.39f, paint)
+        // F1 role ring: STRIKE/BLAST/SLOW/HEX reads at a glance which job a tower does.
+        val roleColor = tower.kind.role.color
+        strokePaint.style = Paint.Style.STROKE
+        strokePaint.strokeWidth = tileSize * 0.045f
+        strokePaint.color = Color.argb(150, Color.red(roleColor), Color.green(roleColor), Color.blue(roleColor))
+        canvas.drawCircle(x, y, tileSize * 0.40f, strokePaint)
         if (selected) {
             strokePaint.strokeWidth = tileSize * 0.055f
             strokePaint.color = Color.WHITE
             canvas.drawCircle(x, y, tileSize * 0.42f, strokePaint)
+            // F6 target line from the selected tower to its current mark.
+            findTarget(tower)?.let { target ->
+                strokePaint.strokeWidth = max(1.5f, tileSize * 0.03f)
+                strokePaint.color = Color.argb(170, Color.red(roleColor), Color.green(roleColor), Color.blue(roleColor))
+                canvas.drawLine(x, y, gridX(target.x), gridY(target.y), strokePaint)
+                paint.color = Color.argb(200, Color.red(roleColor), Color.green(roleColor), Color.blue(roleColor))
+                canvas.drawCircle(gridX(target.x), gridY(target.y), tileSize * 0.09f, paint)
+            }
         }
         // E1/E3: evolution confirm flash — family-tinted rim expanding from the cell
         val evoFlash = tower.evolveFlash
@@ -5984,7 +6113,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val x = gridX(enemy.x)
         val bob = if (dying) 0f else sin(enemy.animation) * tileSize * 0.025f
         val y = gridY(enemy.y) + bob + if (dying) deathT * tileSize * 0.12f else 0f
-        val size = tileSize * enemy.kind.scale * if (dying) (1f - deathT * 0.35f) else 1f
+        // F5 bosses stand a head taller than the pack so they never hide in it.
+        val size = tileSize * enemy.kind.scale * (if (enemy.kind.boss) 1.18f else 1f) * if (dying) (1f - deathT * 0.35f) else 1f
         val healthRatio = max(0f, enemy.health / enemy.maxHealth)
         val stealthFade = if (enemy.stealthed) 0.45f else 1f
         val bodyAlpha = (if (dying) (1f - deathT).coerceIn(0f, 1f) else 1f) * stealthFade
@@ -6071,8 +6201,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             val barHeight = max(3f, tileSize * 0.06f)
             paint.color = Color.argb(205, 13, 19, 16)
             canvas.drawRoundRect(x - barWidth * 0.5f, barY, x + barWidth * 0.5f, barY + barHeight, tileSize * 0.03f, tileSize * 0.03f, paint)
-            paint.color = if (healthRatio > 0.35f) Color.rgb(190, 244, 78) else Color.rgb(255, 91, 84)
+            paint.color = if (enemy.kind.boss) Color.rgb(255, 96, 80) else if (healthRatio > 0.35f) Color.rgb(190, 244, 78) else Color.rgb(255, 91, 84)
             canvas.drawRoundRect(x - barWidth * 0.5f, barY, x - barWidth * 0.5f + barWidth * healthRatio, barY + barHeight, tileSize * 0.03f, tileSize * 0.03f, paint)
+            // F5 boss tier pips above the bar: tier reads without parsing numbers.
+            if (enemy.kind.boss && enemy.bossTier > 0) {
+                val pips = min(10, enemy.bossTier)
+                val pipR = max(1.5f, tileSize * 0.035f)
+                val pipGap = pipR * 2.6f
+                val pipsWidth = pipGap * (pips - 1)
+                for (i in 0 until pips) {
+                    paint.color = Color.argb((230 * bodyAlpha).toInt(), 255, 207, 90)
+                    canvas.drawCircle(x - pipsWidth * 0.5f + i * pipGap, barY - pipR * 2.2f, pipR, paint)
+                }
+            }
         }
         if (!dying && enemy.kind.boss) drawCenteredText(canvas, "T${enemy.bossTier}", x, y + size * 0.58f, max(dp(7f), tileSize * 0.12f), Color.rgb(255, 222, 126), true)
     }
@@ -6185,6 +6326,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
      * chips float over the board's top-right so the crowded command rail stays untouched.
      */
     private fun drawCombatChips(canvas: Canvas) {
+        // F7 while Overdrive burns, a gold border frames the whole board.
+        if (overdriveActive) {
+            val pulse = 0.5f + 0.5f * sin(ambientTime * 7f)
+            strokePaint.style = Paint.Style.STROKE
+            strokePaint.strokeWidth = dp(3f)
+            strokePaint.color = Color.argb((170 + pulse * 70).toInt().coerceIn(0, 255), 255, 200, 70)
+            canvas.drawRect(viewportLeft - dp(2f), viewportTop - dp(2f), viewportRight + dp(2f), viewportBottom + dp(2f), strokePaint)
+        }
         var chipTop = viewportTop + dp(4f)
         // E6 boss HP bar: full-width red strip directly under the top rail.
         val boss = bossEnemy()
@@ -6215,7 +6364,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         damageModeRect.set(chipRight - damageWidth, chipTop, chipRight, chipTop + chipHeight)
         chipRight -= damageWidth + chipGap
         wavePreviewRect.set(chipRight - previewWidth, chipTop, chipRight, chipTop + chipHeight)
+        chipRight -= previewWidth + chipGap
+        // F8 live corruption counter; tapping it inspects the first growth.
+        if (corruptions.isNotEmpty()) {
+            val hexWidth = dp(76f)
+            corruptionChipRect.set(chipRight - hexWidth, chipTop, chipRight, chipTop + chipHeight)
+        } else {
+            corruptionChipRect.setEmpty()
+        }
         val chipText = min(dp(10f), chipHeight * 0.32f)
+        if (corruptions.isNotEmpty()) {
+            drawUiButton(canvas, corruptionChipRect, "HEX ${corruptions.size}", null, UiControlTone.WARNING, textSize = chipText)
+        }
         drawUiButton(canvas, wavePreviewRect, "NEXT", sprites.uiIconWave, UiControlTone.SECONDARY, textSize = chipText)
         drawUiButton(canvas, damageModeRect, DAMAGE_MODE_LABELS[damageNumbersMode], null, UiControlTone.SECONDARY, textSize = chipText)
         drawUiButton(canvas, speedRect, "${gameSpeed}×", null, if (gameSpeed > 1) UiControlTone.ACCENT else UiControlTone.SECONDARY, textSize = chipText)
