@@ -194,6 +194,10 @@ def build_apk() -> str:
 
     kotlinc_cmd = [
         kotlinc_bin,
+        # -no-jdk: the app's Java types come from android.jar, and Kotlin 1.9.25's
+        # bundled JavaVersion probe cannot parse modern runtimes (e.g. Temurin 25
+        # from current jdk4py wheels), aborting the compile before it starts.
+        "-no-jdk",
         "-jvm-target", "1.8",
         "-Xlambdas=class",
         "-Xsam-conversions=class",
