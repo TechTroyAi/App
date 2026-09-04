@@ -326,6 +326,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val speedRect = RectF()
     private val damageModeRect = RectF()
     private val wavePreviewRect = RectF()
+    /** C pause-menu buttons (stacked; set every frame in drawPauseOverlay). */
+    private val pauseResumeRect = RectF()
+    private val pauseRestartRect = RectF()
+    private val pauseMenuRect = RectF()
+    private val pauseSoundRect = RectF()
     /** D1 forge reroll / skip. */
     private val forgeRerollRect = RectF()
     private val forgeSkipRect = RectF()
@@ -2249,14 +2254,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
     }
 
-    private fun generatePerkChoices(forWave: Int) {
+    private fun generatePerkChoices(forWave: Int, salt: Long = 0L) {
         perkChoices.clear()
         val pool = ForgePerk.values().toMutableList()
-        val choiceRandom = Random(runSeed xor (forWave.toLong() * 0x5DEECE66DL))
+        val choiceRandom = Random(runSeed xor (forWave.toLong() * 0x5DEECE66DL) xor salt)
         while (perkChoices.size < 3 && pool.isNotEmpty()) {
             val index = choiceRandom.nextInt(pool.size)
             perkChoices.add(pool.removeAt(index))
         }
+        perkRerollCost = 150
     }
 
     private fun choosePerk(perk: ForgePerk) {
@@ -2270,6 +2276,32 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             ForgePerk.FORGE_MASTERY -> forgeCharges = safeAdd(forgeCharges, 3)
             else -> Unit
         }
+        audio.play("build", 0.60f, 1.22f)
+        advanceAfterDraft("FORGE PERK  ${perk.title.uppercase()}")
+    }
+
+    /** D2 skip the draft for a small consolation payout, then advance like a pick. */
+    private fun skipPerkDraft() {
+        if (phase != GamePhase.PERK_DRAFT) return
+        gold = safeAdd(gold, 20)
+        audio.play("ui_click", 0.4f, 0.9f)
+        advanceAfterDraft("DRAFT SKIPPED  •  +20G")
+    }
+
+    /** D1 reroll the current three perks for a flat block fee. */
+    private fun rerollPerkDraft() {
+        if (phase != GamePhase.PERK_DRAFT) return
+        if (gold < perkRerollCost) {
+            setBanner("NEED ${perkRerollCost}G TO REROLL", 1.4f)
+            audio.play("ui_click", 0.4f, 0.7f)
+            return
+        }
+        gold -= perkRerollCost
+        generatePerkChoices(max(1, waveNumber), random.nextLong())
+        audio.play("build", 0.5f, 1.1f)
+    }
+
+    private fun advanceAfterDraft(middle: String) {
         perkChoices.clear()
         if (pendingPerkWaves.isNotEmpty()) {
             val draftWave = pendingPerkWaves.removeAt(0)
@@ -2280,10 +2312,9 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         } else {
             phase = GamePhase.BUILD
             nextWaveTimer = AUTO_NEXT_WAVE_DELAY
-            setBanner("FORGE PERK  ${perk.title.uppercase()}  •  NEXT WAVE IN ${countdownLabel()}", 2.8f)
+            setBanner("$middle  •  NEXT WAVE IN ${countdownLabel()}", 2.8f)
         }
         saveRun()
-        audio.play("build", 0.60f, 1.22f)
     }
 
     private fun spreadBossCorruption(tier: Int, sourceWave: Int) {
@@ -3271,6 +3302,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun resumeGame() {
         if (phase == GamePhase.PAUSED) {
+            pauseConfirmMenu = false
+            pauseConfirmRestart = false
             phase = phaseBeforePause
             audio.play("ui_click", 0.35f, 1.08f)
         }
@@ -3552,7 +3585,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
 
             if (phase == GamePhase.PERK_DRAFT) {
-                if (event.action == MotionEvent.ACTION_UP) perkRects.forEachIndexed { index, rect -> if (rect.contains(x, y) && index < perkChoices.size) choosePerk(perkChoices[index]) }
+                if (event.action == MotionEvent.ACTION_UP) {
+                    when {
+                        forgeRerollRect.contains(x, y) -> rerollPerkDraft()
+                        forgeSkipRect.contains(x, y) -> skipPerkDraft()
+                        else -> perkRects.forEachIndexed { index, rect -> if (rect.contains(x, y) && index < perkChoices.size) choosePerk(perkChoices[index]) }
+                    }
+                }
                 return true
             }
 
@@ -3575,7 +3614,32 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
             if (phase == GamePhase.PAUSED) {
                 if (event.action == MotionEvent.ACTION_UP) {
-                    if (endPrimaryRect.contains(x, y)) resumeGame() else if (endSecondaryRect.contains(x, y)) returnToTitle()
+                    when {
+                        pauseResumeRect.contains(x, y) -> resumeGame()
+                        pauseRestartRect.contains(x, y) -> {
+                            if (pauseConfirmRestart) {
+                                pauseConfirmRestart = false
+                                pauseConfirmMenu = false
+                                restartCurrentRun()
+                            } else {
+                                pauseConfirmRestart = true
+                                pauseConfirmMenu = false
+                                audio.play("ui_click", 0.4f, 0.9f)
+                            }
+                        }
+                        pauseMenuRect.contains(x, y) -> {
+                            if (pauseConfirmMenu) {
+                                pauseConfirmMenu = false
+                                pauseConfirmRestart = false
+                                returnToTitle()
+                            } else {
+                                pauseConfirmMenu = true
+                                pauseConfirmRestart = false
+                                audio.play("ui_click", 0.4f, 0.9f)
+                            }
+                        }
+                        pauseSoundRect.contains(x, y) -> audio.toggle()
+                    }
                 }
                 return true
             }
@@ -5105,12 +5169,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawPerkDraft(canvas: Canvas) {
-        paint.color = Color.argb(232, 6, 12, 9)
+        paint.color = Color.argb(178, 6, 12, 9)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
         drawUiModal(canvas, RectF(viewWidth * 0.07f, viewHeight * 0.10f, viewWidth * 0.93f, viewHeight * 0.77f), 246)
         drawBitmapCentered(canvas, sprites.uiIconUpgrade, viewWidth * 0.5f, viewHeight * 0.14f, min(dp(38f), viewHeight * 0.07f))
         drawCenteredText(canvas, "FORGE PICK", viewWidth * 0.5f, viewHeight * 0.20f, min(dp(34f), viewHeight * 0.075f), Color.rgb(190, 244, 78), true, true)
-        drawCenteredText(canvas, "CHOOSE ONE  •  STACKS PERSIST", viewWidth * 0.5f, viewHeight * 0.26f, dp(10f), Color.rgb(194, 210, 197), true)
+        val ownedTotal = perks.values.sum()
+        drawCenteredText(canvas, "CHOOSE ONE  •  STACKS PERSIST  •  $ownedTotal OWNED", viewWidth * 0.5f, viewHeight * 0.26f, dp(10f), Color.rgb(194, 210, 197), true)
         perkChoices.forEachIndexed { index, perk ->
             if (index >= perkRects.size) return@forEachIndexed
             val rect = perkRects[index]
@@ -5125,16 +5190,46 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             strokePaint.strokeWidth = dp(1.5f)
             strokePaint.color = accent
             canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
+            val categoryIcon = when (perk.category) {
+                PerkCategory.TOWER -> sprites.uiIconTowers
+                PerkCategory.TRAP -> sprites.uiIconTraps
+                PerkCategory.ECONOMY -> sprites.uiIconBlocks
+                PerkCategory.CORE -> sprites.uiIconCore
+                PerkCategory.ROUTE -> sprites.uiIconRoute
+            }
+            drawBitmapCentered(canvas, categoryIcon, rect.left + rect.width() * 0.15f, rect.top + rect.height() * 0.135f, min(rect.height() * 0.11f, dp(26f)))
             drawCenteredText(canvas, perk.category.name, rect.centerX(), rect.top + rect.height() * 0.14f, dp(8f), accent, true)
             drawWrappedText(canvas, perk.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.34f, rect.width() * 0.82f, dp(14f), Color.WHITE, 2, true)
             drawWrappedText(canvas, perk.description, rect.centerX(), rect.top + rect.height() * 0.62f, rect.width() * 0.82f, dp(9f), Color.rgb(169, 187, 174), 3)
-            drawCenteredText(canvas, "STACK ${perkCount(perk) + 1}", rect.centerX(), rect.bottom - rect.height() * 0.12f, dp(9f), accent, true)
+            val owned = perkCount(perk)
+            drawCenteredText(
+                canvas,
+                if (owned > 0) "OWNED $owned  →  STACK ${owned + 1}" else "STACK 1",
+                rect.centerX(), rect.bottom - rect.height() * 0.12f, dp(9f), accent, true
+            )
         }
+        // D1 reroll / D2 skip live in the modal's bottom strip, clear of the cards.
+        val draftButtonHeight = min(dp(46f), viewHeight * 0.058f)
+        val draftButtonTop = viewHeight * 0.705f
+        val rerollWidth = min(dp(200f), viewWidth * 0.30f)
+        val skipWidth = min(dp(170f), viewWidth * 0.26f)
+        val draftButtonsWidth = rerollWidth + skipWidth + dp(10f)
+        forgeRerollRect.set(
+            viewWidth * 0.5f - draftButtonsWidth * 0.5f, draftButtonTop,
+            viewWidth * 0.5f - draftButtonsWidth * 0.5f + rerollWidth, draftButtonTop + draftButtonHeight
+        )
+        forgeSkipRect.set(
+            forgeRerollRect.right + dp(10f), draftButtonTop,
+            forgeRerollRect.right + dp(10f) + skipWidth, draftButtonTop + draftButtonHeight
+        )
+        val canReroll = gold >= perkRerollCost
+        drawUiButton(canvas, forgeRerollRect, "REROLL ${perkRerollCost}G", sprites.uiIconReset, UiControlTone.ACCENT, enabled = canReroll, textSize = min(dp(10f), draftButtonHeight * 0.30f))
+        drawUiButton(canvas, forgeSkipRect, "SKIP +20G", null, UiControlTone.SECONDARY, textSize = min(dp(10f), draftButtonHeight * 0.30f))
     }
 
     private fun drawEvolutionDraft(canvas: Canvas) {
         val tower = evolutionTower ?: return
-        paint.color = Color.argb(232, 6, 12, 9)
+        paint.color = Color.argb(178, 6, 12, 9)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
         drawUiModal(canvas, RectF(viewWidth * 0.10f, viewHeight * 0.10f, viewWidth * 0.90f, viewHeight * 0.77f), 246)
         drawBitmapCentered(canvas, sprites.uiIconEvolve, viewWidth * 0.5f, viewHeight * 0.14f, min(dp(38f), viewHeight * 0.07f))
@@ -6650,18 +6745,53 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     }
 
     private fun drawPauseOverlay(canvas: Canvas) {
-        paint.color = Color.argb(218, 7, 13, 10)
+        paint.color = Color.argb(178, 7, 13, 10)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
-        drawUiModal(canvas, RectF(viewWidth * 0.18f, viewHeight * 0.18f, viewWidth * 0.82f, viewHeight * 0.84f), 248)
-        drawBitmapCentered(canvas, sprites.uiIconPause, viewWidth * 0.5f, viewHeight * 0.28f, min(dp(46f), viewHeight * 0.09f))
-        drawCenteredText(canvas, "RUN PAUSED", viewWidth * 0.5f, viewHeight * 0.37f, min(dp(37f), viewHeight * 0.085f), Color.WHITE, true, true)
+        val modal = RectF(viewWidth * 0.18f, viewHeight * 0.18f, viewWidth * 0.82f, viewHeight * 0.84f)
+        drawUiModal(canvas, modal, 248)
+        // C3 sound toggle lives on the pause card so players never hunt the HUD mid-run.
+        val soundSize = min(dp(44f), viewHeight * 0.075f)
+        pauseSoundRect.set(modal.right - soundSize - dp(10f), modal.top + dp(10f), modal.right - dp(10f), modal.top + dp(10f) + soundSize)
+        drawBitmapInRect(canvas, if (audio.isEnabled()) sprites.menuIconSoundOn else sprites.menuIconSoundOff, pauseSoundRect)
+        drawBitmapCentered(canvas, sprites.uiIconPause, viewWidth * 0.5f, viewHeight * 0.27f, min(dp(44f), viewHeight * 0.085f))
+        drawCenteredText(canvas, "RUN PAUSED", viewWidth * 0.5f, viewHeight * 0.355f, min(dp(34f), viewHeight * 0.078f), Color.WHITE, true, true, true)
         val note = if (phaseBeforePause == GamePhase.WAVE) "RESUME WAVE  •  MENU RETURNS TO CHECKPOINT" else "PROGRESS SAVED"
-        drawCenteredText(canvas, note, viewWidth * 0.5f, viewHeight * 0.46f, dp(11f), Color.rgb(192, 207, 195), true)
-        drawEndButtons(canvas, "RESUME", "MENU")
+        drawCenteredText(canvas, note, viewWidth * 0.5f, viewHeight * 0.435f, dp(10.5f), Color.rgb(192, 207, 195), true)
+        // C1 run summary on the card: wave, score, kills, earnings, best.
+        val modeBest = when (gameMode) { GameMode.ENDLESS -> bestWave; GameMode.DAILY -> bestDailyWave; GameMode.CUSTOM -> bestCustomWave }
+        drawCenteredText(canvas, "WAVE $waveNumber  •  ${scoreWithCommas(score)} PTS  •  $runKills KILLS", viewWidth * 0.5f, viewHeight * 0.50f, dp(11.5f), Color.rgb(240, 246, 232), true, false, true)
+        drawCenteredText(canvas, "EARNED ${scoreWithCommas(runGoldEarned)} GOLD  •  BEST W$modeBest", viewWidth * 0.5f, viewHeight * 0.55f, dp(10f), Color.rgb(190, 244, 78), true)
+        // C4 RESTART joins RESUME/MENU as three stacked actions; MENU and RESTART
+        // both arm a tap-again confirmation (C2) so a mis-tap never kills a run.
+        val buttonWidth = min(dp(300f), modal.width() * 0.74f)
+        val buttonHeight = min(dp(48f), viewHeight * 0.062f)
+        val buttonGap = dp(8f)
+        var buttonTop = viewHeight * 0.60f
+        pauseResumeRect.set(viewWidth * 0.5f - buttonWidth * 0.5f, buttonTop, viewWidth * 0.5f + buttonWidth * 0.5f, buttonTop + buttonHeight)
+        buttonTop += buttonHeight + buttonGap
+        pauseRestartRect.set(viewWidth * 0.5f - buttonWidth * 0.5f, buttonTop, viewWidth * 0.5f + buttonWidth * 0.5f, buttonTop + buttonHeight)
+        buttonTop += buttonHeight + buttonGap
+        pauseMenuRect.set(viewWidth * 0.5f - buttonWidth * 0.5f, buttonTop, viewWidth * 0.5f + buttonWidth * 0.5f, buttonTop + buttonHeight)
+        val smallText = min(dp(11f), buttonHeight * 0.30f)
+        drawUiButton(canvas, pauseResumeRect, "RESUME", sprites.uiIconLaunch, UiControlTone.PRIMARY, textColor = Color.rgb(240, 255, 214), textSize = smallText)
+        drawUiButton(
+            canvas, pauseRestartRect,
+            if (pauseConfirmRestart) "TAP AGAIN TO RESTART" else "RESTART",
+            sprites.uiIconRecycle,
+            if (pauseConfirmRestart) UiControlTone.WARNING else UiControlTone.SECONDARY,
+            textSize = min(dp(10f), buttonHeight * 0.27f)
+        )
+        drawUiButton(
+            canvas, pauseMenuRect,
+            if (pauseConfirmMenu) "TAP AGAIN TO QUIT" else "MENU",
+            sprites.uiIconBack,
+            if (pauseConfirmMenu) UiControlTone.WARNING else UiControlTone.SECONDARY,
+            textSize = smallText
+        )
     }
 
     private fun drawEndOverlay(canvas: Canvas) {
-        paint.color = Color.argb(226, 7, 13, 10)
+        paint.color = Color.argb(178, 7, 13, 10)
         canvas.drawRect(0f, 0f, viewWidth, viewHeight, paint)
         drawUiModal(canvas, RectF(viewWidth * 0.15f, viewHeight * 0.14f, viewWidth * 0.85f, viewHeight * 0.88f), 248)
         val victory = phase == GamePhase.VICTORY
