@@ -79,6 +79,13 @@ internal enum class BuildTool(val title: String, val cost: Int) {
     CRUSHER("CRUSHER", 145)
 }
 
+internal enum class TowerRole(val label: String, val color: Int) {
+    STRIKE("STRIKE", Color.rgb(255, 112, 80)),
+    BLAST("BLAST", Color.rgb(255, 182, 64)),
+    SLOW("SLOW", Color.rgb(96, 214, 255)),
+    HEX("HEX", Color.rgb(192, 132, 255)),
+}
+
 internal enum class TowerKind(
     val title: String,
     val cost: Int,
@@ -125,6 +132,14 @@ internal enum class TowerKind(
             VITRIOL -> "Acid shots shred enemy armor for your whole defense"
             GRAVEBOLT -> "Brands enemies so their deaths can burst with dark damage"
             AEGIS_LOOM -> "Damages enemies while cleansing Hex from nearby towers"
+        }
+
+    val role: TowerRole
+        get() = when (this) {
+            BOLT, LANCE -> TowerRole.STRIKE
+            CANNON, EMBER, SUNFORGE -> TowerRole.BLAST
+            FROST, MIRE, GALE, LODESTONE, HOWL -> TowerRole.SLOW
+            BEACON, THORN, VITRIOL, GRAVEBOLT, AEGIS_LOOM -> TowerRole.HEX
         }
 }
 
@@ -754,5 +769,25 @@ internal class FloatingLabel(
     var life: Float = 1.1f,
     val maxLife: Float = life,
     /** Visual emphasis — resource / forge pops use >1; APK default 1.2. */
-    val pop: Float = 1.2f
+    val pop: Float = 1.2f,
+    /** Damage-batch rendering: crits draw larger in yellow; heavy (mark/shatter) draws outlined. */
+    val crit: Boolean = false,
+    val heavy: Boolean = false
 )
+
+/** F4 pending damage batch: hits on one enemy accumulate for 0.25s, then pop one label. */
+internal class DamageBatch(
+    val enemyId: Int,
+    var x: Float,
+    var y: Float
+) {
+    var total: Float = 0f
+    var hits: Int = 0
+    var crit: Boolean = false
+    var heavy: Boolean = false
+    var timer: Float = DAMAGE_BATCH_WINDOW
+}
+
+internal const val DAMAGE_BATCH_WINDOW = 0.25f
+/** F4 damage mode labels shown on the HUD toggle. */
+internal val DAMAGE_MODE_LABELS = arrayOf("DMG ALL", "DMG CRIT", "DMG OFF")

@@ -1,5 +1,7 @@
 package ai.techtroy.blockhold
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -183,6 +185,28 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private var routeOilWaves = 0
     private var scrapMagnetKills = 0
 
+    // UI/UX punch-list state (A–H).
+    /** G1 simulation speed multiplier (1x/2x/3x); visuals stay real-time. */
+    private var gameSpeed = 1
+    /** F4 damage-number mode: 0 = all, 1 = crits only, 2 = off. */
+    private var damageNumbersMode = 0
+    /** F4 pending damage batches keyed by enemy id. */
+    private val damageBatches = HashMap<Int, DamageBatch>()
+    /** F4 income-label dedup: at most one economy pop per tick. */
+    private var incomeLabelTimer = 0f
+    /** D1 forge reroll cost for the current draft (resets in newRun). */
+    private var perkRerollCost = 150
+    /** C2/C4 pause-menu confirmations. */
+    private var pauseConfirmMenu = false
+    private var pauseConfirmRestart = false
+    /** B5 seed-copy toast. */
+    private var challengeCopiedTimer = 0f
+    /** G3 run-summary tracking. */
+    private var runKills = 0
+    private var runGoldEarned = 0
+    /** G2 wave-preview toggle. */
+    private var wavePreviewOpen = false
+
     /** v1.4.4 Forge Overdrive — fills on kills, activated by the player for a timed boost. */
     private var overdriveCharge = 0f
     private var overdriveActive = false
@@ -298,6 +322,18 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private val workshopNextRect = RectF()
     /** v1.4.4 Overdrive activation button — sits between resource stats and primary action. */
     private val overdriveRect = RectF()
+    /** G1 speed toggle; F4 damage-number toggle; G2 wave-preview toggle. */
+    private val speedRect = RectF()
+    private val damageModeRect = RectF()
+    private val wavePreviewRect = RectF()
+    /** D1 forge reroll / skip. */
+    private val forgeRerollRect = RectF()
+    private val forgeSkipRect = RectF()
+    /** B5 challenge random-seed / copy-seed. */
+    private val seedRandomRect = RectF()
+    private val seedCopyRect = RectF()
+    /** B2 shared dim is drawn inline; these remember the challenge tap-to-start hitbox. */
+    private val challengeStartRect = RectF()
 
     /**
      * The game is a custom SurfaceView, so the challenge seed uses a lightweight input connection
@@ -606,9 +642,26 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         val seedFieldHeight = min(dp(52f), viewHeight * 0.105f)
         seedInputRect.set(
             viewWidth * 0.5f - seedFieldWidth * 0.5f,
-            viewHeight * 0.63f,
+            viewHeight * 0.575f,
             viewWidth * 0.5f + seedFieldWidth * 0.5f,
-            viewHeight * 0.63f + seedFieldHeight
+            viewHeight * 0.575f + seedFieldHeight
+        )
+        // B5 RANDOM / COPY SEED sit in one row under the field so the records line
+        // they replace can disappear entirely (B1 overlap fix).
+        val seedButtonWidth = min(dp(150f), viewWidth * 0.27f)
+        val seedButtonHeight = min(dp(44f), viewHeight * 0.075f)
+        val seedButtonTop = seedInputRect.bottom + dp(10f)
+        seedRandomRect.set(
+            viewWidth * 0.5f - seedButtonWidth - dp(5f),
+            seedButtonTop,
+            viewWidth * 0.5f - dp(5f),
+            seedButtonTop + seedButtonHeight
+        )
+        seedCopyRect.set(
+            viewWidth * 0.5f + dp(5f),
+            seedButtonTop,
+            viewWidth * 0.5f + dp(5f) + seedButtonWidth,
+            seedButtonTop + seedButtonHeight
         )
 
         workshopBackRect.set(dp(16f), dp(14f), dp(92f), dp(54f))
@@ -698,6 +751,10 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun update(delta: Float) {
         ambientTime += delta
         if (bannerTimer > 0f) bannerTimer -= delta
+        if (challengeCopiedTimer > 0f) challengeCopiedTimer -= delta
+        if (incomeLabelTimer > 0f) incomeLabelTimer -= delta
+        // G1 simulation speed: gameplay ticks scale, visuals stay real-time.
+        val simDelta = delta * gameSpeed
         goldPulse = max(0f, goldPulse - delta * 2.8f)
         forgePulse = max(0f, forgePulse - delta * 2.8f)
         if (lastDisplayedGold >= 0 && gold > lastDisplayedGold) goldPulse = 1f
@@ -707,7 +764,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         if (screenShake > 0f) screenShake -= delta
         // v1.4.4 Forge Overdrive — tick the active boost and its flash
         if (overdriveActive) {
-            overdriveTimer = max(0f, overdriveTimer - delta)
+            overdriveTimer = max(0f, overdriveTimer - simDelta)
             overdriveFlash = max(0f, overdriveFlash - delta * 1.5f)
             if (overdriveTimer <= 0f) {
                 overdriveActive = false
@@ -726,12 +783,13 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
         }
         if (phase == GamePhase.BUILD && nextWaveTimer >= 0f && pendingPerkWaves.isEmpty()) {
-            nextWaveTimer = max(0f, nextWaveTimer - delta)
+            nextWaveTimer = max(0f, nextWaveTimer - simDelta)
             if (nextWaveTimer <= 0f) startWave()
         }
-        if (phase == GamePhase.WAVE) updateWave(delta)
+        if (phase == GamePhase.WAVE) updateWave(simDelta)
         updateBuildShelfSlide(delta)
         updateEffects(delta)
+        flushDamageBatches(delta)
     }
 
     /** The build shelf, not inspection panels, leaves the screen during combat. */
@@ -1442,7 +1500,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             TowerKind.FROST -> {
                 val wasFrozen = projectile.target.slowTimer > 0f
-                damageEnemy(projectile.target, projectile.damage * if (wasFrozen && tower.evolution == TowerEvolution.SHATTER_CRYSTAL) 2.15f else 1f, projectile.kind.accent, 0.75f)
+                damageEnemy(projectile.target, projectile.damage * if (wasFrozen && tower.evolution == TowerEvolution.SHATTER_CRYSTAL) 2.15f else 1f, projectile.kind.accent, 0.75f, crit = wasFrozen && tower.evolution == TowerEvolution.SHATTER_CRYSTAL)
                 val frostTime = (1.9f + perkCount(ForgePerk.LINGERING_FROST) * 0.75f)
                 projectile.target.slowTimer = max(projectile.target.slowTimer, frostTime)
                 if (tower.evolution == TowerEvolution.BLIZZARD_LENS) enemies.filter { it.targetable && abs(it.progress - projectile.target.progress) < 1.25f }.forEach { it.slowTimer = max(it.slowTimer, frostTime * 0.8f) }
@@ -1713,7 +1771,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         enemy.rootTimer = max(enemy.rootTimer, 0.55f)
     }
 
-    private fun damageEnemy(enemy: Enemy, amount: Float, effectColor: Int, armorPierce: Float = 0f, showLabel: Boolean = true) {
+    private fun damageEnemy(enemy: Enemy, amount: Float, effectColor: Int, armorPierce: Float = 0f, showLabel: Boolean = true, crit: Boolean = false) {
         if (!enemy.alive || enemy.dying) return
         var armor = enemy.kind.armor
         if (enemy.armoredTimer > 0f) armor += 0.24f
@@ -1761,14 +1819,58 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 enemy.abilityTimer = 3.2f
             }
         }
-        if (showLabel && random.nextFloat() < 0.22f) floatingLabels.add(FloatingLabel(actual.toInt().toString(), enemy.x, enemy.y - 0.25f, effectColor, 0.7f))
+        // F4 damage batching: hits accumulate per enemy and pop one label per 0.25s
+        // window instead of a 22%-sampled stream of overlapping numbers.
+        if (showLabel) accumulateDamageBatch(enemy, actual, crit || enemy.markTimer > 0f)
         if (enemy.health > 0f) return
         beginEnemyDeath(enemy)
+    }
+
+    private fun accumulateDamageBatch(enemy: Enemy, amount: Float, crit: Boolean) {
+        if (damageNumbersMode == 2) return
+        val batch = damageBatches.getOrPut(enemy.id) { DamageBatch(enemy.id, enemy.x, enemy.y - 0.25f) }
+        batch.total += amount
+        batch.hits += 1
+        if (crit) batch.crit = true
+        if (enemy.markTimer > 0f || enemy.graveMarkTimer > 0f) batch.heavy = true
+        batch.x = enemy.x
+        batch.y = enemy.y - 0.25f
+        batch.timer = DAMAGE_BATCH_WINDOW
+    }
+
+    private fun flushDamageBatches(delta: Float) {
+        if (damageBatches.isEmpty()) return
+        val finished = ArrayList<Int>()
+        for ((id, batch) in damageBatches) {
+            batch.timer -= delta
+            // Kills drop their pending batch: the bounty/elite label carries the feedback.
+            val target = enemies.firstOrNull { it.id == id }
+            if (target == null || !target.alive || target.dying) {
+                finished.add(id)
+                continue
+            }
+            if (batch.timer > 0f) continue
+            if (damageNumbersMode == 0 || batch.crit) {
+                val jitter = (random.nextFloat() - 0.5f) * 24f / max(1f, tileSize)
+                val text = if (batch.hits > 1) "${batch.total.toInt()}" else batch.total.toInt().toString()
+                val color = if (batch.crit) Color.rgb(255, 214, 64) else Color.rgb(235, 240, 228)
+                floatingLabels.add(
+                    FloatingLabel(
+                        text, batch.x + jitter, batch.y, color, 0.7f,
+                        pop = if (batch.crit) 1.5f else 1.2f, crit = batch.crit, heavy = batch.heavy
+                    )
+                )
+            }
+            finished.add(id)
+        }
+        finished.forEach { damageBatches.remove(it) }
     }
 
     private fun beginEnemyDeath(enemy: Enemy) {
         if (enemy.dying || !enemy.alive) return
         enemy.health = 0f
+        // F4 the kill's bounty/elite label replaces any pending damage batch.
+        damageBatches.remove(enemy.id)
         // F8c Gravebolt death detonate
         if (enemy.graveMarkTimer > 0.02f && enemy.graveMarkDamage > 0.5f) {
             val splash = enemy.graveMarkDamage
@@ -1794,9 +1896,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         enemy.stunTimer = 0f
         if (!enemy.rewarded) {
             enemy.rewarded = true
+            runKills += 1
             var bounty = enemy.bounty
             if ((enemy.kind.elite || enemy.kind.boss) && perkCount(ForgePerk.ELITE_BOUNTIES) > 0) bounty = (bounty * (1f + perkCount(ForgePerk.ELITE_BOUNTIES) * 0.50f)).toInt()
             gold = safeAdd(gold, bounty)
+            runGoldEarned = safeAdd(runGoldEarned, bounty)
             score = safeAdd(score, bounty * 10)
             // v1.4.4 Forge Overdrive — kills charge the overdrive meter (elites/bosses give more)
             if (!overdriveActive) {
@@ -1838,6 +1942,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             if (harvest > 0) {
                 gold = safeAdd(gold, harvest)
+                runGoldEarned = safeAdd(runGoldEarned, harvest)
                 if (random.nextFloat() < 0.35f) floatingLabels.add(FloatingLabel("+$harvest", enemy.x, enemy.y + 0.1f, Color.rgb(210, 180, 70), 0.45f))
             }
 
@@ -1856,6 +1961,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             }
             if (bountyBonus > 0) {
                 gold = safeAdd(gold, bountyBonus)
+                runGoldEarned = safeAdd(runGoldEarned, bountyBonus)
                 floatingLabels.add(FloatingLabel("+$bountyBonus", enemy.x, enemy.y + 0.2f, Color.rgb(255, 210, 90), 0.5f))
             }
             if (enemy.kind.elite || enemy.kind.boss) {
@@ -1864,7 +1970,11 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 floatingLabels.add(FloatingLabel("+$parts PARTS", enemy.x, enemy.y - 0.25f, Color.rgb(202, 177, 137), life = 1.25f, pop = 1.35f))
             }
             if (enemy.kind.boss) growthEssence = safeAdd(growthEssence, 2)
-            floatingLabels.add(FloatingLabel("+$bounty", enemy.x, enemy.y, Color.rgb(190, 244, 78), life = 1.2f, pop = 1.28f))
+            // F4 bounty labels are reserved for elites/bosses; trash kills stay quiet so
+            // the batch numbers remain readable.
+            if (enemy.kind.elite || enemy.kind.boss) {
+                floatingLabels.add(FloatingLabel("+$bounty", enemy.x, enemy.y, Color.rgb(190, 244, 78), life = 1.2f, pop = 1.28f))
+            }
             if (lives < maxCore) {
                 val leechNear = towers.any { it.imbuement == Imbuement.LEECH && distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 9f } ||
                     traps.any { it.imbuement == Imbuement.LEECH && distanceSquared(it.col + 0.5f, it.row + 0.5f, enemy.x, enemy.y) <= 9f }
@@ -1977,6 +2087,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         }
         val utilityIncome = processUtilityWaveClear()
         gold = safeAdd(gold, safeAdd(reward, utilityIncome))
+        runGoldEarned = safeAdd(runGoldEarned, safeAdd(reward, utilityIncome))
         score = safeAdd(score, reward * 5 + utilityIncome * 3)
         // v1.4.4 Wave Momentum — perfect wave (no core damage) charges overdrive + streak bonus
         if (lives >= livesAtWaveStart && !overdriveActive) {
@@ -2043,6 +2154,19 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
 
     private fun processUtilityWaveClear(): Int {
         var income = 0
+        var essenceTotal = 0
+        // F4 income dedup: one economy pop per wave-clear at the first producing
+        // structure instead of a stack of per-structure labels.
+        var labelX = COLS * 0.5f
+        var labelY = ROWS * 0.35f
+        var labelAnchorSet = false
+        fun anchorAt(utility: Utility) {
+            if (!labelAnchorSet) {
+                labelX = utility.col + 0.5f
+                labelY = utility.row + 0.25f
+                labelAnchorSet = true
+            }
+        }
         for (utility in utilities) {
             if (utility.disabledTimer > 0f) continue
             when (utility.kind) {
@@ -2054,7 +2178,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     utility.activationCount += 1
                     if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) produced += produced / 2
                     income = safeAdd(income, produced)
-                    floatingLabels.add(FloatingLabel("+$produced", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.15f, pop = 1.32f))
+                    anchorAt(utility)
                 }
                 UtilityKind.FORGE_WORKSHOP -> {
                     utility.productionProgress += 1
@@ -2073,14 +2197,16 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     if (utility.imbuement == Imbuement.MIGHT) essence += 1
                     if (utility.imbuement == Imbuement.ECHOES && utility.activationCount % 5 == 0) essence += 1
                     growthEssence = safeAdd(growthEssence, essence)
-                    floatingLabels.add(FloatingLabel("+$essence E", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.15f, pop = 1.32f))
+                    essenceTotal = safeAdd(essenceTotal, essence)
+                    anchorAt(utility)
                 }
                 UtilityKind.GROWTH_NURSERY -> {
                     utility.activationCount += 1
                     var essenceN = 1 + utilityPowerLevel(utility) / 2
                     if (utility.imbuement == Imbuement.MIGHT) essenceN += 1
                     growthEssence = safeAdd(growthEssence, essenceN)
-                    floatingLabels.add(FloatingLabel("+$essenceN E", utility.col + 0.5f, utility.row + 0.25f, utility.kind.accent, life = 1.1f, pop = 1.25f))
+                    essenceTotal = safeAdd(essenceTotal, essenceN)
+                    anchorAt(utility)
                 }
                 UtilityKind.WARD_BEACON -> {
                     utility.activationCount += 1
@@ -2094,6 +2220,15 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 }
                 else -> Unit
             }
+        }
+        if ((income > 0 || essenceTotal > 0) && incomeLabelTimer <= 0f) {
+            incomeLabelTimer = 1.5f
+            val text = when {
+                income > 0 && essenceTotal > 0 -> "+$income  +${essenceTotal}E"
+                income > 0 -> "+$income"
+                else -> "+${essenceTotal}E"
+            }
+            floatingLabels.add(FloatingLabel(text, labelX, labelY, Color.rgb(255, 215, 80), life = 1.15f, pop = 1.32f))
         }
         return income
     }
@@ -2715,6 +2850,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             .putString("run_mode", gameMode.name)
             .putString("run_modifier", challengeModifier.name)
             .putLong("run_seed", runSeed)
+            .putLong("run_saved_at", System.currentTimeMillis())
             .apply()
         savedRunAvailable = true
     }
@@ -3009,6 +3145,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         nextTrapId = 1
         nextCorruptionId = 1
         forgeCharges = 0
+        gameSpeed = 1
+        damageBatches.clear()
+        perkRerollCost = 150
+        pauseConfirmMenu = false
+        pauseConfirmRestart = false
+        runKills = 0
+        runGoldEarned = 0
+        wavePreviewOpen = false
         evolutionCores = 0
         salvageParts = 0
         growthEssence = 0
@@ -3051,6 +3195,41 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
     private fun modifierForSeed(seed: Long): ChallengeModifier {
         val modifiers = ChallengeModifier.values().filter { it != ChallengeModifier.NONE }
         return modifiers[((seed and Long.MAX_VALUE) % modifiers.size.toLong()).toInt()]
+    }
+
+    /** B2 countdown to the next daily seed at local midnight. */
+    private fun dailyResetLabel(): String {
+        val now = Calendar.getInstance()
+        val midnight = now.clone() as Calendar
+        midnight.add(Calendar.DAY_OF_YEAR, 1)
+        midnight.set(Calendar.HOUR_OF_DAY, 0)
+        midnight.set(Calendar.MINUTE, 0)
+        midnight.set(Calendar.SECOND, 0)
+        midnight.set(Calendar.MILLISECOND, 0)
+        val seconds = max(0L, (midnight.timeInMillis - now.timeInMillis) / 1000L)
+        return "RESETS IN %02d:%02d".format(seconds / 3600L, (seconds % 3600L) / 60L)
+    }
+
+    /** B5 fills the custom-seed field with a fresh random seed. */
+    private fun randomizeSeed() {
+        customSeedText = (1L + (random.nextLong() and Long.MAX_VALUE) % 99999999L).toString()
+        audio.play("ui_click", 0.4f, 1f)
+    }
+
+    /** B5 copies the visible seed (daily or custom) to the clipboard. */
+    private fun copyVisibleSeed() {
+        val seed = if (customSeedText.isNotEmpty()) customSeedText else {
+            val calendar = Calendar.getInstance()
+            (calendar.get(Calendar.YEAR).toLong() * 10000L + (calendar.get(Calendar.MONTH) + 1).toLong() * 100L + calendar.get(Calendar.DAY_OF_MONTH).toLong()).toString()
+        }
+        try {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Blockhold seed", seed))
+            challengeCopiedTimer = 1.6f
+        } catch (_: Exception) {
+            setBanner("COPY FAILED", 1.2f)
+        }
+        audio.play("ui_click", 0.4f, 1f)
     }
 
     private fun restartCurrentRun() {
@@ -3235,6 +3414,37 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         return if (value == 0L) 1L else value
     }
 
+    /** A4 save meta for the title CONTINUE button, e.g. "W12 • 8,450 PTS • SEP 3". */
+    private fun savedRunMeta(): String {
+        if (!savedRunAvailable) return ""
+        val wave = preferences.getInt("run_wave", 0)
+        val scoreValue = preferences.getInt("run_score", 0)
+        val parts = ArrayList<String>()
+        if (wave > 0) parts.add("W$wave")
+        parts.add("${scoreWithCommas(scoreValue)} PTS")
+        val savedAt = preferences.getLong("run_saved_at", 0L)
+        if (savedAt > 0L) {
+            val cal = Calendar.getInstance()
+            cal.timeInMillis = savedAt
+            val months = arrayOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+            parts.add("${months[cal.get(Calendar.MONTH)]} ${cal.get(Calendar.DAY_OF_MONTH)}")
+        }
+        return parts.joinToString("  •  ")
+    }
+
+    private fun scoreWithCommas(value: Int): String {
+        if (value < 1000) return value.toString()
+        val groups = ArrayList<String>()
+        var remaining = value
+        while (remaining > 0) {
+            groups.add("%03d".format(remaining % 1000))
+            remaining /= 1000
+        }
+        // Only the leading group skips zero-padding: 8450 -> "8" + "450".
+        groups[groups.size - 1] = groups.last().trimStart('0').ifEmpty { "0" }
+        return groups.reversed().joinToString(",")
+    }
+
     private fun nextWaveCountdownSeconds(): Int = max(1, (nextWaveTimer + 0.99f).toInt())
 
     /** Shortened countdown label, e.g. "1M" at 60s or "45S" below a minute. */
@@ -3329,6 +3539,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                     when {
                         challengeDailyRect.contains(x, y) -> startDailyChallenge()
                         challengeSeedStartRect.contains(x, y) -> startCustomChallenge()
+                        seedRandomRect.contains(x, y) -> randomizeSeed()
+                        seedCopyRect.contains(x, y) -> copyVisibleSeed()
                         challengeBackRect.contains(x, y) -> {
                             endSeedInput()
                             phase = GamePhase.TITLE
@@ -4754,6 +4966,7 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             min(dp(34f), crestWidth * 0.088f),
             Color.rgb(245, 249, 228),
             true,
+            true,
             true
         )
         drawCenteredText(
@@ -4763,6 +4976,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             crestY + crestHeight * 0.23f,
             min(dp(12f), crestWidth * 0.033f),
             Color.rgb(190, 244, 78),
+            true,
+            false,
             true
         )
 
@@ -4775,7 +4990,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             canvas, titleContinueRect, "CONTINUE", sprites.menuIconContinue,
             sprites.menuButtonSecondary, sprites.menuButtonSecondaryPressed,
             TitleMenuAction.CONTINUE, savedRunAvailable,
-            if (savedRunAvailable) Color.rgb(221, 250, 255) else Color.rgb(126, 141, 132)
+            if (savedRunAvailable) Color.rgb(221, 250, 255) else Color.rgb(126, 141, 132),
+            if (savedRunAvailable) savedRunMeta() else ""
         )
         drawTitleButton(
             canvas, titleChallengeRect, "CHALLENGES", sprites.menuIconChallenge,
@@ -4792,8 +5008,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         )
         if (versionLabel.isNotEmpty()) {
             drawText(
-                canvas, versionLabel, viewWidth - dp(13f), viewHeight - dp(10f), dp(8f),
-                Color.argb(150, 202, 214, 202), Paint.Align.RIGHT, true
+                canvas, versionLabel, viewWidth - dp(13f), viewHeight - dp(10f), dp(10f),
+                Color.argb(205, 214, 224, 210), Paint.Align.RIGHT, true
             )
         }
     }
@@ -4807,7 +5023,8 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         pressedSkin: Bitmap,
         action: TitleMenuAction,
         enabled: Boolean,
-        textColor: Int
+        textColor: Int,
+        subLabel: String = ""
     ) {
         val held = enabled && titlePressedAction == action
         val skin = when {
@@ -4832,6 +5049,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
             true,
             true
         )
+        // A4 save meta sits inside the button under the label so it never collides
+        // with the neighboring actions on short displays.
+        if (subLabel.isNotEmpty() && enabled) {
+            drawCenteredText(
+                canvas,
+                subLabel,
+                rect.left + rect.width() * 0.635f,
+                rect.centerY() + verticalNudge + rect.height() * 0.30f,
+                min(dp(10f), rect.height() * 0.13f),
+                Color.rgb(232, 240, 224),
+                true,
+                true
+            )
+        }
     }
 
     private fun drawChallengeMenu(canvas: Canvas) {
@@ -4844,27 +5075,33 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         drawCenteredText(canvas, "DAILY OR CUSTOM SEED", viewWidth * 0.5f, viewHeight * 0.21f, dp(10f), Color.rgb(188, 204, 191), true)
         val calendar = Calendar.getInstance()
         val dailySeed = calendar.get(Calendar.YEAR).toLong() * 10000L + (calendar.get(Calendar.MONTH) + 1).toLong() * 100L + calendar.get(Calendar.DAY_OF_MONTH).toLong()
-        drawChallengeCard(canvas, challengeDailyRect, "DAILY PATH", "SEED $dailySeed", modifierForSeed(dailySeed), Color.rgb(190, 244, 78))
+        drawChallengeCard(canvas, challengeDailyRect, "DAILY PATH", "SEED $dailySeed  •  BEST W$bestDailyWave", modifierForSeed(dailySeed), Color.rgb(190, 244, 78), dailyResetLabel())
         val customSeed = customSeedValue()
-        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "SEED $customSeed", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
+        drawChallengeCard(canvas, challengeSeedStartRect, "CUSTOM SEED", "SEED $customSeed  •  BEST W$bestCustomWave", modifierForSeed(customSeed), Color.rgb(93, 220, 255))
+        // B4 explicit affordance: the cards already start their run on tap.
+        drawCenteredText(canvas, "TAP A CARD TO START", viewWidth * 0.5f, viewHeight * 0.558f, dp(9f), Color.rgb(190, 244, 78), true, true)
         drawUiPanel(canvas, seedInputRect, active = seedInputActive)
         drawBitmapCentered(canvas, sprites.uiIconSeed, seedInputRect.left + seedInputRect.width() * 0.12f, seedInputRect.centerY(), min(seedInputRect.height() * 0.54f, dp(25f)))
         drawCenteredText(canvas, if (customSeedText.isEmpty()) "ENTER SEED" else customSeedText, seedInputRect.left + seedInputRect.width() * 0.58f, seedInputRect.centerY(), dp(18f), Color.WHITE, true)
-        drawCenteredText(canvas, "UP TO $MAX_SEED_CHARACTERS DIGITS  •  SAME SEED, SAME RUN", viewWidth * 0.5f, seedInputRect.bottom + dp(18f), dp(8.5f), Color.rgb(176, 193, 180), true)
-        drawCenteredText(canvas, "DAILY  W$bestDailyWave  •  CUSTOM  W$bestCustomWave", viewWidth * 0.5f, viewHeight * 0.80f, dp(10f), Color.rgb(190, 244, 78), true)
+        drawUiButton(canvas, seedRandomRect, "RANDOM", null, UiControlTone.ACCENT, textSize = min(dp(10f), seedRandomRect.height() * 0.30f))
+        drawUiButton(canvas, seedCopyRect, if (challengeCopiedTimer > 0f) "COPIED!" else "COPY SEED", null, UiControlTone.SECONDARY, textSize = min(dp(10f), seedCopyRect.height() * 0.30f))
+        drawCenteredText(canvas, "UP TO $MAX_SEED_CHARACTERS DIGITS  •  SAME SEED, SAME RUN", viewWidth * 0.5f, seedCopyRect.bottom + dp(16f), dp(8.5f), Color.rgb(176, 193, 180), true)
         drawUiButton(canvas, challengeBackRect, "BACK", sprites.uiIconBack, UiControlTone.SECONDARY, textSize = min(dp(10f), challengeBackRect.height() * 0.29f))
     }
 
-    private fun drawChallengeCard(canvas: Canvas, rect: RectF, title: String, subtitle: String, modifier: ChallengeModifier, accent: Int) {
+    private fun drawChallengeCard(canvas: Canvas, rect: RectF, title: String, subtitle: String, modifier: ChallengeModifier, accent: Int, footer: String = "") {
         drawUiCard(canvas, rect)
         strokePaint.strokeWidth = dp(1.5f)
         strokePaint.color = Color.argb(172, Color.red(accent), Color.green(accent), Color.blue(accent))
         canvas.drawRoundRect(rect, dp(15f), dp(15f), strokePaint)
         drawBitmapCentered(canvas, sprites.uiIconSeed, rect.left + rect.width() * 0.13f, rect.top + rect.height() * 0.18f, min(rect.height() * 0.20f, dp(22f)))
         drawCenteredText(canvas, title, rect.centerX(), rect.top + rect.height() * 0.22f, dp(17f), accent, true, true)
-        drawCenteredText(canvas, subtitle, rect.centerX(), rect.top + rect.height() * 0.41f, min(dp(9f), rect.width() * 0.035f), Color.rgb(194, 207, 197), true)
-        drawCenteredText(canvas, modifier.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.62f, dp(12f), Color.WHITE, true)
-        drawWrappedText(canvas, modifier.description, rect.centerX(), rect.top + rect.height() * 0.76f, rect.width() * 0.84f, dp(9f), Color.rgb(174, 191, 178), 2)
+        drawCenteredText(canvas, subtitle, rect.centerX(), rect.top + rect.height() * 0.40f, min(dp(8.5f), rect.width() * 0.033f), Color.rgb(194, 207, 197), true)
+        drawCenteredText(canvas, modifier.title.uppercase(), rect.centerX(), rect.top + rect.height() * 0.60f, dp(12f), Color.WHITE, true)
+        drawWrappedText(canvas, modifier.description, rect.centerX(), rect.top + rect.height() * 0.73f, rect.width() * 0.84f, dp(9f), Color.rgb(174, 191, 178), 2)
+        if (footer.isNotEmpty()) {
+            drawCenteredText(canvas, footer, rect.centerX(), rect.top + rect.height() * 0.90f, dp(8.5f), Color.rgb(190, 244, 78), true, true)
+        }
     }
 
     private fun drawPerkDraft(canvas: Canvas) {
@@ -5081,12 +5318,21 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
                 spawnT < 0.32f -> label.pop * (1.18f - (spawnT - 0.18f) / 0.14f * 0.18f)
                 else -> label.pop * (1f - (1f - lifeRatio) * 0.12f)
             }
-            val textSize = max(dp(9f), tileSize * 0.20f) * popScale
+            val textSize = max(dp(9f), tileSize * 0.20f) * popScale * if (label.crit) 1.25f else 1f
             if (label.pop > 1.05f) {
                 paint.color = Color.argb((alpha * 0.22f).toInt().coerceIn(0, 255), Color.red(label.color), Color.green(label.color), Color.blue(label.color))
                 canvas.drawCircle(gridX(label.x), gridY(label.y), textSize * 0.85f, paint)
             }
-            drawCenteredText(canvas, label.message, gridX(label.x), gridY(label.y), textSize, labelColor, true)
+            // F4 heavy (mark/shatter) hits get an outline ring so bonus damage reads
+            // instantly; battled labels always carry a shadow for contrast.
+            if (label.heavy) {
+                strokePaint.style = Paint.Style.STROKE
+                strokePaint.strokeWidth = max(1f, textSize * 0.10f)
+                strokePaint.color = Color.argb(alpha, 20, 12, 4)
+                canvas.drawCircle(gridX(label.x), gridY(label.y), textSize * 0.95f, strokePaint)
+                strokePaint.style = Paint.Style.STROKE
+            }
+            drawCenteredText(canvas, label.message, gridX(label.x), gridY(label.y), textSize, labelColor, true, shadow = label.crit || label.heavy)
         }
         // Balance the single F0 viewport-clip save taken at the top of drawBoard: exactly one
         // restore per frame. Keep this the last statement and keep drawBoard free of early
@@ -6573,13 +6819,20 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         color: Int,
         align: Paint.Align,
         bold: Boolean,
-        black: Boolean = false
+        black: Boolean = false,
+        shadow: Boolean = false
     ) {
         paint.style = Paint.Style.FILL
-        paint.color = color
         paint.textSize = size
         paint.textAlign = align
         paint.typeface = if (black) blackTypeface else if (bold) boldTypeface else regularTypeface
+        // A5/H legibility: optional drop shadow keeps light text readable over bright art.
+        if (shadow) {
+            paint.color = Color.argb((Color.alpha(color) * 0.8f).toInt().coerceIn(0, 255), 4, 6, 5)
+            val offset = max(1f, size * 0.09f)
+            canvas.drawText(value, x + offset, baselineY + offset, paint)
+        }
+        paint.color = color
         canvas.drawText(value, x, baselineY, paint)
     }
 
@@ -6611,13 +6864,14 @@ internal class GameView(context: Context) : SurfaceView(context), SurfaceHolder.
         size: Float,
         color: Int,
         bold: Boolean,
-        black: Boolean = false
+        black: Boolean = false,
+        shadow: Boolean = false
     ) {
         paint.textSize = size
         paint.typeface = if (black) blackTypeface else if (bold) boldTypeface else regularTypeface
         val metrics = paint.fontMetrics
         val baseline = centerY - (metrics.ascent + metrics.descent) * 0.5f
-        drawText(canvas, value, centerX, baseline, size, color, Paint.Align.CENTER, bold, black)
+        drawText(canvas, value, centerX, baseline, size, color, Paint.Align.CENTER, bold, black, shadow)
     }
 
     private fun cellCenterX(col: Int): Float {
