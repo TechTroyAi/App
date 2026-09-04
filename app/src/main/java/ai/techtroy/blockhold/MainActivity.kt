@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.util.TypedValue
@@ -43,6 +44,11 @@ class MainActivity : Activity() {
             WindowManager.LayoutParams.FLAG_FULLSCREEN
         )
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // H3 keep the HUD rails clear of camera cutouts (API 28+; game targets 24+).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER
+        }
 
         // A crash recorded by the previous session: surface it instead of silently swallowing it.
         // Without this the render thread can die and the user only ever sees "keeps stopping".
