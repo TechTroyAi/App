@@ -6,13 +6,19 @@
 > unsigned SHA-256 `a9c94276d027ba3d5a4a09ea15cc05c1a5a0278f954f3e154c93ff317dc31d04`), then signed locally with
 > `apksigner` (v2 + v3, `apksigner verify` → Verifies). Contains 2 dex files / 7,935 classes, 16 activities,
 > 3 widgets, reminders, per-note lock, Pages handwriting, PDF annotation, note links + Graph, and Echoes.
+> `python3 scripts/verify-notebook-apk.py` reports **0 failures**: zipaligned (271 stored entries),
+> v2+v3 signed with the documented release certificate, DEX checksums valid, all 9,374 referenced
+> types resolve, all 26 manifest components + all 73 source classes present in the DEX, all layouts /
+> xml / anims packaged, no INTERNET permission. Full pipeline: [`docs/NOTEBOOK_BUILD.md`](../docs/NOTEBOOK_BUILD.md).
 >
 > **⚠️ Signing key.** Signed with a dedicated RSA 4096 release key
 > (`CN=Notebook by Troy, OU=Apps, O=TechTroy AI, L=Cagayan de Oro, ST=Northern Mindanao, C=PH`, valid to 2056),
 > certificate SHA-256
 > `B2:C9:ED:0A:42:E6:57:29:90:DE:39:72:A4:57:61:35:13:7D:DB:FE:A6:3A:58:97:AA:C0:BE:BC:F2:5C:3C:4F`.
-> Keystore lives at `.signing/notebook-release.p12` (gitignored) — back it up; every future Notebook update
-> must be signed with this same key or Android will refuse to install over v1.0.0.
+> Keystore lives at `.signing/notebook-release.p12` (gitignored); an **encrypted copy is committed** at
+> `notebook/signing/notebook-signing.tar.gz.enc` (passphrase held by Troy, see `docs/SIGNING.md`). Every
+> future Notebook update must be signed with this same key or Android will refuse to install over v1.0.0.
+> Public certificate: `docs/notebook-release-certificate.txt`.
 >
 > | File | SHA-256 | Status |
 > |---|---|---|

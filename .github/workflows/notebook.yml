@@ -7,6 +7,9 @@ on:
       - "build.gradle.kts"
       - "gradle.properties"
       - ".github/workflows/notebook.yml"
+      - "scripts/verify-notebook-apk.py"
+      - "scripts/verify-apk.py"
+      - "artifacts/Notebook-by-Troy-*.apk"
   workflow_dispatch:
 
 permissions:
@@ -29,6 +32,9 @@ jobs:
           java-version: "17"
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Kotlin pitfall lint (notebook sources)
+        run: python3 scripts/lint-kotlin-pitfalls.py $(find notebook/src/main/java -name '*.kt')
 
       - name: Unit tests
         id: tests
@@ -60,6 +66,25 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon :notebook:assembleRelease 2>&1 | tee build.log
           ls -la notebook/build/outputs/apk/release/
+
+      # Structural verification of what Gradle produced (alignment, DEX integrity, every manifest
+      # component present in the DEX, resources, source classes). Unsigned is accepted here because
+      # signing happens locally with the gitignored release key; the committed artifact under
+      # artifacts/ is verified strictly (signature + certificate) by the next step.
+      - name: Verify built APK
+        if: steps.build.outcome == 'success'
+        run: |
+          APK=$(ls notebook/build/outputs/apk/release/*.apk | head -1)
+          python3 scripts/verify-notebook-apk.py --allow-unsigned "$APK"
+
+      - name: Verify committed release artifacts (signature + release certificate)
+        if: always()
+        run: |
+          if ls artifacts/Notebook-by-Troy-*.apk >/dev/null 2>&1; then
+            python3 scripts/verify-notebook-apk.py
+          else
+            echo "no committed Notebook artifacts yet"
+          fi
 
       - name: Upload APK (Actions artifact)
         if: steps.build.outcome == 'success'

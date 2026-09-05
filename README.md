@@ -1,3 +1,18 @@
+# TechTroyAi/App
+
+This repository ships two Android apps:
+
+| App | Package | Latest installable | Docs |
+|---|---|---|---|
+| **Notebook by Troy · with Echoes** — offline notebook: text, checklists, sketches, handwriting Pages, PDF annotation, attachments, [[links]] + Graph, widgets, reminders, per-note lock, Echoes | `ai.techtroy.notebook` | [`artifacts/Notebook-by-Troy-v1.0.0.apk`](artifacts/Notebook-by-Troy-v1.0.0.apk) — Android 7.0+, signed v2+v3 | [`docs/NOTEBOOK_BUILD.md`](docs/NOTEBOOK_BUILD.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) · module `notebook/` |
+| **Blockhold Defense** — tower-defense game (below) | `ai.techtroy.blockhold` | `artifacts/Blockhold-Defense-v1.4.4-installable.apk` | this file · module `app/` |
+
+Both are built from the same Gradle project (`./gradlew :notebook:assembleRelease` / `./gradlew :app:assembleDebug`);
+artifact hashes and signing certificates are listed in [`artifacts/README.md`](artifacts/README.md) and
+[`docs/SIGNING.md`](docs/SIGNING.md).
+
+---
+
 # Blockhold Defense
 
 **Blockhold Defense: Endless Pathforge** is an original, offline native-Kotlin tower-defense game for Android. Forge the only enemy route from the entrance gate to the protected core, build a mixed defense, and survive an endless procedural assault.

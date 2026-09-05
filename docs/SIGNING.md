@@ -165,8 +165,8 @@ For a Play release, enroll in Play App Signing and store the dedicated Blockhold
 
 ## Notebook by Troy (`ai.techtroy.notebook`)
 
-The Notebook app has its **own** release key, separate from the Blockhold key. Never sign one app with
-the other's key.
+The Notebook app has its **own** release key, separate from the Blockhold key. Never sign one app
+with the other's key.
 
 | | |
 |---|---|
@@ -175,21 +175,81 @@ the other's key.
 | Key | RSA 4096, SHA256withRSA, valid 2026-09-05 → 2056-08-28 |
 | Subject | `CN=Notebook by Troy, OU=Apps, O=TechTroy AI, L=Cagayan de Oro, ST=Northern Mindanao, C=PH` |
 | Certificate SHA-256 | `B2:C9:ED:0A:42:E6:57:29:90:DE:39:72:A4:57:61:35:13:7D:DB:FE:A6:3A:58:97:AA:C0:BE:BC:F2:5C:3C:4F` |
+| Public certificate | [`docs/notebook-release-certificate.txt`](notebook-release-certificate.txt) |
 | First release signed | `artifacts/Notebook-by-Troy-v1.0.0.apk` (v1.0.0, versionCode 1) |
 
-`notebook/build.gradle.kts` picks the key up automatically when `.signing/notebook.properties` exists, so a
-local `./gradlew :notebook:assembleRelease` produces a signed APK directly. The CI workflow
-(`.github/workflows/notebook.yml`) builds unsigned unless the `NOTEBOOK_KEYSTORE_BASE64` /
-`NOTEBOOK_STORE_PASSWORD` / `NOTEBOOK_KEY_ALIAS` repository secrets are set; the unsigned CI APK is then
-signed locally:
+### The key survives the sandbox this time
 
-```bash
-java -jar apksigner.jar sign --ks .signing/notebook-release.p12 --ks-type PKCS12 \
-  --ks-key-alias notebook --ks-pass pass:"$PW" --key-pass pass:"$PW" \
-  --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true \
-  --out artifacts/Notebook-by-Troy-vX.Y.Z.apk notebook-release-unsigned.apk
-java -jar apksigner.jar verify --print-certs artifacts/Notebook-by-Troy-vX.Y.Z.apk
+Every Blockhold key was lost because it only ever lived in an ephemeral sandbox. The Notebook key
+is stored **in the repository, encrypted**, so any future session (or CI) can restore it:
+
+```text
+notebook/signing/notebook-signing.tar.gz.enc   AES-256-CBC, PBKDF2 (600 000 iterations)
 ```
 
-Back the keystore up somewhere outside the repository. If it is lost, users must uninstall v1.0.0
-(losing local notes unless they exported a backup first) before a newly-signed build can be installed.
+The archive contains `notebook-release.p12` and `notebook.properties`. The **passphrase is not in
+the repository** — Troy holds it (it was handed over in the chat where v1.0.0 was built, and should
+live in a password manager). Without the passphrase the file is just noise; with it:
+
+```bash
+# restore the private key into the gitignored .signing/ directory
+mkdir -p .signing
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
+  -in notebook/signing/notebook-signing.tar.gz.enc -pass pass:"$PASSPHRASE" | tar -xzf - -C .signing
+chmod 600 .signing/notebook-release.p12 .signing/notebook.properties
+
+# sanity check: must print B2:C9:ED:0A:...:5C:3C:4F
+keytool -list -v -keystore .signing/notebook-release.p12 -alias notebook \
+  -storepass "$(sed -n 's/^storePassword=//p' .signing/notebook.properties)" | grep SHA256:
+```
+
+To re-encrypt after rotating the passwords (or if the bundle must be regenerated):
+
+```bash
+tar -C .signing -czf /tmp/notebook-signing.tar.gz notebook-release.p12 notebook.properties
+openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in /tmp/notebook-signing.tar.gz \
+  -out notebook/signing/notebook-signing.tar.gz.enc -pass pass:"$PASSPHRASE"
+rm /tmp/notebook-signing.tar.gz
+```
+
+Optionally also store it as GitHub secrets so CI can sign directly (the workflow already looks for
+them): `NOTEBOOK_KEYSTORE_BASE64` = `base64 -w0 .signing/notebook-release.p12`,
+`NOTEBOOK_STORE_PASSWORD`, `NOTEBOOK_KEY_ALIAS` = `notebook`. Setting repository secrets requires
+an admin account; the automation token cannot.
+
+### How a Notebook release is produced
+
+1. Push to a branch — the **Notebook APK** workflow (`.github/workflows/notebook.yml`) lints,
+   runs unit tests, builds `:notebook:assembleRelease` with AGP 8.7.3 / Kotlin 2.0.21, verifies
+   the result structurally, uploads it as an Actions artifact and posts a commit comment
+   (`### Notebook CI report`) containing the APK's SHA-256 and a git **blob SHA**.
+2. Fetch the unsigned APK from the blob (works even where Actions artifacts are unreachable):
+   `gh api repos/TechTroyAi/App/git/blobs/<apk-blob> -H "Accept: application/vnd.github.raw" > unsigned.apk`
+3. Sign with the release key (the CI build is already zipaligned by AGP; do not re-zip it):
+
+   ```bash
+   PW=$(sed -n 's/^storePassword=//p' .signing/notebook.properties)
+   java -jar apksigner.jar sign --ks .signing/notebook-release.p12 --ks-type PKCS12 \
+     --ks-key-alias notebook --ks-pass pass:"$PW" --key-pass pass:"$PW" \
+     --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true \
+     --out artifacts/Notebook-by-Troy-vX.Y.Z.apk unsigned.apk
+   ```
+
+4. Verify and record:
+
+   ```bash
+   java -jar apksigner.jar verify --print-certs artifacts/Notebook-by-Troy-vX.Y.Z.apk
+   python3 scripts/verify-notebook-apk.py artifacts/Notebook-by-Troy-vX.Y.Z.apk   # checks the certificate too
+   ```
+
+   then add the hash to `artifacts/README.md` and commit (the `.gitignore` whitelists
+   `artifacts/Notebook-by-Troy-*.apk`). Bump `versionCode`/`versionName` in
+   `notebook/build.gradle.kts` for every release — Android will not install an update with the
+   same or lower `versionCode`.
+
+If `.signing/notebook.properties` is present locally, `./gradlew :notebook:assembleRelease`
+signs directly and steps 2–3 collapse into one.
+
+If the key is ever truly lost (bundle *and* passphrase), users must uninstall v1.0.0 — losing their
+notes unless they exported a backup from Settings first — before a build signed with a new key
+can be installed. Do not let that happen.
