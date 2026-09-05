@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="audioLabel" type="id"/>
+    <item name="btnPlay" type="id"/>
+    <item name="colorDot" type="id"/>
+    <item name="colorDotInner" type="id"/>
+    <item name="pdfPageLabel" type="id"/>
+    <item name="replayCanvas" type="id"/>
+    <item name="replayDate" type="id"/>
+</resources>

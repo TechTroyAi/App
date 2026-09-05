@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_margin="6dp"
+    android:checkable="true"
+    app:checkedIcon="@null"
+    android:foreground="?attr/selectableItemBackground">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+        <ImageView android:id="@+id/cardImage" android:layout_width="match_parent" android:layout_height="120dp" android:scaleType="centerCrop" android:visibility="gone" android:contentDescription="@null"/>
+        <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="14dp">
+                <TextView android:id="@+id/cardTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:maxLines="2" android:textAppearance="@style/TextAppearance.Notebook.CardTitle" android:paddingEnd="14dp" android:paddingStart="0dp"/>
+                <TextView android:id="@+id/cardBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:ellipsize="end" android:maxLines="7" android:textAppearance="@style/TextAppearance.Notebook.CardBody"/>
+                <LinearLayout android:id="@+id/cardChecks" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:orientation="vertical" android:visibility="gone"/>
+                <LinearLayout android:id="@+id/cardCapsule" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:gravity="center_vertical" android:orientation="horizontal" android:visibility="gone">
+                    <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_capsule" app:tint="?attr/nbGold" android:contentDescription="@null"/>
+                    <TextView android:id="@+id/cardCapsuleText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="6dp" android:paddingEnd="0dp" android:textAppearance="@style/TextAppearance.Notebook.Caps"/>
+                </LinearLayout>
+                <LinearLayout android:id="@+id/cardMeta" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:gravity="center_vertical" android:orientation="horizontal">
+                    <TextView android:id="@+id/cardTime" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textColor="?attr/nbTextFaint" android:textSize="11sp"/>
+                    <ImageView android:id="@+id/badgeLock" android:layout_width="14dp" android:layout_height="14dp" android:layout_marginStart="6dp" android:src="@drawable/ic_lock" app:tint="?attr/nbGold" android:visibility="gone" android:contentDescription="@null"/>
+                    <ImageView android:id="@+id/badgeBell" android:layout_width="14dp" android:layout_height="14dp" android:layout_marginStart="6dp" android:src="@drawable/ic_bell" app:tint="?attr/nbGold" android:visibility="gone" android:contentDescription="@null"/>
+                    <ImageView android:id="@+id/badgeAudio" android:layout_width="14dp" android:layout_height="14dp" android:layout_marginStart="6dp" android:src="@drawable/ic_mic" app:tint="?attr/nbTextMuted" android:visibility="gone" android:contentDescription="@null"/>
+                    <TextView android:id="@+id/badgeLinks" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:drawablePadding="3dp" android:gravity="center_vertical" android:textColor="?attr/nbTextMuted" android:textSize="11sp" android:visibility="gone" app:drawableStartCompat="@drawable/ic_link" app:drawableTint="?attr/nbTextMuted"/>
+                    <TextView android:id="@+id/badgeAtt" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:drawablePadding="3dp" android:gravity="center_vertical" android:textColor="?attr/nbTextMuted" android:textSize="11sp" android:visibility="gone" app:drawableStartCompat="@drawable/ic_attach" app:drawableTint="?attr/nbTextMuted"/>
+                    <TextView android:id="@+id/badgePages" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:drawablePadding="3dp" android:gravity="center_vertical" android:textColor="?attr/nbTextMuted" android:textSize="11sp" android:visibility="gone" app:drawableStartCompat="@drawable/ic_pages" app:drawableTint="?attr/nbTextMuted"/>
+                </LinearLayout>
+            </LinearLayout>
+            <!-- gold ribbon = pinned -->
+            <View android:id="@+id/ribbon" android:layout_width="11dp" android:layout_height="20dp" android:layout_gravity="top|end" android:layout_marginEnd="14dp" android:background="@drawable/bg_ribbon" android:visibility="gone"/>
+            <ImageView android:id="@+id/checkMark" android:layout_width="24dp" android:layout_height="24dp" android:layout_gravity="top|end" android:layout_margin="10dp" android:background="@drawable/bg_gold_circle" android:padding="4dp" android:src="@drawable/ic_check" app:tint="@color/ink_black" android:visibility="gone" android:contentDescription="@null"/>
+        </FrameLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

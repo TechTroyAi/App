@@ -41,6 +41,7 @@ Thumbs.db
 !artifacts/Blockhold-Defense-v1.4.2-installable.apk
 !artifacts/Blockhold-Defense-v1.4.3-installable.apk
 !artifacts/Blockhold-Defense-v1.4.4-installable.apk
+!artifacts/Notebook-by-Troy-*.apk
 
 # Offline toolchain build workspace (JDK/Android tooling lives outside the repo)
 build-manual/

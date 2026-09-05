@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="new_text" android:enabled="true" android:icon="@drawable/ic_shortcut_text" android:shortcutShortLabel="@string/new_text_note" android:shortcutLongLabel="@string/new_text_note">
+        <intent android:action="ai.techtroy.notebook.NEW" android:targetPackage="ai.techtroy.notebook" android:targetClass="ai.techtroy.notebook.ui.HomeActivity">
+            <extra android:name="type" android:value="text"/>
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="new_check" android:enabled="true" android:icon="@drawable/ic_shortcut_check" android:shortcutShortLabel="@string/new_checklist" android:shortcutLongLabel="@string/new_checklist">
+        <intent android:action="ai.techtroy.notebook.NEW" android:targetPackage="ai.techtroy.notebook" android:targetClass="ai.techtroy.notebook.ui.HomeActivity">
+            <extra android:name="type" android:value="checklist"/>
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="new_pages" android:enabled="true" android:icon="@drawable/ic_shortcut_pen" android:shortcutShortLabel="@string/new_pages" android:shortcutLongLabel="@string/new_pages">
+        <intent android:action="ai.techtroy.notebook.NEW" android:targetPackage="ai.techtroy.notebook" android:targetClass="ai.techtroy.notebook.ui.HomeActivity">
+            <extra android:name="type" android:value="pages"/>
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="new_voice" android:enabled="true" android:icon="@drawable/ic_shortcut_mic" android:shortcutShortLabel="@string/widget_voice_note" android:shortcutLongLabel="@string/widget_voice_note">
+        <intent android:action="ai.techtroy.notebook.NEW" android:targetPackage="ai.techtroy.notebook" android:targetClass="ai.techtroy.notebook.ui.HomeActivity">
+            <extra android:name="type" android:value="text"/>
+            <extra android:name="voice" android:value="true"/>
+        </intent>
+    </shortcut>
+</shortcuts>

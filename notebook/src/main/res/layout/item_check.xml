@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:gravity="center_vertical" android:orientation="horizontal" android:minHeight="44dp">
+    <ImageView android:id="@+id/dragHandle" android:layout_width="26dp" android:layout_height="40dp" android:paddingEnd="8dp" android:paddingStart="0dp" android:src="@drawable/ic_drag" app:tint="?attr/nbTextFaint" android:contentDescription="@string/move"/>
+    <FrameLayout android:id="@+id/checkBox" android:layout_width="36dp" android:layout_height="40dp" android:paddingEnd="8dp" android:paddingStart="0dp">
+        <View android:id="@+id/checkRing" android:layout_width="22dp" android:layout_height="22dp" android:layout_gravity="center"/>
+        <ImageView android:id="@+id/checkTick" android:layout_width="14dp" android:layout_height="14dp" android:layout_gravity="center" android:src="@drawable/ic_check" app:tint="@color/ink_black" android:visibility="gone" android:contentDescription="@null"/>
+    </FrameLayout>
+    <EditText android:id="@+id/itemText" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:background="@null" android:hint="@string/checklist_item_hint" android:imeOptions="actionNext|flagNoExtractUi" android:inputType="textCapSentences|textMultiLine" android:paddingTop="10dp" android:paddingBottom="10dp" android:textColor="?android:attr/textColorPrimary" android:textColorHint="?attr/nbTextFaint" android:textSize="16sp"/>
+    <ImageButton android:id="@+id/itemRemove" android:layout_width="36dp" android:layout_height="40dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_close" app:tint="?attr/nbTextFaint" android:visibility="invisible" android:contentDescription="@string/remove"/>
+</LinearLayout>

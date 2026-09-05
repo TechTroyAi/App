@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notebook by Troy — Clickable Mockup</title>
+<style>
+  :root{
+    --bg:#0B0B0C; --card:#161618; --card2:#1D1D20; --line:rgba(212,175,55,.28);
+    --gold:#D4AF37; --gold2:#F0D77A; --gold-dim:rgba(212,175,55,.14);
+    --text:#F5F2EA; --muted:#A7A39A; --muted2:#6F6C66; --danger:#C7554D;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:#1a1a1d;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;color:var(--text)}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:56px 20px 24px;gap:18px}
+
+  /* phone frame */
+  .phone{width:390px;height:844px;background:#000;border-radius:48px;padding:12px;box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 0 2px #2a2a2e,0 0 0 4px #0a0a0a;position:relative;flex:none}
+  .screen{width:100%;height:100%;border-radius:38px;overflow:hidden;background:var(--bg);position:relative}
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:32px;background:#000;border-radius:0 0 22px 22px;z-index:50}
+  .status{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:14px;font-weight:600;color:var(--text)}
+  .status .right{display:flex;gap:6px;align-items:center}
+  .status svg{width:16px;height:16px;fill:var(--text)}
+  .homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:130px;height:5px;border-radius:5px;background:rgba(245,242,234,.6);z-index:50}
+
+  /* views */
+  .view{position:absolute;inset:44px 0 0 0;display:none;flex-direction:column;overflow:hidden}
+  .view.active{display:flex;animation:fadein .22s ease}
+  @keyframes fadein{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+  .scroll{flex:1;overflow-y:auto;padding:0 16px 120px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* common */
+  .icon{width:22px;height:22px;stroke:var(--gold);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .btn{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;cursor:pointer;user-select:none;transition:transform .12s ease,background .2s ease,box-shadow .2s ease;position:relative;overflow:hidden}
+  .btn:active{transform:scale(.95)}
+  .iconbtn{width:44px;height:44px;background:transparent}
+  .iconbtn:active{background:var(--gold-dim)}
+  .ripple{position:absolute;border-radius:50%;background:rgba(240,215,122,.35);transform:scale(0);animation:rip .5s ease-out;pointer-events:none}
+  @keyframes rip{to{transform:scale(4);opacity:0}}
+  .hairline{border:1px solid var(--line)}
+  .goldtext{color:var(--gold)}
+  .caps{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:600}
+
+  /* topbar */
+  .topbar{display:flex;align-items:center;gap:6px;padding:6px 8px 4px;min-height:56px}
+  .topbar .title{flex:1;font-size:20px;font-weight:600}
+  .search{flex:1;display:flex;align-items:center;gap:10px;height:48px;background:var(--card);border-radius:999px;padding:0 6px 0 16px;border:1px solid var(--line)}
+  .search input{flex:1;background:none;border:0;outline:0;color:var(--text);font-size:15px;min-width:0}
+  .search input::placeholder{color:var(--muted2)}
+  .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--gold2),var(--gold));color:#000;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
+
+  /* chips */
+  .chips{display:flex;gap:8px;padding:10px 16px 6px;overflow-x:auto;scrollbar-width:none;flex:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:none;height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--line);color:var(--gold);font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;cursor:pointer;transition:all .2s ease;background:transparent}
+  .chip.on{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#000;border-color:transparent}
+  .chip .n{font-size:11px;opacity:.7}
+
+  /* grid */
+  .section{padding:14px 2px 8px}
+  .grid{columns:2;column-gap:10px}
+  .card{break-inside:avoid;background:var(--card);border-radius:18px;border:1px solid var(--line);padding:14px;margin:0 0 10px;position:relative;cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
+  .card:active{transform:scale(.98)}
+  .card.tint-gold{background:linear-gradient(160deg,#211d12,#161618)}
+  .card.tint-wine{background:linear-gradient(160deg,#241416,#161618)}
+  .card.tint-emerald{background:linear-gradient(160deg,#122019,#161618)}
+  .card.tint-sapphire{background:linear-gradient(160deg,#121a26,#161618)}
+  .card.tint-plum{background:linear-gradient(160deg,#1e1424,#161618)}
+  .card h4{margin:0 0 6px;font-size:15px;font-weight:600;color:var(--text);padding-right:22px;line-height:1.25}
+  .card p{margin:0;font-size:13px;line-height:1.45;color:var(--muted);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .card .foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--muted2)}
+  .card .foot svg{width:13px;height:13px}
+  .ribbon{position:absolute;top:-1px;right:14px;width:11px;height:20px;background:linear-gradient(180deg,var(--gold2),var(--gold));clip-path:polygon(0 0,100% 0,100% 100%,50% 76%,0 100%);box-shadow:0 2px 6px rgba(0,0,0,.5)}
+  .lockcard{display:flex;align-items:center;gap:10px;color:var(--muted)}
+  .cl{display:flex;flex-direction:column;gap:6px}
+  .cl div{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .cb{width:16px;height:16px;border-radius:50%;border:1.6px solid var(--gold);flex:none;display:flex;align-items:center;justify-content:center;transition:all .2s}
+  .cb.on{background:var(--gold);}
+  .cb.on::after{content:"";width:4px;height:8px;border:solid #000;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+  .cl .done{text-decoration:line-through;color:var(--muted2)}
+  .thumb{width:100%;aspect-ratio:4/3;border-radius:12px;background:#0f0f10;border:1px solid var(--line);margin-bottom:8px;overflow:hidden;position:relative}
+  .thumb svg{width:100%;height:100%}
+  .photo{background:linear-gradient(135deg,#3a2f1a,#1c1c1c 60%,#2b2517);}
+  .photo::after{content:"";position:absolute;left:18%;bottom:18%;width:40%;height:40%;border-radius:50%;background:radial-gradient(circle at 40% 35%,#f0d77a,#8a6a1c 70%,transparent 72%)}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--gold)}
+  .badge svg{width:12px;height:12px}
+
+  /* fab */
+  #v-home::after{content:"";position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(180deg,transparent,var(--bg) 70%);pointer-events:none;z-index:5}
+  .fab{position:absolute;right:20px;bottom:36px;width:60px;height:60px;border-radius:20px;background:linear-gradient(135deg,var(--gold2),var(--gold));box-shadow:0 10px 30px rgba(212,175,55,.35);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:20;transition:transform .2s ease,border-radius .2s}
+  .fab svg{width:28px;height:28px;stroke:#000;stroke-width:2.4;fill:none;stroke-linecap:round;transition:transform .25s}
+  .fab.open{border-radius:30px;transform:rotate(45deg)}
+  .fabmenu{position:absolute;right:20px;bottom:108px;display:flex;flex-direction:column;gap:10px;align-items:flex-end;z-index:20;pointer-events:none}
+  .fabmenu .mini{display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(10px);transition:all .2s ease;pointer-events:none}
+  .fabmenu.open .mini{opacity:1;transform:none;pointer-events:auto}
+  .fabmenu .mini:nth-child(1){transition-delay:.09s}.fabmenu .mini:nth-child(2){transition-delay:.06s}.fabmenu .mini:nth-child(3){transition-delay:.03s}
+  .mini span{background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;color:var(--text)}
+  .mini .b{width:46px;height:46px;border-radius:16px;background:var(--card2);border:1px solid var(--gold);display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+  /* drawer */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .25s;z-index:60}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .drawer{position:absolute;top:0;bottom:0;left:0;width:290px;background:var(--card);border-right:1px solid var(--line);transform:translateX(-100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);z-index:70;padding:56px 12px 20px;display:flex;flex-direction:column;gap:2px;border-radius:0 28px 28px 0}
+  .drawer.open{transform:none}
+  .drawer .brand{display:flex;align-items:center;gap:12px;padding:6px 10px 18px}
+  .drawer .brand img{width:44px;height:44px;border-radius:12px}
+  .drawer .brand b{display:block;font-size:17px}
+  .drawer .brand small{color:var(--muted);font-size:12px}
+  .drow{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:14px;font-size:15px;color:var(--text);cursor:pointer}
+  .drow:active,.drow.on{background:var(--gold-dim)}
+  .drow.on{color:var(--gold)}
+  .drow .cnt{margin-left:auto;font-size:12px;color:var(--muted2)}
+  .drow .dot{width:10px;height:10px;border-radius:50%}
+  .dsep{height:1px;background:var(--line);margin:8px 10px}
+
+  /* editor */
+  .etop{display:flex;align-items:center;padding:6px 8px}
+  .etop .sp{flex:1}
+  .editor{flex:1;overflow-y:auto;padding:4px 22px 170px;scrollbar-width:none}
+  .editor::-webkit-scrollbar{display:none}
+  .etitle{font-size:26px;font-weight:700;line-height:1.2;margin:8px 0 6px;outline:0}
+  .emeta{font-size:12px;color:var(--muted2);margin-bottom:14px}
+  .ebody{font-size:16px;line-height:1.6;color:var(--text);outline:0;white-space:pre-wrap}
+  .ebody .link{display:inline-flex;align-items:center;gap:4px;background:var(--gold-dim);border:1px solid var(--line);color:var(--gold);border-radius:8px;padding:1px 8px;font-size:14px;cursor:pointer;vertical-align:baseline}
+  .ebody .link svg{width:12px;height:12px}
+  .attach{display:flex;gap:10px;overflow-x:auto;padding:4px 0 14px;scrollbar-width:none}
+  .attach::-webkit-scrollbar{display:none}
+  .att{flex:none;width:112px;height:84px;border-radius:14px;border:1px solid var(--line);background:var(--card);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);cursor:pointer}
+  .att .lbl{position:absolute;left:0;right:0;bottom:0;padding:4px 8px;background:rgba(0,0,0,.55);font-size:10px;color:var(--text);display:flex;justify-content:space-between}
+  .att.video{background:linear-gradient(135deg,#1d2430,#0e0e10)}
+  .att.video .play{width:32px;height:32px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center}
+  .att.video .play::after{content:"";border-left:11px solid #000;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px}
+  .att.pdf .pg{width:40px;height:52px;background:#f5f2ea;border-radius:4px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  .att.pdf .pg::before{content:"";position:absolute;left:7px;right:7px;top:9px;height:3px;background:#c9c4b8;box-shadow:0 7px 0 #c9c4b8,0 14px 0 #c9c4b8,0 21px 0 #c9c4b8,0 28px 0 #c9c4b8}
+  .att.pdf .tag{position:absolute;top:8px;left:8px;background:var(--danger);color:#fff;font-size:9px;font-weight:700;border-radius:4px;padding:2px 5px}
+  .audio{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:10px 12px;margin-bottom:14px}
+  .audio .pl{width:38px;height:38px;border-radius:50%;background:var(--gold);flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .audio .pl::after{content:"";border-left:12px solid #000;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px}
+  .audio .pl.playing::after{border:0;width:10px;height:12px;border-left:4px solid #000;border-right:4px solid #000;margin:0}
+  .wave{flex:1;display:flex;align-items:center;gap:2px;height:30px}
+  .wave i{flex:1;background:var(--gold);opacity:.35;border-radius:2px;display:block}
+  .wave i.on{opacity:1}
+  .audio small{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+  .linked{margin-top:26px;border-top:1px solid var(--line);padding-top:14px}
+  .lrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);margin-top:8px;font-size:14px;cursor:pointer}
+  .lrow .arrow{color:var(--gold);font-size:13px;width:18px;text-align:center}
+  .lrow small{margin-left:auto;color:var(--muted2);font-size:11px}
+  .saved{font-size:10px;color:var(--gold);opacity:.6;letter-spacing:.18em;pointer-events:none;padding:0 6px;transition:opacity .3s}
+  .ebar{position:absolute;left:16px;right:16px;bottom:30px;height:60px;background:var(--card2);border:1px solid var(--line);border-radius:999px;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:center;justify-items:center;padding:0 10px;box-shadow:0 12px 30px rgba(0,0,0,.5);z-index:10}
+  .ebar .iconbtn{width:44px;height:44px;border-radius:50%}
+  .ebar .icon{width:22px;height:22px}
+  .ebar::before{content:"";position:absolute;left:-16px;right:-16px;bottom:-30px;height:130px;background:linear-gradient(180deg,transparent,var(--bg) 55%);z-index:-1;pointer-events:none;border-radius:0}
+  .ebar .iconbtn.dim .icon{stroke:var(--muted2)}
+  .tint-gold-bg{background:linear-gradient(180deg,#191510,var(--bg) 40%)}
+
+  /* checklist */
+  .clist{padding:0 12px}
+  .crow{display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:12px;font-size:16px;color:var(--text);cursor:pointer;transition:background .2s}
+  .crow:active{background:var(--gold-dim)}
+  .crow .cb{width:22px;height:22px}
+  .crow .cb.on::after{width:5px;height:10px}
+  .crow .t{flex:1;transition:all .25s}
+  .crow.done .t{text-decoration:line-through;color:var(--muted2)}
+  .crow .drag{color:var(--muted2);font-size:16px;letter-spacing:-2px}
+  .addrow{display:flex;align-items:center;gap:12px;padding:12px 8px;color:var(--gold);font-size:15px;cursor:pointer}
+  .addrow .plus{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1}
+  .comp{display:flex;align-items:center;gap:8px;padding:14px 8px 6px;cursor:pointer}
+  .comp .chev{margin-left:auto;color:var(--gold);transition:transform .25s}
+  .comp.open .chev{transform:rotate(180deg)}
+  .compbody{overflow:hidden;max-height:0;transition:max-height .3s ease}
+  .compbody.open{max-height:300px}
+
+  /* sketch */
+  .canvaswrap{flex:1;position:relative;background:#0e0e10;margin:0 0 0;overflow:hidden}
+  canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .tools{position:absolute;left:14px;right:14px;bottom:30px;height:62px;background:var(--card2);border:1px solid var(--line);border-radius:999px;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:center;justify-items:center;padding:0 10px;z-index:10;box-shadow:0 12px 30px rgba(0,0,0,.5)}
+  .tool{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s}
+  .tool.on{background:var(--gold-dim);box-shadow:inset 0 0 0 1px var(--gold)}
+  .swatch{width:26px;height:26px;border-radius:50%;border:2px solid #fff2;box-shadow:0 0 0 2px var(--gold)}
+  .palette{position:absolute;left:14px;right:14px;bottom:104px;background:var(--card2);border:1px solid var(--line);border-radius:22px;padding:12px;display:none;gap:10px;flex-wrap:wrap;justify-content:center;z-index:10}
+  .palette.open{display:flex}
+  .palette i{width:30px;height:30px;border-radius:50%;cursor:pointer;display:block;border:2px solid transparent}
+  .palette i.on{border-color:#fff}
+  .widths{display:flex;gap:16px;align-items:center;justify-content:center;width:100%;padding-top:6px;border-top:1px solid var(--line);margin-top:6px}
+  .widths i{display:block;background:var(--gold);border-radius:50%;cursor:pointer;opacity:.5}
+  .widths i.on{opacity:1;box-shadow:0 0 0 3px var(--gold-dim)}
+
+  /* graph */
+  .graphwrap{flex:1;position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,#151310,var(--bg) 70%)}
+  .graphwrap svg{width:100%;height:100%;touch-action:none}
+  .gline{stroke:var(--gold);stroke-opacity:.35;stroke-width:1.2}
+  .gnode circle{fill:#1d1a12;stroke:var(--gold);stroke-width:1.6;cursor:pointer;transition:r .2s}
+  .gnode.hub circle{fill:var(--gold)}
+  .gnode text{fill:var(--text);font-size:11px;text-anchor:middle;pointer-events:none}
+  .gnode.hub text{fill:var(--text)}
+  .halo{fill:none;stroke-width:26;stroke-opacity:.08}
+  .legend{position:absolute;left:16px;bottom:34px;display:flex;gap:10px;flex-wrap:wrap}
+  .legend span{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);background:rgba(22,22,24,.8);border:1px solid var(--line);border-radius:999px;padding:5px 10px}
+  .legend i{width:8px;height:8px;border-radius:50%;display:block}
+
+  /* settings */
+  .sgroup{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-bottom:14px}
+  .srow{display:flex;align-items:center;gap:14px;padding:14px 16px;border-top:1px solid rgba(212,175,55,.12);cursor:pointer;font-size:15px}
+  .srow:first-child{border-top:0}
+  .srow .v{margin-left:auto;color:var(--muted);font-size:13px}
+  .srow:active{background:var(--gold-dim)}
+  .sw{margin-left:auto;width:46px;height:26px;border-radius:999px;background:#2a2a2e;position:relative;transition:background .2s;flex:none}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#777;transition:all .2s}
+  .sw.on{background:var(--gold-dim);box-shadow:inset 0 0 0 1px var(--gold)}
+  .sw.on::after{left:23px;background:var(--gold)}
+  .sgl{padding:16px 4px 6px}
+  .themes{display:flex;gap:10px;padding:14px 16px}
+  .theme{flex:1;border-radius:14px;border:1px solid var(--line);padding:10px;cursor:pointer;text-align:center;font-size:11px;color:var(--muted)}
+  .theme .sw2{height:44px;border-radius:9px;margin-bottom:8px;border:1px solid #0003}
+  .theme.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .theme.on{color:var(--gold)}
+
+  /* trash */
+  .card.trash{opacity:.55;filter:saturate(.6)}
+  .trashbar{display:flex;gap:8px;padding:6px 16px 4px}
+  .obtn{flex:1;height:40px;border-radius:999px;border:1px solid var(--gold);color:var(--gold);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .obtn.fill{background:linear-gradient(135deg,var(--gold2),var(--gold));color:#000;border-color:transparent}
+
+  /* lock */
+  .lockview{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding-bottom:60px}
+  .lockicon{width:74px;height:74px;border-radius:24px;background:var(--card);border:1px solid var(--gold);display:flex;align-items:center;justify-content:center;box-shadow:0 0 40px rgba(212,175,55,.15)}
+  .lockicon svg{width:34px;height:34px}
+  .pins{display:flex;gap:14px;margin:6px 0 10px}
+  .pins i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--gold);display:block;transition:background .15s}
+  .pins i.on{background:var(--gold)}
+  .keypad{display:grid;grid-template-columns:repeat(3,76px);gap:12px}
+  .key{height:64px;border-radius:20px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;color:var(--text)}
+  .key:active{background:var(--gold-dim)}
+  .key.blank{visibility:hidden}
+  .key.fp svg{width:28px;height:28px}
+
+  /* widgets */
+  .wallpaper{flex:1;background:radial-gradient(circle at 30% 20%,#2a2415,#0b0b0c 55%),linear-gradient(180deg,#141416,#0b0b0c);padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+  .wg{background:rgba(22,22,24,.92);border:1px solid var(--line);border-radius:22px;padding:14px;backdrop-filter:blur(6px);box-shadow:0 12px 30px rgba(0,0,0,.4)}
+  .wg h5{margin:0 0 6px;font-size:14px;display:flex;align-items:center;gap:8px}
+  .wg .cl div{font-size:13px}
+  .wg.list .item{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid rgba(212,175,55,.12);font-size:13px}
+  .wg.list .item:first-of-type{border-top:0}
+  .wg.list .item b{font-weight:600}
+  .wg.list .item small{margin-left:auto;color:var(--muted2);font-size:11px}
+  .wg.list .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .wg.list .head .plus{width:30px;height:30px;border-radius:50%;background:var(--gold);color:#000;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
+  .apps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:6px 4px}
+  .app{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--text)}
+  .app .ic{width:58px;height:58px;border-radius:16px;background:#2a2a2e}
+  .app img{width:58px;height:58px;border-radius:16px;box-shadow:0 6px 16px rgba(0,0,0,.5)}
+  .app .ic.new{background:var(--card);border:1px solid var(--gold);display:flex;align-items:center;justify-content:center}
+
+
+  /* pages editor */
+  .pgwrap{flex:1;position:relative;overflow:hidden;background:#0e0e10}
+  .paper{position:absolute;left:14px;right:14px;top:8px;bottom:0;border-radius:14px 14px 0 0;overflow:hidden;box-shadow:0 0 0 1px var(--line),0 -10px 40px rgba(0,0,0,.5)}
+  .paper.black{background:#121214}
+  .paper.ivory{background:#F4EEDF}
+  .paper canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .tpl-lined.black{background-image:repeating-linear-gradient(180deg,transparent 0 27px,rgba(212,175,55,.16) 27px 28px);background-position:0 12px}
+  .tpl-lined.ivory{background-image:repeating-linear-gradient(180deg,transparent 0 27px,rgba(90,70,20,.18) 27px 28px);background-position:0 12px}
+  .tpl-grid.black{background-image:linear-gradient(rgba(212,175,55,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(212,175,55,.12) 1px,transparent 1px);background-size:24px 24px}
+  .tpl-grid.ivory{background-image:linear-gradient(rgba(90,70,20,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(90,70,20,.14) 1px,transparent 1px);background-size:24px 24px}
+  .tpl-dot.black{background-image:radial-gradient(rgba(212,175,55,.35) 1.2px,transparent 1.4px);background-size:22px 22px}
+  .tpl-dot.ivory{background-image:radial-gradient(rgba(90,70,20,.35) 1.2px,transparent 1.4px);background-size:22px 22px}
+  .tpl-blank{}
+  .pgtop{display:flex;align-items:center;padding:6px 8px;gap:2px}
+  .pgtop .title{flex:1;font-size:16px;font-weight:600}
+  .pgtop .pgnum{font-size:12px;color:var(--gold);letter-spacing:.1em;padding:0 8px}
+  .recdot{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--gold);background:var(--gold-dim);border:1px solid var(--line);border-radius:999px;padding:4px 10px;margin-right:4px}
+  .recdot i{width:8px;height:8px;border-radius:50%;background:var(--danger);display:block;animation:pulse 1.1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .brushbar{position:absolute;left:14px;right:14px;bottom:30px;height:66px;background:var(--card2);border:1px solid var(--line);border-radius:999px;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:center;justify-items:center;padding:0 8px;z-index:10;box-shadow:0 12px 30px rgba(0,0,0,.5)}
+  .brush{width:38px;height:54px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;cursor:pointer;position:relative;border-radius:14px;transition:all .2s}
+  .brush svg{width:22px;height:40px;transition:transform .2s}
+  .brush.on svg{transform:translateY(-8px)}
+  .brush.on::after{content:"";position:absolute;bottom:4px;width:16px;height:3px;border-radius:3px;background:var(--gold)}
+  .brush .tip{width:6px;height:6px;border-radius:50%;position:absolute;top:2px;left:50%;transform:translateX(-50%)}
+  .pgtools{position:absolute;right:16px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:10}
+  .pgtools .tool{width:40px;height:40px;background:rgba(29,29,32,.92);border:1px solid var(--line);backdrop-filter:blur(6px)}
+  .pgtools .tool.on{box-shadow:inset 0 0 0 1px var(--gold);background:var(--gold-dim)}
+  .pgtools .tool svg{width:20px;height:20px}
+  .zoomstrip{position:absolute;left:14px;right:14px;bottom:106px;height:118px;background:rgba(29,29,32,.97);border:1px solid var(--gold);border-radius:18px;z-index:9;display:none;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.6)}
+  .zoomstrip.open{display:block}
+  .zoomstrip .zpaper{position:absolute;inset:8px 8px 8px 8px;border-radius:12px;background:#121214;background-image:repeating-linear-gradient(180deg,transparent 0 49px,rgba(212,175,55,.2) 49px 50px)}
+  .zoomstrip .zlabel{position:absolute;top:6px;left:14px;font-size:9px;letter-spacing:.16em;color:var(--gold);text-transform:uppercase}
+  .zoomstrip .zink{position:absolute;inset:0}
+  .zoomstrip .zadv{position:absolute;right:14px;bottom:10px;font-size:10px;color:var(--muted);display:flex;gap:6px;align-items:center}
+  .zoomstrip .zadv b{color:var(--gold)}
+  .zoombox{position:absolute;border:1.5px solid var(--gold);border-radius:6px;box-shadow:0 0 0 2px rgba(212,175,55,.2);pointer-events:none;z-index:8}
+  .lasso{position:absolute;border:1.5px dashed var(--gold);border-radius:10px;pointer-events:none;z-index:8}
+  .lassomenu{position:absolute;background:var(--card2);border:1px solid var(--gold);border-radius:999px;padding:4px 6px;display:flex;gap:2px;z-index:11;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .lassomenu div{padding:8px 10px;font-size:12px;color:var(--gold);border-radius:999px;cursor:pointer;white-space:nowrap}
+  .lassomenu div:active{background:var(--gold-dim)}
+  .handle{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--gold);border:2px solid #000;z-index:9}
+  .tplsheet .tpls{display:flex;gap:10px;padding:6px 0 14px;overflow-x:auto;scrollbar-width:none}
+  .tplsheet .tpl{flex:none;width:74px;text-align:center;font-size:11px;color:var(--muted);cursor:pointer}
+  .tplsheet .tpl .pv{width:74px;height:98px;border-radius:10px;border:1px solid var(--line);margin-bottom:6px}
+  .tplsheet .tpl.on .pv{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+  .tplsheet .tpl.on{color:var(--gold)}
+  .pagestrip{display:flex;gap:10px;padding:4px 0 10px;overflow-x:auto;scrollbar-width:none}
+  .pagestrip .pg{flex:none;width:58px;height:78px;border-radius:8px;border:1px solid var(--line);background:#121214;position:relative;font-size:10px;color:var(--muted);display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;cursor:pointer}
+  .pagestrip .pg.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold);color:var(--gold)}
+  .pagestrip .pg.add{border-style:dashed;align-items:center;font-size:20px;color:var(--gold);padding:0}
+  .textbox{position:absolute;border:1px dashed var(--line);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--text);background:rgba(22,22,24,.6);z-index:6}
+  .textbox.ivory{color:#2a2417;background:rgba(255,255,255,.5);border-color:rgba(90,70,20,.35)}
+  .imgbox{position:absolute;border-radius:10px;overflow:hidden;z-index:6;border:1px solid var(--line)}
+  .audiobar{position:absolute;left:14px;right:14px;bottom:106px;height:52px;background:rgba(29,29,32,.97);border:1px solid var(--line);border-radius:999px;display:flex;align-items:center;gap:10px;padding:0 8px 0 6px;z-index:9}
+  .audiobar .pl{width:38px;height:38px;border-radius:50%;background:var(--gold);flex:none;display:flex;align-items:center;justify-content:center}
+  .audiobar .pl::after{content:"";border-left:12px solid #000;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px}
+  .audiobar .wave{height:26px}
+  .audiobar small{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;padding-right:6px}
+  .audiobar .mark{position:absolute;top:-6px;width:2px;height:64px;background:var(--gold);opacity:.8}
+
+  /* pdf annotate */
+  .pdfwrap{flex:1;position:relative;overflow:hidden;background:#0e0e10}
+  .pdfpage{position:absolute;left:14px;right:14px;top:8px;bottom:0;background:#fff;border-radius:12px 12px 0 0;overflow:hidden;box-shadow:0 0 0 1px var(--line),0 -10px 40px rgba(0,0,0,.5);color:#1a1a1a;font-family:Georgia,"Times New Roman",serif;padding:26px 24px}
+  .pdfpage h3{margin:0 0 6px;font-size:19px;font-weight:700;color:#111}
+  .pdfpage h5{margin:12px 0 6px;font-size:12px;font-weight:700;color:#222;font-family:inherit}
+  .pdfpage p{margin:0 0 8px;font-size:10.5px;line-height:1.55;color:#2a2a2a;text-align:justify}
+  .pdfpage .fig{height:96px;border-radius:8px;background:linear-gradient(135deg,#efe6d2,#d8c9a8);margin:8px 0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6b5a33;font-style:italic;position:relative;overflow:hidden}
+  .pdfpage .fig::before{content:"";position:absolute;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 40%,#f6d27a,#c9862b 45%,#8a4a1e 70%,#4a2a14 72%,#2b3a4a 75%);right:22px;top:-12px}
+  .pdfpage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;z-index:3}
+  .hl{background:linear-gradient(180deg,transparent 45%,rgba(240,215,122,.75) 45%);}
+  .pdfnum{position:absolute;left:50%;transform:translateX(-50%);bottom:112px;background:rgba(29,29,32,.95);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:11px;color:var(--gold);letter-spacing:.1em;z-index:9}
+
+  /* nav helper */
+  .nav{display:grid;grid-template-columns:repeat(11,1fr);gap:6px;width:390px;flex:none}
+  .nav button{background:#1f1f22;color:var(--gold);border:1px solid var(--line);border-radius:999px;padding:8px 0;font-size:11px;cursor:pointer;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nav button.on{background:var(--gold);color:#000}
+  .navlabel{font-size:11px;color:var(--muted2);letter-spacing:.14em;text-transform:uppercase;margin-top:-6px}
+  .hint{position:fixed;top:14px;left:50%;transform:translateX(-50%);color:var(--muted);font-size:12px;background:#1f1f22;border:1px solid var(--line);padding:6px 12px;border-radius:999px;z-index:100;white-space:nowrap}
+  .toast{position:absolute;left:16px;right:16px;bottom:110px;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:13px;display:flex;align-items:center;gap:10px;transform:translateY(20px);opacity:0;transition:all .25s;z-index:40;pointer-events:none}
+  .toast.show{transform:none;opacity:1;pointer-events:auto}
+  .toast b{margin-left:auto;color:var(--gold);cursor:pointer}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--card2);border:1px solid var(--line);border-bottom:0;border-radius:26px 26px 0 0;padding:10px 16px 34px;transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);z-index:80}
+  .sheet.open{transform:none}
+  .sheet .grab{width:40px;height:4px;border-radius:4px;background:var(--muted2);margin:4px auto 14px}
+  .sheet h6{margin:0 0 10px;font-size:13px;color:var(--gold);letter-spacing:.14em;text-transform:uppercase}
+  .srowi{display:flex;align-items:center;gap:14px;padding:12px 6px;font-size:15px;cursor:pointer;border-radius:12px}
+  .srowi:active{background:var(--gold-dim)}
+  .colors{display:flex;gap:12px;padding:6px 6px 16px}
+  .colors i{width:34px;height:34px;border-radius:50%;display:block;cursor:pointer;border:2px solid transparent}
+  .colors i.on{border-color:var(--gold)}
+  .linkpick{position:absolute;left:22px;right:22px;background:var(--card2);border:1px solid var(--gold);border-radius:16px;padding:6px;display:none;z-index:30;box-shadow:0 12px 30px rgba(0,0,0,.6)}
+  .linkpick.open{display:block}
+  .linkpick div{padding:10px 12px;border-radius:10px;font-size:14px;cursor:pointer;display:flex;gap:10px;align-items:center}
+  .linkpick div:active{background:var(--gold-dim)}
+  .linkpick small{color:var(--muted2);margin-left:auto}
+</style>
+</head>
+<body>
+
+<div class="hint">Clickable mockup — tap around like a real phone</div>
+
+<div class="phone"><div class="screen">
+  <div class="notch"></div>
+  <div class="status"><span id="clock">9:41</span><div class="right">
+    <svg viewBox="0 0 24 24"><path d="M2 20h3V10H2v10zm5 0h3V6H7v14zm5 0h3V2h-3v18zm5 0h3v-7h-3v7z"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M16 4h-1V2h-6v2H8C6.9 4 6 4.9 6 6v14c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+  </div></div>
+  <div class="homebar"></div>
+
+  <!-- ================= HOME ================= -->
+  <section class="view active" id="v-home">
+    <div class="topbar">
+      <div class="btn iconbtn" onclick="openDrawer()"><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></div>
+      <div class="search"><svg class="icon" viewBox="0 0 24 24" style="width:18px;height:18px"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input placeholder="Search notes" oninput="filterNotes(this.value)"><div class="avatar">T</div></div>
+      <div class="btn iconbtn" onclick="toggleLayout(this)"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg></div>
+    </div>
+    <div class="chips" id="chips">
+      <div class="chip on" onclick="pickChip(this,'all')">All <span class="n">14</span></div>
+      <div class="chip" onclick="pickChip(this,'unfiled')">Unfiled <span class="n">3</span></div>
+      <div class="chip" onclick="pickChip(this,'work')"><i style="width:8px;height:8px;border-radius:50%;background:#6E9BD1;display:block"></i>Work <span class="n">5</span></div>
+      <div class="chip" onclick="pickChip(this,'ideas')"><i style="width:8px;height:8px;border-radius:50%;background:#4FB08A;display:block"></i>Ideas <span class="n">4</span></div>
+      <div class="chip" onclick="pickChip(this,'personal')"><i style="width:8px;height:8px;border-radius:50%;background:#B15A8C;display:block"></i>Personal <span class="n">2</span></div>
+      <div class="chip" onclick="toast('New folder…')">+</div>
+    </div>
+    <div class="scroll" id="homescroll">
+      <div class="section caps">Pinned</div>
+      <div class="grid" id="pinned">
+        <div class="card tint-gold" data-f="work" onclick="go('v-editor')"><div class="ribbon"></div>
+          <h4>Q3 launch plan</h4><p>Ship the Notebook v1 build, gather feedback from the beta group, then decide on the widget set. Check with <span class="goldtext">[[Design system]]</span> before finalizing gold tones.</p>
+          <div class="foot"><span class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>3</span><span class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M21.4 11.6l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7c0 .5.2 1 .6 1.4l9 9a2 2 0 0 0 2.8 0l7-7a2 2 0 0 0 0-2.8z"/></svg>2</span><span style="margin-left:auto">2h ago</span></div></div>
+        <div class="card" data-f="personal" onclick="go('v-checklist')"><div class="ribbon"></div>
+          <h4>Grocery run</h4><div class="cl"><div><i class="cb on"></i><span class="done">Coffee beans</span></div><div><i class="cb on"></i><span class="done">Oat milk</span></div><div><i class="cb"></i>Eggs</div><div><i class="cb"></i>Bananas</div><div style="color:var(--muted2);padding-left:24px">+2 more</div></div>
+          <div class="foot"><span class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>5:00 PM</span><span style="margin-left:auto">Today</span></div></div>
+      </div>
+      <div class="section caps">Others</div>
+      <div class="grid" id="others">
+        <div class="card" data-f="ideas" onclick="go('v-sketch')"><div class="thumb"><svg viewBox="0 0 160 120"><path d="M20 90 C 40 20, 70 20, 80 70 S 120 110, 145 40" stroke="#D4AF37" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M30 40 l20 -15 l15 25" stroke="#F5F2EA" stroke-width="2.5" fill="none" stroke-linecap="round"/><circle cx="120" cy="80" r="14" stroke="#6E9BD1" stroke-width="3" fill="none"/></svg></div><h4>Logo sketches</h4><div class="foot"><span>Sketch</span><span style="margin-left:auto">Yesterday</span></div></div>
+        <div class="card tint-sapphire" data-f="work" onclick="go('v-editor')"><h4>Design system</h4><p>Gold #D4AF37 on graphite #161618. Hairline borders at 28% alpha. Ripple = soft gold glow, never gray. Cards 18dp radius.</p><div class="foot"><span class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>4</span><span style="margin-left:auto">Yesterday</span></div></div>
+        <div class="card" data-f="personal" onclick="go('v-lock')"><div class="lockcard"><svg class="icon" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><h4 style="margin:0">Passwords &amp; keys</h4></div><div class="foot"><span>Locked</span><span style="margin-left:auto">3d ago</span></div></div>
+        <div class="card tint-emerald" data-f="ideas" onclick="go('v-editor')"><div class="thumb photo"></div><h4>Trip to Camiguin</h4><p>White Island at sunrise, then Katibawasan Falls. Book the ferry from Balingoan the night before.</p><div class="foot"><span class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M21.4 11.6l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7c0 .5.2 1 .6 1.4l9 9a2 2 0 0 0 2.8 0l7-7a2 2 0 0 0 0-2.8z"/></svg>6</span><span style="margin-left:auto">4d ago</span></div></div>
+        <div class="card tint-wine" data-f="work" onclick="go('v-editor')"><h4>Client call — notes</h4><div class="audio" style="margin:0 0 6px;padding:8px 10px"><div class="pl" style="width:30px;height:30px"></div><div class="wave"><i style="height:30%"></i><i style="height:60%"></i><i style="height:90%"></i><i style="height:45%"></i><i style="height:70%"></i><i style="height:35%"></i><i style="height:80%"></i><i style="height:50%"></i><i style="height:25%"></i><i style="height:65%"></i></div><small>12:34</small></div><p>Voice memo + action items.</p><div class="foot"><span style="margin-left:auto">1w ago</span></div></div>
+        <div class="card" data-f="work" onclick="go('v-pages')"><div class="thumb" style="background:#121214;background-image:repeating-linear-gradient(180deg,transparent 0 11px,rgba(212,175,55,.18) 11px 12px)"><svg viewBox="0 0 160 120"><path d="M18 30c10-10 18 6 26-2s14 8 24 0 16 6 26-2" stroke="#F5F2EA" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M18 58c12-8 20 4 30-4s16 6 28 0 14 4 26-2" stroke="#F5F2EA" stroke-width="2.2" fill="none" stroke-linecap="round"/><path d="M18 86h60" stroke="#E5C36B" stroke-width="8" opacity=".45" stroke-linecap="round"/><path d="M18 86c12-8 20 4 30-4s16 6 28 0" stroke="#F5F2EA" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></div><h4>Physics — Week 3</h4><div class="foot"><span class="badge"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>4:12</span><span>4 pages</span><span style="margin-left:auto">Yesterday</span></div></div>
+        <div class="card" data-f="unfiled" onclick="go('v-editor')"><h4>Book list</h4><p>Atomic Habits · Deep Work · The Design of Everyday Things · Make Time</p><div class="foot"><span style="margin-left:auto">2w ago</span></div></div>
+        <div class="card tint-plum" data-f="ideas" onclick="go('v-editor')"><h4>App ideas</h4><p>Graph view for notes — gold dots, thin lines. Voice memo transcription later. Widget that shows today's reminders.</p><div class="foot"><span class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>2</span><span style="margin-left:auto">2w ago</span></div></div>
+      </div>
+    </div>
+    <div class="fabmenu" id="fabmenu">
+      <div class="mini" onclick="go('v-pages');closeFab()"><span>Handwriting pages</span><div class="b"><svg class="icon" viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M12 8l4 4"/></svg></div></div>
+      <div class="mini" onclick="go('v-sketch');closeFab()"><span>Sketch</span><div class="b"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.6 7.6"/><circle cx="11" cy="11" r="2"/></svg></div></div>
+      <div class="mini" onclick="go('v-checklist');closeFab()"><span>Checklist</span><div class="b"><svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div></div>
+      <div class="mini" onclick="go('v-editor');closeFab()"><span>Text note</span><div class="b"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div></div>
+    </div>
+    <div class="fab" id="fab" onclick="toggleFab()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+    <div class="toast" id="toast"><span id="toastmsg">Note moved to Trash</span><b onclick="hideToast()">UNDO</b></div>
+  </section>
+
+  <!-- ================= EDITOR ================= -->
+  <section class="view tint-gold-bg" id="v-editor">
+    <div class="etop">
+      <div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div class="sp"></div>
+      <div class="saved" id="saved">SAVED</div>
+      <div class="btn iconbtn" onclick="toast('Pinned')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 17v5M5 17h14l-1.5-5H6.5z"/><path d="M8 12V6a4 4 0 0 1 8 0v6"/></svg></div>
+      <div class="btn iconbtn" onclick="openSheet('colorsheet')"><svg class="icon" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.2"/><circle cx="17.5" cy="10.5" r="1.2"/><circle cx="8.5" cy="7.5" r="1.2"/><circle cx="6.5" cy="12.5" r="1.2"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.7 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.7 1.7-1.7H16.5c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"/></svg></div>
+      <div class="btn iconbtn" onclick="openSheet('moresheet')"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></div>
+    </div>
+    <div class="editor">
+      <div class="etitle" contenteditable="true" spellcheck="false">Q3 launch plan</div>
+      <div class="emeta">Work · Edited 2h ago · 148 words</div>
+      <div class="attach">
+        <div class="att photo" onclick="toast('Opens full-screen viewer')"><div class="lbl"><span>IMG_2041</span><span>2.1 MB</span></div></div>
+        <div class="att video" onclick="toast('Plays in-app')"><div class="play"></div><div class="lbl"><span>Demo.mp4</span><span>0:42</span></div></div>
+        <div class="att pdf" onclick="go('v-pdf')"><span class="tag">PDF</span><div class="pg"></div><div class="lbl"><span>Brief.pdf</span><span>12 pages</span></div></div>
+        <div class="att" onclick="toast('Opens sketch')"><svg viewBox="0 0 112 84" style="width:100%;height:100%"><path d="M14 64 C 30 14, 52 14, 58 50 S 86 78, 100 26" stroke="#D4AF37" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg><div class="lbl"><span>Sketch</span><span></span></div></div>
+        <div class="att" onclick="toast('Opens with Files app')" style="gap:6px"><svg class="icon" viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><div class="lbl"><span>spec.docx</span><span>88 KB</span></div></div>
+      </div>
+      <div class="audio"><div class="pl" onclick="togglePlay(this)"></div><div class="wave" id="wave"></div><small id="atime">0:00 / 1:12</small></div>
+      <div class="ebody" contenteditable="true" spellcheck="false" onkeyup="maybeLinkPick(event)">Ship the Notebook v1 build, gather feedback from the beta group, then decide on the widget set. Check with <span class="link" contenteditable="false" onclick="toast('Opens “Design system”')"><svg class="icon" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>Design system</span> before finalizing gold tones.
+
+Open questions
+• Sticky widget: 2×2 only or also 4×2?
+• Voice memos: keep raw or compress? See <span class="link" contenteditable="false" onclick="toast('Opens “App ideas”')"><svg class="icon" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>App ideas</span>
+
+Type [[ anywhere to link another note.</div>
+      <div class="linked">
+        <div class="caps">Links →</div>
+        <div class="lrow" onclick="toast('Opens “Design system”')"><span class="arrow">→</span>Design system<small>Work</small></div>
+        <div class="lrow" onclick="toast('Opens “App ideas”')"><span class="arrow">→</span>App ideas<small>Ideas</small></div>
+        <div class="caps" style="margin-top:16px">← Backlinks</div>
+        <div class="lrow" onclick="toast('Opens “Client call — notes”')"><span class="arrow">←</span>Client call — notes<small>Work</small></div>
+      </div>
+    </div>
+    <div class="linkpick" id="linkpick">
+      <div onclick="insertLink('Design system')"><svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Design system<small>Work</small></div>
+      <div onclick="insertLink('App ideas')"><svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>App ideas<small>Ideas</small></div>
+      <div onclick="insertLink('Trip to Camiguin')"><svg class="icon" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>Trip to Camiguin<small>Ideas</small></div>
+    </div>
+    <div class="ebar">
+      <div class="btn iconbtn" onclick="openSheet('attachsheet')" title="Attach"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
+      <div class="btn iconbtn" onclick="showLinkPick()" title="Link note"><svg class="icon" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg></div>
+      <div class="btn iconbtn" onclick="go('v-checklist')" title="Checklist"><svg class="icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+      <div class="btn iconbtn" onclick="toast('Reminder set: Today 5:00 PM')" title="Reminder"><svg class="icon" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+      <div class="btn iconbtn" onclick="toast('Note locked 🔒')" title="Lock"><svg class="icon" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <div class="btn iconbtn" onclick="toast('Undo')" title="Undo"><svg class="icon" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-2"/></svg></div>
+      <div class="btn iconbtn dim" title="Redo"><svg class="icon" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h2"/></svg></div>
+    </div>
+
+    <div class="scrim" onclick="closeSheets()" id="escrim"></div>
+    <div class="sheet" id="attachsheet"><div class="grab"></div><h6>Attach</h6>
+      <div class="srowi" onclick="closeSheets();toast('Camera opens (asks permission first time)')"><svg class="icon" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Take photo</div>
+      <div class="srowi" onclick="closeSheets();toast('Gallery picker (no permission needed)')"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Photo or video</div>
+      <div class="srowi" onclick="closeSheets();toast('Recording… (asks mic permission first time)')"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>Record voice memo</div>
+      <div class="srowi" onclick="closeSheets();toast('System file picker')"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>PDF or any file</div>
+      <div class="srowi" onclick="closeSheets();go('v-sketch')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>New sketch</div>
+    </div>
+    <div class="sheet" id="colorsheet"><div class="grab"></div><h6>Note color</h6>
+      <div class="colors"><i style="background:#161618;border-color:var(--gold)" class="on"></i><i style="background:#2a2412"></i><i style="background:#2c1719"></i><i style="background:#14281e"></i><i style="background:#141f30"></i><i style="background:#26182d"></i><i style="background:#2a1f16"></i></div>
+    </div>
+    <div class="sheet" id="moresheet"><div class="grab"></div><h6>More</h6>
+      <div class="srowi" onclick="closeSheets();toast('Move to folder…')"><svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Move to folder</div>
+      <div class="srowi" onclick="closeSheets();toast('Share sheet')"><svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Share</div>
+      <div class="srowi" onclick="closeSheets();toast('Duplicated')"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Duplicate</div>
+      <div class="srowi" onclick="closeSheets();toast('Created 12 Aug · 148 words · 5 attachments')"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Note info</div>
+      <div class="srowi" style="color:var(--danger)" onclick="closeSheets();go('v-home');toast('Note moved to Trash',true)"><svg class="icon" viewBox="0 0 24 24" style="stroke:var(--danger)"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Delete</div>
+    </div>
+  </section>
+
+  <!-- ================= CHECKLIST ================= -->
+  <section class="view" id="v-checklist">
+    <div class="etop">
+      <div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div class="sp"></div>
+      <div class="saved">SAVED</div>
+      <div class="btn iconbtn"><svg class="icon" viewBox="0 0 24 24"><path d="M12 17v5M5 17h14l-1.5-5H6.5z"/><path d="M8 12V6a4 4 0 0 1 8 0v6"/></svg></div>
+      <div class="btn iconbtn" onclick="toast('Uncheck all · Delete checked · Convert to text')"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></div>
+    </div>
+    <div class="editor" style="padding-left:14px;padding-right:14px">
+      <div class="etitle" contenteditable="true" style="padding:0 8px">Grocery run</div>
+      <div class="emeta" style="padding:0 8px">Personal · Reminder today 5:00 PM</div>
+      <div class="clist" id="clist">
+        <div class="crow" onclick="checkItem(this)"><i class="cb"></i><span class="t">Eggs</span><span class="drag">⋮⋮</span></div>
+        <div class="crow" onclick="checkItem(this)"><i class="cb"></i><span class="t">Bananas</span><span class="drag">⋮⋮</span></div>
+        <div class="crow" onclick="checkItem(this)"><i class="cb"></i><span class="t">Sourdough</span><span class="drag">⋮⋮</span></div>
+        <div class="crow" onclick="checkItem(this)"><i class="cb"></i><span class="t">Dish soap</span><span class="drag">⋮⋮</span></div>
+        <div class="addrow" onclick="addItem()"><span class="plus">+</span>Add item</div>
+        <div class="comp" onclick="toggleComp(this)"><span class="caps">Completed (<span id="compn">2</span>)</span><span class="chev">⌄</span></div>
+        <div class="compbody" id="compbody">
+          <div class="crow done" onclick="checkItem(this)"><i class="cb on"></i><span class="t">Coffee beans</span><span class="drag">⋮⋮</span></div>
+          <div class="crow done" onclick="checkItem(this)"><i class="cb on"></i><span class="t">Oat milk</span><span class="drag">⋮⋮</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="ebar">
+      <div class="btn iconbtn"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
+      <div class="btn iconbtn"><svg class="icon" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg></div>
+      <div class="btn iconbtn" onclick="go('v-editor')"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h14"/></svg></div>
+      <div class="btn iconbtn"><svg class="icon" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+      <div class="btn iconbtn"><svg class="icon" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <div class="btn iconbtn"><svg class="icon" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-2"/></svg></div>
+      <div class="btn iconbtn dim"><svg class="icon" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h2"/></svg></div>
+    </div>
+  </section>
+
+  <!-- ================= SKETCH ================= -->
+  <section class="view" id="v-sketch">
+    <div class="etop" style="background:var(--bg)">
+      <div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div class="title" style="flex:1;font-size:17px;font-weight:600">Logo sketches</div>
+      <div class="btn iconbtn" onclick="toggleBg()" title="Background"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="#D4AF37"/></svg></div>
+    </div>
+    <div class="canvaswrap" id="cw"><canvas id="cv"></canvas>
+      <div class="palette" id="palette">
+        <i style="background:#D4AF37" class="on" onclick="setColor(this,'#D4AF37')"></i><i style="background:#F5F2EA" onclick="setColor(this,'#F5F2EA')"></i><i style="background:#6E9BD1" onclick="setColor(this,'#6E9BD1')"></i><i style="background:#4FB08A" onclick="setColor(this,'#4FB08A')"></i><i style="background:#C7554D" onclick="setColor(this,'#C7554D')"></i><i style="background:#B15A8C" onclick="setColor(this,'#B15A8C')"></i><i style="background:#E0873A" onclick="setColor(this,'#E0873A')"></i><i style="background:#8E7CC3" onclick="setColor(this,'#8E7CC3')"></i><i style="background:#57C7C0" onclick="setColor(this,'#57C7C0')"></i><i style="background:#A7A39A" onclick="setColor(this,'#A7A39A')"></i><i style="background:#111" onclick="setColor(this,'#111')"></i><i style="background:#E5C36B" onclick="setColor(this,'#E5C36B')"></i>
+        <div class="widths"><i style="width:8px;height:8px" onclick="setWidth(this,3)"></i><i style="width:14px;height:14px" class="on" onclick="setWidth(this,6)"></i><i style="width:22px;height:22px" onclick="setWidth(this,12)"></i></div>
+      </div>
+      <div class="tools">
+        <div class="tool on" id="t-pen" onclick="setTool('pen')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.6 7.6"/></svg></div>
+        <div class="tool" id="t-hl" onclick="setTool('hl')"><svg class="icon" viewBox="0 0 24 24"><path d="M9 11l-6 6v3h9l3-3"/><path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></div>
+        <div class="tool" id="t-er" onclick="setTool('er')"><svg class="icon" viewBox="0 0 24 24"><path d="M20 20H7L3 16a2 2 0 0 1 0-2.8L13.2 3a2 2 0 0 1 2.8 0L21 8a2 2 0 0 1 0 2.8L12 20"/><path d="M6 12l6 6"/></svg></div>
+        <div class="tool" onclick="togglePalette()"><div class="swatch" id="swatch" style="background:#D4AF37"></div></div>
+        <div class="tool" onclick="undoStroke()"><svg class="icon" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-2"/></svg></div>
+        <div class="tool" onclick="redoStroke()"><svg class="icon" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h2"/></svg></div>
+        <div class="tool" onclick="clearCanvas()"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= GRAPH ================= -->
+  <section class="view" id="v-graph">
+    <div class="etop">
+      <div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div class="title" style="flex:1;font-size:20px;font-weight:600">Graph</div>
+      <div class="btn iconbtn" onclick="toast('Filter by folder')"><svg class="icon" viewBox="0 0 24 24"><path d="M22 3H2l8 9.5V19l4 2v-8.5z"/></svg></div>
+    </div>
+    <div class="graphwrap"><svg id="graph" viewBox="0 0 390 700"></svg>
+      <div class="legend"><span><i style="background:#6E9BD1"></i>Work</span><span><i style="background:#4FB08A"></i>Ideas</span><span><i style="background:#B15A8C"></i>Personal</span><span><i style="background:var(--gold)"></i>Hub</span></div>
+    </div>
+  </section>
+
+  <!-- ================= TRASH ================= -->
+  <section class="view" id="v-trash">
+    <div class="etop">
+      <div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div class="title" style="flex:1;font-size:20px;font-weight:600">Trash</div>
+    </div>
+    <div class="trashbar"><div class="obtn" onclick="toast('Trash emptied')">Empty trash</div></div>
+    <div class="scroll"><div style="font-size:12px;color:var(--muted2);padding:10px 4px">Notes are deleted forever after 30 days.</div>
+      <div class="grid">
+        <div class="card trash" onclick="openSheet('trashsheet')"><h4>Old todo list</h4><p>Pay electric bill · Renew ID · Call plumber</p><div class="foot"><span>Deleted 3d ago</span></div></div>
+        <div class="card trash tint-wine" onclick="openSheet('trashsheet')"><h4>Draft — cover letter</h4><p>Dear hiring manager, I'm writing to apply…</p><div class="foot"><span>Deleted 1w ago</span></div></div>
+        <div class="card trash" onclick="openSheet('trashsheet')"><h4>Wifi passwords (old)</h4><p>—</p><div class="foot"><span>Deleted 2w ago</span></div></div>
+      </div>
+    </div>
+    <div class="scrim" onclick="closeSheets()"></div>
+    <div class="sheet" id="trashsheet"><div class="grab"></div><h6>Old todo list</h6>
+      <div class="srowi" onclick="closeSheets();toast('Restored')"><svg class="icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Restore</div>
+      <div class="srowi" style="color:var(--danger)" onclick="closeSheets();toast('Deleted forever')"><svg class="icon" viewBox="0 0 24 24" style="stroke:var(--danger)"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Delete forever</div>
+    </div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="view" id="v-settings">
+    <div class="etop">
+      <div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div class="title" style="flex:1;font-size:20px;font-weight:600">Settings</div>
+    </div>
+    <div class="scroll">
+      <div class="caps sgl">Appearance</div>
+      <div class="sgroup">
+        <div class="themes">
+          <div class="theme on" onclick="pickTheme(this)"><div class="sw2" style="background:linear-gradient(135deg,#0b0b0c 60%,#d4af37)"></div>Black &amp; Gold</div>
+          <div class="theme" onclick="pickTheme(this)"><div class="sw2" style="background:linear-gradient(135deg,#f5f0e1 60%,#c9a227)"></div>Ivory &amp; Gold</div>
+          <div class="theme" onclick="pickTheme(this)"><div class="sw2" style="background:linear-gradient(135deg,#000 60%,#d4af37)"></div>Pure AMOLED</div>
+        </div>
+        <div class="srow"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>Layout<span class="v">Grid</span></div>
+        <div class="srow"><svg class="icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h6"/></svg>Sort<span class="v">Last edited</span></div>
+        <div class="srow"><svg class="icon" viewBox="0 0 24 24"><path d="M4 20h16M6 16L12 4l6 12M8.5 11h7"/></svg>Font size<span class="v">Medium</span></div>
+        <div class="srow"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Default new note<span class="v">Text</span></div>
+      </div>
+      <div class="caps sgl">Security</div>
+      <div class="sgroup">
+        <div class="srow"><svg class="icon" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Change PIN<span class="v">••••</span></div>
+        <div class="srow" onclick="this.querySelector('.sw').classList.toggle('on')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 11c0 3-1 5-3 7M8 7a5 5 0 0 1 9 3c0 5-1.5 7.5-3 9M5 10a7 7 0 0 1 12.5-4M4.5 15c.6-1.5.8-3 .8-5M12 14.5c-.5 2.5-1.6 4.5-3.5 6"/></svg>Fingerprint unlock<span class="sw on"></span></div>
+        <div class="srow"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Auto-lock<span class="v">After 1 min</span></div>
+      </div>
+      <div class="caps sgl">Data</div>
+      <div class="sgroup">
+        <div class="srow"><svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Storage used<span class="v">312 MB · 14 notes</span></div>
+        <div class="srow" onclick="toast('Export via system file picker')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3"/></svg>Export backup<span class="v">.zip</span></div>
+        <div class="srow" onclick="toast('Import via system file picker')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 17v3h16v-3"/></svg>Import backup</div>
+      </div>
+      <div class="caps sgl">About</div>
+      <div class="sgroup">
+        <div class="srow"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Notebook by Troy<span class="v">v1.0.0</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= LOCK ================= -->
+  <section class="view" id="v-lock">
+    <div class="etop"><div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div></div>
+    <div class="lockview">
+      <div class="lockicon"><svg class="icon" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <div style="font-size:18px;font-weight:600">Passwords &amp; keys</div>
+      <div style="font-size:13px;color:var(--muted)">Enter your PIN to open this note</div>
+      <div class="pins" id="pins"><i></i><i></i><i></i><i></i></div>
+      <div class="keypad">
+        <div class="key" onclick="pin()">1</div><div class="key" onclick="pin()">2</div><div class="key" onclick="pin()">3</div>
+        <div class="key" onclick="pin()">4</div><div class="key" onclick="pin()">5</div><div class="key" onclick="pin()">6</div>
+        <div class="key" onclick="pin()">7</div><div class="key" onclick="pin()">8</div><div class="key" onclick="pin()">9</div>
+        <div class="key fp" onclick="fpUnlock()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 11c0 3-1 5-3 7M8 7a5 5 0 0 1 9 3c0 5-1.5 7.5-3 9M5 10a7 7 0 0 1 12.5-4M4.5 15c.6-1.5.8-3 .8-5M12 14.5c-.5 2.5-1.6 4.5-3.5 6"/></svg></div>
+        <div class="key" onclick="pin()">0</div><div class="key" onclick="pinBack()" style="font-size:18px">⌫</div>
+      </div>
+      <div style="font-size:12px;color:var(--gold);margin-top:6px" onclick="toast('Confirm with your phone screen lock to reset')">Forgot PIN?</div>
+    </div>
+  </section>
+
+  <!-- ================= WIDGETS ================= -->
+  <section class="view" id="v-widgets">
+    <div class="wallpaper">
+      <div style="font-size:12px;color:var(--muted);text-align:center;margin-top:2px">Home screen preview — widgets</div>
+      <div class="wg" onclick="go('v-checklist')"><h5><span style="width:10px;height:18px;background:linear-gradient(180deg,var(--gold2),var(--gold));clip-path:polygon(0 0,100% 0,100% 100%,50% 76%,0 100%);display:inline-block"></span>Grocery run</h5>
+        <div class="cl"><div><i class="cb on"></i><span class="done">Coffee beans</span></div><div><i class="cb on"></i><span class="done">Oat milk</span></div><div><i class="cb"></i>Eggs</div><div><i class="cb"></i>Bananas</div><div><i class="cb"></i>Sourdough</div></div>
+        <div style="font-size:10px;color:var(--muted2);margin-top:8px">Sticky note · 2×2</div></div>
+      <div class="wg list"><div class="head"><b style="font-size:14px">Notebook</b><div class="plus" onclick="go('v-editor')">+</div></div>
+        <div class="item" onclick="go('v-editor')"><b>Q3 launch plan</b><small>2h</small></div>
+        <div class="item" onclick="go('v-checklist')"><b>Grocery run</b><small>Today</small></div>
+        <div class="item" onclick="go('v-sketch')"><b>Logo sketches</b><small>1d</small></div>
+        <div class="item" onclick="go('v-editor')"><b>Design system</b><small>1d</small></div>
+        <div class="item" onclick="go('v-lock')"><b>🔒 Locked note</b><small>3d</small></div>
+        <div style="font-size:10px;color:var(--muted2);margin-top:8px">Note list · 4×3</div></div>
+      <div class="apps">
+        <div class="app"><img src="icon.png" alt=""><span>Notebook</span></div>
+        <div class="app" onclick="go('v-editor')"><div class="ic new"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div><span>New note</span></div>
+        <div class="app"><div class="ic"></div><span>Phone</span></div>
+        <div class="app"><div class="ic"></div><span>Camera</span></div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================= PAGES (handwriting) ================= -->
+  <section class="view" id="v-pages">
+    <div class="pgtop">
+      <div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div class="title">Physics — Week 3</div>
+      <div class="recdot" id="recdot" onclick="toggleRec()"><i></i>REC 04:12</div>
+      <div class="btn iconbtn" onclick="openSheet('pagesheet')"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="3" width="12" height="16" rx="2"/><path d="M8 21h10a2 2 0 0 0 2-2V8"/></svg></div>
+      <div class="btn iconbtn" onclick="openSheet('pgmore')"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></div>
+    </div>
+    <div class="pgwrap" id="pgwrap">
+      <div class="paper black tpl-lined" id="paper"><canvas id="pcv"></canvas>
+        <div class="textbox" style="left:18px;top:14px;font-weight:600;font-size:15px;border-color:transparent;background:transparent">Newton's 2nd law</div>
+        <div class="imgbox" style="right:16px;top:64px;width:104px;height:78px;background:linear-gradient(135deg,#2a2412,#161618)"><svg viewBox="0 0 104 78" style="width:100%;height:100%"><rect x="30" y="30" width="34" height="24" rx="3" fill="none" stroke="#D4AF37" stroke-width="2"/><path d="M64 42h24" stroke="#F5F2EA" stroke-width="2"/><path d="M84 36l6 6-6 6" stroke="#F5F2EA" stroke-width="2" fill="none"/><text x="70" y="34" fill="#A7A39A" font-size="9">F</text><text x="40" y="66" fill="#A7A39A" font-size="9">m</text></svg></div>
+        <div class="textbox" style="left:18px;bottom:150px;width:190px;font-size:12px">Text box: a = F / m — acceleration is proportional to net force.</div>
+        <div class="lasso" id="lasso" style="display:none"></div>
+        <div class="lassomenu" id="lassomenu" style="display:none"><div>Move</div><div>Resize</div><div>Color</div><div>Duplicate</div><div style="color:var(--danger)">Delete</div></div>
+        <div class="zoombox" id="zoombox" style="display:none"></div>
+      </div>
+      <div class="pgtools">
+        <div class="tool" id="pt-lasso" onclick="pgTool('lasso')" title="Lasso"><svg class="icon" viewBox="0 0 24 24"><path d="M7 20c-1.5-1-2.5-2.4-2.5-4M4.5 16C3 12 7 6 12 6s8 2.5 8 6-3.6 6-8 6c-1 0-2-.1-3-.4"/><circle cx="7.5" cy="17.5" r="2"/></svg></div>
+        <div class="tool" id="pt-ruler" onclick="pgTool('ruler')" title="Ruler / shapes"><svg class="icon" viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M14 6l2 2M11 9l2 2M8 12l2 2"/></svg></div>
+        <div class="tool" id="pt-zoom" onclick="pgTool('zoom')" title="Zoom to write"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M11 8v6M8 11h6"/></svg></div>
+        <div class="tool" id="pt-text" onclick="pgTool('text')" title="Text box"><svg class="icon" viewBox="0 0 24 24"><path d="M5 6h14M12 6v13M9 19h6"/></svg></div>
+        <div class="tool" id="pt-img" onclick="toast('Insert photo / camera')" title="Image"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+      </div>
+      <div class="zoomstrip" id="zoomstrip"><div class="zpaper"></div><div class="zlabel">Zoom to write · 3× · write big here, it lands small on the page</div><canvas class="zink" id="zcv"></canvas><div class="zadv">auto-advance <b>ON</b> · ⇤ ⇥</div></div>
+      <div class="audiobar" id="audiobar" style="display:none"><div class="pl"></div><div class="wave" id="pwave"></div><small>02:10 / 04:12</small></div>
+      <div class="brushbar" id="brushbar">
+        <div class="brush on" onclick="pgBrush(this,'pen')" title="Pen"><span class="tip" style="background:#D4AF37"></span><svg viewBox="0 0 22 40"><path d="M11 2l4 9v22a4 4 0 0 1-8 0V11z" fill="#1d1d20" stroke="#D4AF37" stroke-width="1.4"/><path d="M11 2l4 9H7z" fill="#D4AF37"/></svg></div>
+        <div class="brush" onclick="pgBrush(this,'ball')" title="Ballpoint"><span class="tip" style="background:#6E9BD1"></span><svg viewBox="0 0 22 40"><path d="M11 3l2.5 7v24a2.5 2.5 0 0 1-5 0V10z" fill="#1d1d20" stroke="#6E9BD1" stroke-width="1.4"/><circle cx="11" cy="3" r="1.4" fill="#6E9BD1"/></svg></div>
+        <div class="brush" onclick="pgBrush(this,'tech')" title="Technical pen"><span class="tip" style="background:#F5F2EA"></span><svg viewBox="0 0 22 40"><path d="M11 2v9M8 11h6v22a3 3 0 0 1-6 0z" fill="#1d1d20" stroke="#F5F2EA" stroke-width="1.4"/></svg></div>
+        <div class="brush" onclick="pgBrush(this,'pencil')" title="Pencil"><span class="tip" style="background:#A7A39A"></span><svg viewBox="0 0 22 40"><path d="M11 2l4 8v24H7V10z" fill="#1d1d20" stroke="#A7A39A" stroke-width="1.4"/><path d="M11 2l4 8H7z" fill="#E5C36B"/><path d="M7 30h8" stroke="#A7A39A"/></svg></div>
+        <div class="brush" onclick="pgBrush(this,'hl')" title="Highlighter"><span class="tip" style="background:#E5C36B"></span><svg viewBox="0 0 22 40"><path d="M6 12h10v22a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="#1d1d20" stroke="#E5C36B" stroke-width="1.4"/><path d="M8 12l3-9 3 9z" fill="#E5C36B"/></svg></div>
+        <div class="brush" onclick="pgBrush(this,'laser')" title="Laser pointer"><span class="tip" style="background:#C7554D"></span><svg viewBox="0 0 22 40"><rect x="8" y="10" width="6" height="26" rx="3" fill="#1d1d20" stroke="#C7554D" stroke-width="1.4"/><circle cx="11" cy="5" r="2.5" fill="#C7554D"/></svg></div>
+        <div class="brush" onclick="pgBrush(this,'eraser')" title="Eraser"><svg viewBox="0 0 22 40"><path d="M5 14l6-6 8 8-6 6z" fill="#F5F2EA"/><path d="M5 14l6-6 8 8-6 6-8 0z" fill="none" stroke="#A7A39A" stroke-width="1.4"/><path d="M13 22H5v14h12V24" fill="#1d1d20" stroke="#A7A39A" stroke-width="1.4"/></svg></div>
+      </div>
+    </div>
+    <div class="scrim" onclick="closeSheets()"></div>
+    <div class="sheet tplsheet" id="pagesheet"><div class="grab"></div><h6>Pages</h6>
+      <div class="pagestrip"><div class="pg">1</div><div class="pg">2</div><div class="pg on">3</div><div class="pg">4</div><div class="pg add">+</div></div>
+      <h6 style="margin-top:8px">Paper</h6>
+      <div class="tpls">
+        <div class="tpl" onclick="setTpl(this,'tpl-blank')"><div class="pv" style="background:#121214"></div>Blank</div>
+        <div class="tpl on" onclick="setTpl(this,'tpl-lined')"><div class="pv" style="background:#121214;background-image:repeating-linear-gradient(180deg,transparent 0 9px,rgba(212,175,55,.25) 9px 10px)"></div>Lined</div>
+        <div class="tpl" onclick="setTpl(this,'tpl-grid')"><div class="pv" style="background:#121214;background-image:linear-gradient(rgba(212,175,55,.2) 1px,transparent 1px),linear-gradient(90deg,rgba(212,175,55,.2) 1px,transparent 1px);background-size:10px 10px"></div>Grid</div>
+        <div class="tpl" onclick="setTpl(this,'tpl-dot')"><div class="pv" style="background:#121214;background-image:radial-gradient(rgba(212,175,55,.5) 1px,transparent 1.2px);background-size:9px 9px"></div>Dotted</div>
+        <div class="tpl" onclick="setTpl(this,'tpl-lined',true)"><div class="pv" style="background:#F4EEDF;background-image:repeating-linear-gradient(180deg,transparent 0 9px,rgba(90,70,20,.25) 9px 10px)"></div>Ivory</div>
+      </div>
+    </div>
+    <div class="sheet" id="pgmore"><div class="grab"></div><h6>Pages note</h6>
+      <div class="srowi" onclick="closeSheets();toggleRec()"><svg class="icon" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>Record audio while writing</div>
+      <div class="srowi" onclick="closeSheets();showAudio()"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h2l2-5 3 10 3-8 2 3h2"/></svg>Playback synced to strokes</div>
+      <div class="srowi" onclick="closeSheets();toast('Exported as PDF')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3"/></svg>Export as PDF</div>
+      <div class="srowi" onclick="closeSheets();toast('Share sheet')"><svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Share</div>
+    </div>
+  </section>
+
+  <!-- ================= PDF ANNOTATE ================= -->
+  <section class="view" id="v-pdf">
+    <div class="pgtop">
+      <div class="btn iconbtn" onclick="go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div class="title">Brief.pdf</div>
+      <div class="btn iconbtn" onclick="toast('Search in PDF')"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></div>
+      <div class="btn iconbtn" onclick="openSheet('pdfmore')"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></div>
+    </div>
+    <div class="pdfwrap">
+      <div class="pdfpage" id="pdfpage">
+        <h3>Layers of the Earth</h3>
+        <h5>Chapter 1: Temperature and Composition</h5>
+        <p>Temperatures deep inside the earth can range from 4,000–6,000°C. <span class="hl">That is as hot as the sun!</span> Because of such immense pressure, rocks remain solids and liquids instead of turning to gasses. Only 50 km beneath the surface, it is already almost 1000°F. The temperatures increase as you go deeper into the earth, with the lithosphere — comprised of the crust and upper mantle — being the coolest, averaging about 300–500°C.</p>
+        <div class="fig">Figure 1.1 — Cross-section of the Earth</div>
+        <p>The asthenosphere is the next layer, averaging about 1,300°C, making it slightly more fluid than the lithosphere above it. It transitions into the place called the “Moho,” or Mohorovičić discontinuity, the point between the crust and the mantle below. <span class="hl">The upper mantle is much stronger than the asthenosphere</span> at about 500–900°C, and the lower mantle is denser and hotter, reaching temperatures over 4,000°C.</p>
+        <p>Finally, the core is the hottest at about 5,000°C, being the most dense of all the layers. The outer core is liquid iron and nickel, while the inner core is solid due to the immense pressure at the centre of the planet.</p>
+        <canvas id="pdfcv"></canvas>
+      </div>
+      <div class="pdfnum">PAGE 3 / 12</div>
+      <div class="pgtools">
+        <div class="tool" onclick="toast('Lasso')"><svg class="icon" viewBox="0 0 24 24"><path d="M7 20c-1.5-1-2.5-2.4-2.5-4M4.5 16C3 12 7 6 12 6s8 2.5 8 6-3.6 6-8 6c-1 0-2-.1-3-.4"/><circle cx="7.5" cy="17.5" r="2"/></svg></div>
+        <div class="tool" onclick="toast('Add text box')"><svg class="icon" viewBox="0 0 24 24"><path d="M5 6h14M12 6v13M9 19h6"/></svg></div>
+        <div class="tool" onclick="toast('Undo')"><svg class="icon" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-2"/></svg></div>
+      </div>
+      <div class="brushbar">
+        <div class="brush on" onclick="pdfBrush(this,'pen','#C7554D')"><span class="tip" style="background:#C7554D"></span><svg viewBox="0 0 22 40"><path d="M11 2l4 9v22a4 4 0 0 1-8 0V11z" fill="#1d1d20" stroke="#C7554D" stroke-width="1.4"/><path d="M11 2l4 9H7z" fill="#C7554D"/></svg></div>
+        <div class="brush" onclick="pdfBrush(this,'pen','#1f5fbf')"><span class="tip" style="background:#1f5fbf"></span><svg viewBox="0 0 22 40"><path d="M11 3l2.5 7v24a2.5 2.5 0 0 1-5 0V10z" fill="#1d1d20" stroke="#1f5fbf" stroke-width="1.4"/><circle cx="11" cy="3" r="1.4" fill="#1f5fbf"/></svg></div>
+        <div class="brush" onclick="pdfBrush(this,'pen','#1b7f4d')"><span class="tip" style="background:#1b7f4d"></span><svg viewBox="0 0 22 40"><path d="M11 2v9M8 11h6v22a3 3 0 0 1-6 0z" fill="#1d1d20" stroke="#1b7f4d" stroke-width="1.4"/></svg></div>
+        <div class="brush" onclick="pdfBrush(this,'hl','#F0D77A')"><span class="tip" style="background:#F0D77A"></span><svg viewBox="0 0 22 40"><path d="M6 12h10v22a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="#1d1d20" stroke="#F0D77A" stroke-width="1.4"/><path d="M8 12l3-9 3 9z" fill="#F0D77A"/></svg></div>
+        <div class="brush" onclick="pdfBrush(this,'eraser','#000')"><svg viewBox="0 0 22 40"><path d="M5 14l6-6 8 8-6 6z" fill="#F5F2EA"/><path d="M5 14l6-6 8 8-6 6-8 0z" fill="none" stroke="#A7A39A" stroke-width="1.4"/><path d="M13 22H5v14h12V24" fill="#1d1d20" stroke="#A7A39A" stroke-width="1.4"/></svg></div>
+      </div>
+    </div>
+    <div class="scrim" onclick="closeSheets()"></div>
+    <div class="sheet" id="pdfmore"><div class="grab"></div><h6>Brief.pdf</h6>
+      <div class="srowi" onclick="closeSheets();toast('Exported: Brief (annotated).pdf')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3"/></svg>Export annotated PDF</div>
+      <div class="srowi" onclick="closeSheets();toast('Page thumbnails')"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Go to page</div>
+      <div class="srowi" onclick="closeSheets();toast('Annotations hidden')"><svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>Hide annotations</div>
+      <div class="srowi" onclick="closeSheets();toast('Share sheet')"><svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Share</div>
+    </div>
+  </section>
+
+  <!-- ================= DRAWER ================= -->
+  <div class="scrim" id="dscrim" onclick="closeDrawer()"></div>
+  <div class="drawer" id="drawer">
+    <div class="brand"><img src="icon.png" alt=""><div><b>Notebook</b><small>by Troy</small></div></div>
+    <div class="drow on" onclick="closeDrawer();go('v-home')"><svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>All notes<span class="cnt">14</span></div>
+    <div class="drow" onclick="closeDrawer();go('v-graph')"><svg class="icon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8.2 7l7.4 1M7.4 8l3.4 8M16.6 10l-3.4 6"/></svg>Graph</div>
+    <div class="dsep"></div>
+    <div class="caps" style="padding:6px 14px 8px">Folders</div>
+    <div class="drow" onclick="closeDrawer();go('v-home')"><i class="dot" style="background:#6E9BD1"></i>Work<span class="cnt">5</span></div>
+    <div class="drow" onclick="closeDrawer();go('v-home')"><i class="dot" style="background:#4FB08A"></i>Ideas<span class="cnt">4</span></div>
+    <div class="drow" onclick="closeDrawer();go('v-home')"><i class="dot" style="background:#B15A8C"></i>Personal<span class="cnt">2</span></div>
+    <div class="drow" onclick="closeDrawer();toast('Manage folders')"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New folder</div>
+    <div class="dsep"></div>
+    <div class="drow" onclick="closeDrawer();go('v-widgets')"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><path d="M17 14v6M14 17h6"/></svg>Widgets</div>
+    <div class="drow" onclick="closeDrawer();go('v-trash')"><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Trash<span class="cnt">3</span></div>
+    <div class="drow" onclick="closeDrawer();go('v-settings')"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</div>
+  </div>
+</div></div>
+
+<div class="navlabel">Prototype screens (not part of the app)</div>
+<div class="nav">
+  <button class="on" onclick="go('v-home',this)">Home</button>
+  <button onclick="go('v-editor',this)">Editor</button>
+  <button onclick="go('v-checklist',this)">Checklist</button>
+  <button onclick="go('v-sketch',this)">Sketch</button>
+  <button onclick="go('v-pages',this)">Pages</button>
+  <button onclick="go('v-pdf',this)">PDF</button>
+  <button onclick="go('v-graph',this)">Graph</button>
+  <button onclick="go('v-lock',this)">Lock</button>
+  <button onclick="go('v-widgets',this)">Widgets</button>
+  <button onclick="go('v-trash',this)">Trash</button>
+  <button onclick="go('v-settings',this)">Settings</button>
+</div>
+
+<script>
+/* ---------- nav ---------- */
+function go(id,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on',b.textContent.toLowerCase()===id.replace('v-','')));
+  closeFab();closeSheets();closeDrawer();
+  if(id==='v-sketch') setTimeout(initCanvas,30);
+  if(id==='v-pages') setTimeout(initPages,30);
+  if(id==='v-pdf') setTimeout(initPdf,30);
+  if(id==='v-graph') drawGraph();
+  if(id==='v-lock'){pinCount=0;renderPins();}
+}
+function openDrawer(){document.getElementById('drawer').classList.add('open');document.getElementById('dscrim').classList.add('open')}
+function closeDrawer(){document.getElementById('drawer').classList.remove('open');document.getElementById('dscrim').classList.remove('open')}
+function toggleFab(){const f=document.getElementById('fab'),m=document.getElementById('fabmenu');f.classList.toggle('open');m.classList.toggle('open')}
+function closeFab(){document.getElementById('fab').classList.remove('open');document.getElementById('fabmenu').classList.remove('open')}
+let toastT;
+function toast(msg,undo){const t=document.getElementById('toast');document.getElementById('toastmsg').textContent=msg;t.querySelector('b').style.display=undo?'':'none';
+  // toast lives in home view; clone into active view
+  const active=document.querySelector('.view.active');let el=active.querySelector('.toast');
+  if(!el){el=t.cloneNode(true);el.id='';active.appendChild(el)}
+  el.querySelector('span').textContent=msg;el.querySelector('b').style.display=undo?'':'none';el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2200)}
+function hideToast(){document.querySelectorAll('.toast').forEach(t=>t.classList.remove('show'))}
+function openSheet(id){closeSheets();const s=document.getElementById(id);s.classList.add('open');const sc=s.parentElement.querySelector('.scrim');if(sc)sc.classList.add('open')}
+function closeSheets(){document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('open'));document.querySelectorAll('.view .scrim').forEach(s=>s.classList.remove('open'));document.getElementById('linkpick').classList.remove('open')}
+function pickChip(el,f){document.querySelectorAll('#chips .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');
+  document.querySelectorAll('#v-home .card').forEach(c=>{c.style.display=(f==='all'||c.dataset.f===f)?'':'none'})}
+function filterNotes(q){q=q.toLowerCase();document.querySelectorAll('#v-home .card').forEach(c=>{c.style.display=c.textContent.toLowerCase().includes(q)?'':'none'})}
+function toggleLayout(btn){const g=document.querySelectorAll('#v-home .grid');g.forEach(x=>x.style.columns=x.style.columns==='1'?'2':'1')}
+function pickTheme(el){document.querySelectorAll('.theme').forEach(t=>t.classList.remove('on'));el.classList.add('on');toast('Theme: '+el.textContent.trim())}
+
+/* ripple */
+document.addEventListener('pointerdown',e=>{const b=e.target.closest('.btn,.key,.tool,.chip,.srow,.drow,.srowi');if(!b)return;const r=document.createElement('span');r.className='ripple';const rect=b.getBoundingClientRect();const s=Math.max(rect.width,rect.height);r.style.cssText=`width:${s}px;height:${s}px;left:${e.clientX-rect.left-s/2}px;top:${e.clientY-rect.top-s/2}px`;b.appendChild(r);setTimeout(()=>r.remove(),500)});
+
+/* ---------- editor ---------- */
+const wave=document.getElementById('wave');for(let i=0;i<28;i++){const b=document.createElement('i');b.style.height=(20+Math.abs(Math.sin(i*1.3))*80)+'%';wave.appendChild(b)}
+let playT=null,playPos=0;
+function togglePlay(btn){if(playT){clearInterval(playT);playT=null;btn.classList.remove('playing');return}btn.classList.add('playing');playT=setInterval(()=>{playPos=(playPos+1)%29;[...wave.children].forEach((b,i)=>b.classList.toggle('on',i<playPos));const s=Math.round(playPos/28*72);document.getElementById('atime').textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} / 1:12`;if(playPos===28){clearInterval(playT);playT=null;btn.classList.remove('playing')}},220)}
+function showLinkPick(){const lp=document.getElementById('linkpick');lp.style.bottom='110px';lp.classList.add('open')}
+function maybeLinkPick(e){const sel=window.getSelection();if(!sel.rangeCount)return;const node=sel.anchorNode;if(node&&node.textContent&&node.textContent.slice(0,sel.anchorOffset).endsWith('[['))showLinkPick()}
+function insertLink(title){const body=document.querySelector('#v-editor .ebody');const sel=window.getSelection();const chip=document.createElement('span');chip.className='link';chip.contentEditable='false';chip.innerHTML=`<svg class="icon" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>${title}`;chip.onclick=()=>toast('Opens “'+title+'”');
+  if(sel.rangeCount&&body.contains(sel.anchorNode)){const r=sel.getRangeAt(0);const n=sel.anchorNode;if(n.nodeType===3){const t=n.textContent.slice(0,sel.anchorOffset);const i=t.lastIndexOf('[[');if(i>=0){n.textContent=t.slice(0,i)+n.textContent.slice(sel.anchorOffset);r.setStart(n,i);r.collapse(true)}}r.insertNode(chip);r.setStartAfter(chip);r.collapse(true);sel.removeAllRanges();sel.addRange(r);body.focus()}else{body.appendChild(document.createTextNode(' '));body.appendChild(chip)}
+  document.getElementById('linkpick').classList.remove('open');flashSaved()}
+let savedT;function flashSaved(){document.querySelectorAll('.saved').forEach(s=>{s.style.opacity=1;clearTimeout(savedT);savedT=setTimeout(()=>s.style.opacity=.6,900)})}
+document.querySelectorAll('[contenteditable]').forEach(el=>el.addEventListener('input',flashSaved));
+
+/* ---------- checklist ---------- */
+function checkItem(row){const cb=row.querySelector('.cb');const list=document.getElementById('clist');const comp=document.getElementById('compbody');
+  if(!cb.classList.contains('on')){cb.classList.add('on');row.classList.add('done');setTimeout(()=>{comp.prepend(row);updComp()},320)}
+  else{cb.classList.remove('on');row.classList.remove('done');setTimeout(()=>{list.insertBefore(row,list.querySelector('.addrow'));updComp()},250)}}
+function updComp(){const n=document.getElementById('compbody').children.length;document.getElementById('compn').textContent=n}
+function toggleComp(h){h.classList.toggle('open');document.getElementById('compbody').classList.toggle('open')}
+function addItem(){const list=document.getElementById('clist');const row=document.createElement('div');row.className='crow';row.innerHTML='<i class="cb"></i><span class="t" contenteditable="true"></span><span class="drag">⋮⋮</span>';row.querySelector('.cb').onclick=e=>{e.stopPropagation();checkItem(row)};list.insertBefore(row,list.querySelector('.addrow'));const t=row.querySelector('.t');t.focus();t.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();t.contentEditable=false;row.onclick=()=>checkItem(row);addItem()}}}
+
+/* ---------- sketch ---------- */
+let cv,ctx,drawing=false,strokes=[],redo=[],cur=null,tool='pen',color='#D4AF37',width=6,dark=true,inited=false;
+function initCanvas(){cv=document.getElementById('cv');const w=cv.parentElement.clientWidth,h=cv.parentElement.clientHeight;const dpr=window.devicePixelRatio||1;cv.width=w*dpr;cv.height=h*dpr;ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+  if(!inited){inited=true;strokes=[{tool:'pen',color:'#D4AF37',width:6,pts:[[60,300],[80,220],[110,180],[150,190],[175,250],[190,330],[220,380],[260,360],[300,290],[330,220]]},{tool:'pen',color:'#F5F2EA',width:4,pts:[[90,150],[120,110],[150,140]]},{tool:'hl',color:'#6E9BD1',width:14,pts:[[240,470],[280,470],[320,470]]}];
+    cv.addEventListener('pointerdown',pd);cv.addEventListener('pointermove',pm);window.addEventListener('pointerup',pu)}
+  render()}
+function pos(e){const r=cv.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]}
+function pd(e){drawing=true;cur={tool,color,width,pts:[pos(e)]};cv.setPointerCapture(e.pointerId)}
+function pm(e){if(!drawing)return;cur.pts.push(pos(e));render();drawStroke(cur)}
+function pu(){if(!drawing)return;drawing=false;if(cur&&cur.pts.length>1){strokes.push(cur);redo=[]}cur=null;render()}
+function drawStroke(s){ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=s.tool==='hl'?s.width*2.2:s.width;ctx.strokeStyle=s.color;ctx.globalAlpha=s.tool==='hl'?.35:1;if(s.tool==='er'){ctx.globalCompositeOperation='destination-out';ctx.lineWidth=s.width*3}
+  ctx.beginPath();const p=s.pts;ctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length-1;i++){const mx=(p[i][0]+p[i+1][0])/2,my=(p[i][1]+p[i+1][1])/2;ctx.quadraticCurveTo(p[i][0],p[i][1],mx,my)}if(p.length>1)ctx.lineTo(p[p.length-1][0],p[p.length-1][1]);ctx.stroke();ctx.restore()}
+function render(){ctx.clearRect(0,0,cv.width,cv.height);cv.parentElement.style.background=dark?'#0e0e10':'#f5f2ea';strokes.forEach(drawStroke)}
+function setTool(t){tool=t;['pen','hl','er'].forEach(x=>document.getElementById('t-'+(x==='pen'?'pen':x==='hl'?'hl':'er')).classList.toggle('on',x===t))}
+function togglePalette(){document.getElementById('palette').classList.toggle('open')}
+function setColor(el,c){color=c;document.querySelectorAll('#palette>i').forEach(i=>i.classList.remove('on'));el.classList.add('on');document.getElementById('swatch').style.background=c;setTool('pen')}
+function setWidth(el,w){width=w;document.querySelectorAll('.widths i').forEach(i=>i.classList.remove('on'));el.classList.add('on')}
+function undoStroke(){if(strokes.length){redo.push(strokes.pop());render()}}
+function redoStroke(){if(redo.length){strokes.push(redo.pop());render()}}
+function clearCanvas(){redo=strokes.slice();strokes=[];render();toast('Cleared — undo available')}
+function toggleBg(){dark=!dark;render()}
+
+
+/* ---------- pages editor ---------- */
+let pcv,pctx,pInited=false,pStrokes=[],pRedo=[],pCur=null,pDrawing=false,pBrushName='pen',pTool='draw',pIvory=false;
+const BR={pen:{c:'#D4AF37',w:3.2,a:1},ball:{c:'#6E9BD1',w:2,a:1},tech:{c:'#F5F2EA',w:1.4,a:1},pencil:{c:'#A7A39A',w:2.6,a:.8,tex:1},hl:{c:'#E5C36B',w:14,a:.35},laser:{c:'#C7554D',w:4,a:1,laser:1},eraser:{c:'#000',w:16,a:1,er:1}};
+function initPages(){pcv=document.getElementById('pcv');const P=pcv.parentElement;const dpr=window.devicePixelRatio||1;pcv.width=P.clientWidth*dpr;pcv.height=P.clientHeight*dpr;pctx=pcv.getContext('2d');pctx.setTransform(dpr,0,0,dpr,0,0);
+  if(!pInited){pInited=true;
+    // seed: cursive-looking handwriting built from smooth loops (pseudo-random but stable)
+    let seed=7;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280};
+    const word=(x,y,n,scale=1)=>{const pts=[];let cx=x;let t=0;const letters=['a','l','e','i','n','o','t','h','s','m'];
+      for(let k=0;k<n;k++){const L=letters[Math.floor(rnd()*letters.length)];const w=9*scale;const h=(L==='l'||L==='t'||L==='h')?18*scale:9*scale;
+        for(let i=0;i<=8;i++){const u=i/8;const ang=u*Math.PI*2;let px,py;
+          if(L==='i'||L==='t'){px=cx+u*w*.6;py=y-Math.sin(u*Math.PI)*h}
+          else if(L==='l'||L==='h'){px=cx+Math.sin(ang)*w*.35+u*w*.7;py=y-Math.abs(Math.sin(u*Math.PI))*h}
+          else {px=cx+w*.5-Math.cos(ang)*w*.45+u*w*.3;py=y-h*.5+Math.sin(ang)*h*.5}
+          pts.push([px,py,t]);t+=14+rnd()*10}
+        cx+=w*1.05+(rnd()*2)}
+      // connector to next word
+      return pts};
+    const line=(x,y,words,gap=9,scale=1)=>{const out=[];let cx=x;words.forEach(n=>{const pts=word(cx,y,n,scale);out.push({b:'pen',pts});cx=pts[pts.length-1][0]+gap*scale});return out};
+    pStrokes=[
+      ...line(20,74,[5,3,6],9),
+      ...line(20,104,[4,7,2,5],9),
+      ...line(20,134,[6,4],9),
+      {b:'hl',pts:[[20,127],[136,127]]},
+      {b:'tech',pts:[[24,170],[120,170]]},{b:'tech',pts:[[120,170],[112,165]]},{b:'tech',pts:[[120,170],[112,175]]},
+      ...line(20,214,[3,6,4,5],9),
+      ...line(20,244,[7,3,5],9),
+      {b:'pencil',pts:[[220,220],[240,200],[262,214],[284,196],[306,212],[326,198]]},
+      ...line(20,290,[5,2,6],9),
+    ];
+    for(let i=0;i<24;i++){const b=document.createElement('i');b.style.height=(20+Math.abs(Math.sin(i*1.7))*80)+'%';document.getElementById('pwave').appendChild(b)}
+    pcv.addEventListener('pointerdown',ppd);pcv.addEventListener('pointermove',ppm);window.addEventListener('pointerup',ppu);
+    const z=document.getElementById('zcv');z.width=z.clientWidth*dpr;z.height=z.clientHeight*dpr;const zc=z.getContext('2d');zc.setTransform(dpr,0,0,dpr,0,0);zc.lineCap='round';zc.lineJoin='round';zc.strokeStyle='#F5F2EA';zc.lineWidth=7;zc.beginPath();zc.moveTo(30,80);zc.bezierCurveTo(40,30,60,30,70,80);zc.bezierCurveTo(75,50,85,50,90,80);zc.moveTo(110,40);zc.lineTo(110,85);zc.moveTo(125,60);zc.bezierCurveTo(140,40,160,60,150,85);zc.bezierCurveTo(140,95,125,80,128,68);zc.stroke();zc.strokeStyle='#D4AF37';zc.lineWidth=2;zc.setLineDash([4,4]);zc.strokeRect(168,20,110,70);}
+  pRender()}
+function ppos(e){const r=pcv.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top,performance.now()]}
+function ppd(e){if(pTool==='lasso'){lassoStart(e);return}if(pTool==='text'){addTextBox(e);return}pDrawing=true;pCur={b:pBrushName,pts:[ppos(e)]};pcv.setPointerCapture(e.pointerId)}
+function ppm(e){if(pTool==='lasso'&&lassoOn){lassoMove(e);return}if(!pDrawing)return;pCur.pts.push(ppos(e));pRender();pDraw(pCur)}
+function ppu(e){if(pTool==='lasso'&&lassoOn){lassoEnd();return}if(!pDrawing)return;pDrawing=false;if(pCur.pts.length>1){if(pTool==='ruler')pCur.pts=[pCur.pts[0],pCur.pts[pCur.pts.length-1]];if(BR[pCur.b].laser){const s=pCur;setTimeout(()=>{pStrokes=pStrokes.filter(x=>x!==s);pRender()},1600)}pStrokes.push(pCur);pRedo=[]}pCur=null;pRender()}
+function pDraw(s){const b=BR[s.b];pctx.save();pctx.lineCap='round';pctx.lineJoin='round';pctx.strokeStyle=b.c;pctx.globalAlpha=b.a;pctx.lineWidth=b.w;
+  if(b.er){pctx.globalCompositeOperation='destination-out'}
+  if(b.laser){pctx.shadowColor=b.c;pctx.shadowBlur=10}
+  const p=s.pts;
+  if(b.tex){for(let k=0;k<2;k++){pctx.beginPath();pctx.globalAlpha=.45;pctx.lineWidth=b.w*.7;pctx.moveTo(p[0][0]+(k?1:-1)*.7,p[0][1]);for(let i=1;i<p.length;i++)pctx.lineTo(p[i][0]+(k?1:-1)*.7+(Math.random()-.5)*.6,p[i][1]+(Math.random()-.5)*.6);pctx.stroke()}pctx.restore();return}
+  // speed-based thickness for pen
+  pctx.beginPath();pctx.moveTo(p[0][0],p[0][1]);
+  for(let i=1;i<p.length;i++){if(s.b==='pen'&&p[i][2]!=null&&p[i-1][2]!=null){const d=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);const dt=Math.max(1,p[i][2]-p[i-1][2]);const v=d/dt;pctx.lineWidth=Math.max(1.4,Math.min(4.2,b.w*1.5-v*1.2));}pctx.lineTo(p[i][0],p[i][1]);pctx.stroke();pctx.beginPath();pctx.moveTo(p[i][0],p[i][1])}
+  pctx.restore()}
+function pRender(){pctx.clearRect(0,0,pcv.width,pcv.height);pStrokes.forEach(pDraw)}
+function pgBrush(el,b){pBrushName=b;document.querySelectorAll('#brushbar .brush').forEach(x=>x.classList.remove('on'));el.classList.add('on');if(pTool==='lasso'||pTool==='text')pgTool('draw')}
+function pgTool(t){pTool=(pTool===t&&t!=='draw')?'draw':t;['lasso','ruler','zoom','text'].forEach(x=>document.getElementById('pt-'+x).classList.toggle('on',pTool===x));
+  document.getElementById('zoomstrip').classList.toggle('open',pTool==='zoom');const zb=document.getElementById('zoombox');zb.style.display=pTool==='zoom'?'block':'none';if(pTool==='zoom'){zb.style.left='16px';zb.style.top='196px';zb.style.width='120px';zb.style.height='40px'}
+  if(pTool==='lasso'){hideLasso()}}
+let lassoOn=false,lx,ly;
+function lassoStart(e){lassoOn=true;const [x,y]=ppos(e);lx=x;ly=y;const L=document.getElementById('lasso');L.style.display='block';L.style.left=x+'px';L.style.top=y+'px';L.style.width='0px';L.style.height='0px';document.getElementById('lassomenu').style.display='none'}
+function lassoMove(e){const [x,y]=ppos(e);const L=document.getElementById('lasso');L.style.left=Math.min(x,lx)+'px';L.style.top=Math.min(y,ly)+'px';L.style.width=Math.abs(x-lx)+'px';L.style.height=Math.abs(y-ly)+'px'}
+function lassoEnd(){lassoOn=false;const L=document.getElementById('lasso');const M=document.getElementById('lassomenu');M.style.display='flex';M.style.left=Math.max(8,parseFloat(L.style.left))+'px';M.style.top=(parseFloat(L.style.top)-46)+'px'}
+function hideLasso(){document.getElementById('lasso').style.display='none';document.getElementById('lassomenu').style.display='none'}
+function addTextBox(e){const [x,y]=ppos(e);const t=document.createElement('div');t.className='textbox'+(pIvory?' ivory':'');t.contentEditable=true;t.style.left=x+'px';t.style.top=y+'px';t.textContent='Text';document.getElementById('paper').appendChild(t);t.focus();pgTool('draw')}
+function setTpl(el,cls,ivory){document.querySelectorAll('.tplsheet .tpl').forEach(t=>t.classList.remove('on'));el.classList.add('on');const P=document.getElementById('paper');P.className='paper '+(ivory?'ivory':'black')+' '+cls;pIvory=!!ivory;BR.pen.c=ivory?'#1a1a1a':'#D4AF37';BR.tech.c=ivory?'#111':'#F5F2EA';pRender();closeSheets()}
+let recOn=true;function toggleRec(){recOn=!recOn;const r=document.getElementById('recdot');r.style.display=recOn?'':'none';toast(recOn?'Recording audio synced to your writing':'Recording stopped · 04:12 saved')}
+function showAudio(){const a=document.getElementById('audiobar');a.style.display=a.style.display==='none'?'flex':'none';document.getElementById('zoomstrip').classList.remove('open');if(a.style.display==='flex'){toast('Tap any stroke → audio jumps to that moment');[...document.getElementById('pwave').children].forEach((b,i)=>b.classList.toggle('on',i<12))}}
+
+/* ---------- pdf annotate ---------- */
+let dcv,dctx,dInited=false,dStrokes=[],dCur=null,dDrawing=false,dB={t:'pen',c:'#C7554D'};
+function initPdf(){dcv=document.getElementById('pdfcv');const P=dcv.parentElement;const dpr=window.devicePixelRatio||1;dcv.width=P.clientWidth*dpr;dcv.height=P.clientHeight*dpr;dctx=dcv.getContext('2d');dctx.setTransform(dpr,0,0,dpr,0,0);
+  if(!dInited){dInited=true;
+    dStrokes=[{t:'pen',c:'#C7554D',pts:[[196,112],[212,104],[236,102],[252,110],[250,124],[232,130],[206,128],[196,114]]},{t:'pen',c:'#C7554D',pts:[[254,112],[290,96]]},
+      {t:'pen',c:'#C7554D',pts:[[292,84],[300,92],[296,100],[306,90],[312,102]]},
+      {t:'pen',c:'#1f5fbf',pts:[[40,236],[60,232],[80,238],[100,232],[120,238],[140,232],[160,238],[180,232]]},
+      {t:'pen',c:'#1b7f4d',pts:[[40,286],[52,276],[64,286],[76,276]]},{t:'pen',c:'#1b7f4d',pts:[[80,282],[130,282]]},{t:'pen',c:'#1b7f4d',pts:[[130,282],[124,276]]},{t:'pen',c:'#1b7f4d',pts:[[130,282],[124,288]]},
+      {t:'pen',c:'#C7554D',pts:[[200,418],[210,402],[222,416],[232,400],[244,414]]}];
+    dcv.addEventListener('pointerdown',e=>{dDrawing=true;const r=dcv.getBoundingClientRect();dCur={t:dB.t,c:dB.c,pts:[[e.clientX-r.left,e.clientY-r.top]]};dcv.setPointerCapture(e.pointerId)});
+    dcv.addEventListener('pointermove',e=>{if(!dDrawing)return;const r=dcv.getBoundingClientRect();dCur.pts.push([e.clientX-r.left,e.clientY-r.top]);dRender();dDraw(dCur)});
+    window.addEventListener('pointerup',()=>{if(!dDrawing)return;dDrawing=false;if(dCur.pts.length>1)dStrokes.push(dCur);dCur=null;dRender()})}
+  dRender()}
+function dDraw(s){dctx.save();dctx.lineCap='round';dctx.lineJoin='round';dctx.strokeStyle=s.c;dctx.lineWidth=s.t==='hl'?12:2.4;dctx.globalAlpha=s.t==='hl'?.4:1;if(s.t==='eraser'){dctx.globalCompositeOperation='destination-out';dctx.lineWidth=18}
+  const p=s.pts;dctx.beginPath();dctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length-1;i++){const mx=(p[i][0]+p[i+1][0])/2,my=(p[i][1]+p[i+1][1])/2;dctx.quadraticCurveTo(p[i][0],p[i][1],mx,my)}if(p.length>1)dctx.lineTo(p[p.length-1][0],p[p.length-1][1]);dctx.stroke();dctx.restore()}
+function dRender(){dctx.clearRect(0,0,dcv.width,dcv.height);dStrokes.forEach(dDraw)}
+function pdfBrush(el,t,c){dB={t,c};document.querySelectorAll('#v-pdf .brush').forEach(x=>x.classList.remove('on'));el.classList.add('on')}
+
+/* ---------- graph ---------- */
+function drawGraph(){const svg=document.getElementById('graph');if(svg.dataset.done)return;svg.dataset.done=1;
+  const nodes=[{id:0,t:'Q3 launch plan',f:'#6E9BD1',x:195,y:300,hub:1},{id:1,t:'Design system',f:'#6E9BD1',x:110,y:190},{id:2,t:'App ideas',f:'#4FB08A',x:300,y:200},{id:3,t:'Client call',f:'#6E9BD1',x:90,y:400},{id:4,t:'Trip to Camiguin',f:'#4FB08A',x:300,y:430},{id:5,t:'Logo sketches',f:'#4FB08A',x:60,y:120,},{id:6,t:'Grocery run',f:'#B15A8C',x:330,y:560},{id:7,t:'Book list',f:'#A7A39A',x:150,y:560},{id:8,t:'Passwords',f:'#B15A8C',x:260,y:80}];
+  const links=[[0,1],[0,2],[3,0],[1,5],[2,4],[2,1],[4,6],[0,4],[7,0]];
+  let html='';links.forEach(([a,b])=>{const A=nodes[a],B=nodes[b];html+=`<line class="gline" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`});
+  nodes.forEach(n=>{const deg=links.filter(l=>l.includes(n.id)).length;const r=8+deg*3;html+=`<g class="gnode ${n.hub?'hub':''}" onclick="toast('Opens “${n.t}”')"><circle class="halo" cx="${n.x}" cy="${n.y}" r="${r+4}" stroke="${n.f}"/><circle cx="${n.x}" cy="${n.y}" r="${r}"/><text x="${n.x}" y="${n.y+r+14}">${n.t}</text></g>`});
+  svg.innerHTML=html;
+  // drag to pan
+  let vb=[0,0,390,700],dragging=false,sx,sy;svg.addEventListener('pointerdown',e=>{dragging=true;sx=e.clientX;sy=e.clientY});window.addEventListener('pointermove',e=>{if(!dragging)return;vb[0]-=(e.clientX-sx);vb[1]-=(e.clientY-sy);sx=e.clientX;sy=e.clientY;svg.setAttribute('viewBox',vb.join(' '))});window.addEventListener('pointerup',()=>dragging=false);
+  svg.addEventListener('wheel',e=>{e.preventDefault();const k=e.deltaY>0?1.1:.9;vb[2]*=k;vb[3]*=k;svg.setAttribute('viewBox',vb.join(' '))},{passive:false})}
+
+/* ---------- lock ---------- */
+let pinCount=0;function renderPins(){document.querySelectorAll('#pins i').forEach((p,i)=>p.classList.toggle('on',i<pinCount))}
+function pin(){if(pinCount<4){pinCount++;renderPins();if(pinCount===4)setTimeout(()=>{go('v-editor');toast('Unlocked')},250)}}
+function pinBack(){if(pinCount>0){pinCount--;renderPins()}}
+function fpUnlock(){toast('Fingerprint recognized');setTimeout(()=>go('v-editor'),600)}
+
+/* clock */
+(function(){const d=new Date();document.getElementById('clock').textContent=d.getHours()%12||12;document.getElementById('clock').textContent+=':'+String(d.getMinutes()).padStart(2,'0')})();
+</script>
+</body>
+</html>

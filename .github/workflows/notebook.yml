@@ -1,0 +1,145 @@
+name: Notebook APK
+on:
+  push:
+    paths:
+      - "notebook/**"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/notebook.yml"
+      - "scripts/verify-notebook-apk.py"
+      - "scripts/verify-apk.py"
+      - "artifacts/Notebook-by-Troy-*.apk"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: notebook-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Kotlin pitfall lint (notebook sources)
+        run: python3 scripts/lint-kotlin-pitfalls.py $(find notebook/src/main/java -name '*.kt')
+
+      - name: Unit tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon :notebook:testDebugUnitTest 2>&1 | tee test.log
+
+      - name: Restore signing key (if secrets are configured)
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.NOTEBOOK_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.NOTEBOOK_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NOTEBOOK_KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ]; then
+            mkdir -p .signing
+            echo "$KEYSTORE_BASE64" | base64 -d > .signing/notebook-release.p12
+            printf 'storePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$STORE_PASSWORD" "${KEY_ALIAS:-notebook}" "$STORE_PASSWORD" > .signing/notebook.properties
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build release APK
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon :notebook:assembleRelease 2>&1 | tee build.log
+          ls -la notebook/build/outputs/apk/release/
+
+      # Structural verification of what Gradle produced (alignment, DEX integrity, every manifest
+      # component present in the DEX, resources, source classes). Unsigned is accepted here because
+      # signing happens locally with the gitignored release key; the committed artifact under
+      # artifacts/ is verified strictly (signature + certificate) by the next step.
+      - name: Verify built APK
+        if: steps.build.outcome == 'success'
+        run: |
+          APK=$(ls notebook/build/outputs/apk/release/*.apk | head -1)
+          python3 scripts/verify-notebook-apk.py --allow-unsigned "$APK"
+
+      - name: Verify committed release artifacts (signature + release certificate)
+        if: always()
+        run: |
+          if ls artifacts/Notebook-by-Troy-*.apk >/dev/null 2>&1; then
+            python3 scripts/verify-notebook-apk.py
+          else
+            echo "no committed Notebook artifacts yet"
+          fi
+
+      - name: Upload APK (Actions artifact)
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notebook-by-Troy-${{ github.sha }}
+          path: notebook/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      # The sandbox that drives this repo cannot download Actions artifacts, but it CAN read
+      # git blobs and commit comments through the GitHub API. So: store the APK as a blob and
+      # publish its SHA (plus a summary) as a commit comment. Nothing is added to the tree.
+      - name: Publish APK blob + report as commit comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          BUILD_OK: ${{ steps.build.outcome }}
+          TESTS_OK: ${{ steps.tests.outcome }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          set +e
+          APK=$(ls notebook/build/outputs/apk/release/*.apk 2>/dev/null | head -1)
+          BODY_FILE=$(mktemp)
+          {
+            echo "### Notebook CI report"
+            echo ""
+            echo "- build: **$BUILD_OK**"
+            echo "- tests: **$TESTS_OK**"
+            echo "- signed in CI: $SIGNED"
+            echo "- run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            if [ -n "$APK" ] && [ "$BUILD_OK" = "success" ]; then
+              SIZE=$(stat -c %s "$APK"); SUM=$(sha256sum "$APK" | cut -d' ' -f1)
+              base64 -w0 "$APK" | jq -Rs '{content: ., encoding: "base64"}' > blob.json
+              BLOB=$(gh api "repos/$REPO/git/blobs" --input blob.json --jq .sha)
+              echo "- apk: \`$(basename "$APK")\` ($SIZE bytes)"
+              echo "- apk-sha256: \`$SUM\`"
+              echo "- apk-blob: \`$BLOB\`"
+            fi
+            echo ""
+            echo "<details><summary>test log (tail)</summary>"
+            echo ""
+            echo '```'
+            grep -vE '^\s*$' test.log 2>/dev/null | grep -E "FAILED|PASSED|error:|warning:|BUILD|Test.*>|tests completed|What went wrong|Exception|\.kt:" | tail -80
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "<details><summary>build log (tail)</summary>"
+            echo ""
+            echo '```'
+            grep -vE '^\s*$' build.log 2>/dev/null | grep -E "^e:|^w:|error:|FAILED|BUILD|What went wrong|Exception|Caused by|\.kt:|\.xml:|AAPT|resource|Duplicate|Unresolved|Type mismatch" | tail -120
+            echo '```'
+            echo "</details>"
+          } > "$BODY_FILE"
+          jq -Rs '{body: .}' "$BODY_FILE" > comment.json
+          gh api "repos/$REPO/commits/$SHA/comments" --input comment.json --jq .id
+          [ "$BUILD_OK" = "success" ]

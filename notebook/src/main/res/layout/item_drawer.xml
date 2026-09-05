@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerRow"
+    android:layout_width="match_parent" android:layout_height="46dp"
+    android:background="@drawable/bg_drawer_row" android:gravity="center_vertical" android:orientation="horizontal"
+    android:paddingStart="14dp" android:paddingEnd="14dp" android:layout_marginTop="2dp">
+    <ImageView android:id="@+id/drawerIcon" android:layout_width="20dp" android:layout_height="20dp" app:tint="?attr/nbGold" android:contentDescription="@null"/>
+    <View android:id="@+id/drawerDot" android:layout_width="12dp" android:layout_height="12dp" android:visibility="gone"/>
+    <TextView android:id="@+id/drawerLabel" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:paddingStart="14dp" android:paddingEnd="8dp" android:textColor="?android:attr/textColorPrimary" android:textSize="15sp"/>
+    <TextView android:id="@+id/drawerCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="?attr/nbTextFaint" android:textSize="12sp"/>
+</LinearLayout>

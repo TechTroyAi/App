@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/bg_widget" android:orientation="vertical">
+    <LinearLayout android:id="@+id/wHeader" android:layout_width="match_parent" android:layout_height="44dp" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="6dp">
+        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/app_name" android:textColor="@color/gold" android:textSize="13sp" android:textStyle="bold" android:letterSpacing="0.12" android:textAllCaps="true"/>
+        <ImageView android:id="@+id/wAdd" android:layout_width="36dp" android:layout_height="36dp" android:padding="8dp" android:src="@drawable/ic_add" android:tint="@color/gold" android:contentDescription="@string/new_note"/>
+    </LinearLayout>
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/gold_hairline"/>
+    <ListView android:id="@+id/wList" android:layout_width="match_parent" android:layout_height="match_parent" android:divider="@color/gold_dim" android:dividerHeight="1dp"/>
+    <TextView android:id="@+id/wEmpty" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:text="@string/empty_notes_title" android:textColor="@color/text_muted" android:textSize="13sp"/>
+</LinearLayout>

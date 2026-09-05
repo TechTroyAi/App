@@ -516,7 +516,10 @@ def main() -> int:
 
     targets = list(args.apk)
     if args.all or not targets:
-        targets = sorted(glob.glob(os.path.join(REPO, "artifacts", "*.apk")))
+        # Only Blockhold artifacts: the Notebook app has its own verifier
+        # (scripts/verify-notebook-apk.py) because the sprite/audio checks below
+        # are specific to the game.
+        targets = sorted(glob.glob(os.path.join(REPO, "artifacts", "Blockhold-*.apk")))
     for t in targets:
         verify(t)
 

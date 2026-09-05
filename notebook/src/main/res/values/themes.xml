@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base: Black & Gold (default). Material3 dark, forced regardless of system setting. -->
+    <style name="Theme.Notebook" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/gold</item>
+        <item name="colorOnPrimary">@color/ink_black</item>
+        <item name="colorPrimaryContainer">@color/gold_dim</item>
+        <item name="colorOnPrimaryContainer">@color/gold_light</item>
+        <item name="colorSecondary">@color/gold_light</item>
+        <item name="colorOnSecondary">@color/ink_black</item>
+        <item name="colorSecondaryContainer">@color/graphite_3</item>
+        <item name="colorOnSecondaryContainer">@color/gold_light</item>
+        <item name="colorTertiary">@color/gold_deep</item>
+        <item name="colorError">@color/danger</item>
+        <item name="colorOnError">@color/text_warm_white</item>
+
+        <item name="android:colorBackground">@color/ink_black</item>
+        <item name="colorOnBackground">@color/text_warm_white</item>
+        <item name="colorSurface">@color/ink_black</item>
+        <item name="colorOnSurface">@color/text_warm_white</item>
+        <item name="colorSurfaceVariant">@color/graphite</item>
+        <item name="colorOnSurfaceVariant">@color/text_muted</item>
+        <item name="colorSurfaceContainer">@color/graphite</item>
+        <item name="colorSurfaceContainerLow">@color/graphite</item>
+        <item name="colorSurfaceContainerHigh">@color/graphite_2</item>
+        <item name="colorSurfaceContainerHighest">@color/graphite_3</item>
+        <item name="colorOutline">@color/gold_hairline</item>
+        <item name="colorOutlineVariant">@color/gold_dim</item>
+        <item name="colorControlHighlight">@color/gold_ripple</item>
+
+        <item name="android:statusBarColor">@color/ink_black</item>
+        <item name="android:navigationBarColor">@color/ink_black</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/ink_black</item>
+        <item name="android:textColorPrimary">@color/text_warm_white</item>
+        <item name="android:textColorSecondary">@color/text_muted</item>
+        <item name="android:textColorHint">@color/text_faint</item>
+
+        <!-- App-level semantic attrs -->
+        <item name="nbCard">@color/graphite</item>
+        <item name="nbCardRaised">@color/graphite_2</item>
+        <item name="nbHairline">@color/gold_hairline</item>
+        <item name="nbGold">@color/gold</item>
+        <item name="nbGoldDim">@color/gold_dim</item>
+        <item name="nbTextMuted">@color/text_muted</item>
+        <item name="nbTextFaint">@color/text_faint</item>
+        <item name="nbPaper">@color/graphite</item>
+        <item name="nbInk">@color/gold</item>
+
+        <item name="materialCardViewStyle">@style/Widget.Notebook.Card</item>
+        <item name="chipStyle">@style/Widget.Notebook.Chip</item>
+        <item name="floatingActionButtonStyle">@style/Widget.Notebook.Fab</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Notebook.BottomSheet</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Notebook.Dialog</item>
+        <item name="snackbarStyle">@style/Widget.Notebook.Snackbar</item>
+        <item name="snackbarTextViewStyle">@style/Widget.Notebook.SnackbarText</item>
+        <item name="snackbarButtonStyle">@style/Widget.Notebook.SnackbarButton</item>
+        <item name="materialButtonStyle">@style/Widget.Notebook.Button</item>
+        <item name="switchStyle">@style/Widget.Notebook.Switch</item>
+        <item name="materialSwitchStyle">@style/Widget.Notebook.Switch</item>
+    </style>
+
+    <style name="Theme.Notebook.Amoled" parent="Theme.Notebook">
+        <item name="android:colorBackground">@color/amoled</item>
+        <item name="colorSurface">@color/amoled</item>
+        <item name="android:windowBackground">@color/amoled</item>
+        <item name="android:statusBarColor">@color/amoled</item>
+        <item name="android:navigationBarColor">@color/amoled</item>
+        <item name="nbCard">#0E0E10</item>
+        <item name="nbCardRaised">@color/graphite</item>
+        <item name="nbPaper">#0E0E10</item>
+        <item name="colorSurfaceContainer">#0E0E10</item>
+        <item name="colorSurfaceContainerLow">#0E0E10</item>
+    </style>
+
+    <!-- Ivory & Gold: light variant -->
+    <style name="Theme.Notebook.Ivory" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/ivory_gold</item>
+        <item name="colorOnPrimary">@color/ivory_card_2</item>
+        <item name="colorPrimaryContainer">@color/tint_gold_l</item>
+        <item name="colorOnPrimaryContainer">@color/ivory_text</item>
+        <item name="colorSecondary">@color/gold_deep</item>
+        <item name="colorSecondaryContainer">@color/ivory_card</item>
+        <item name="colorOnSecondaryContainer">@color/ivory_text</item>
+        <item name="colorError">@color/danger</item>
+        <item name="android:colorBackground">@color/ivory</item>
+        <item name="colorOnBackground">@color/ivory_text</item>
+        <item name="colorSurface">@color/ivory</item>
+        <item name="colorOnSurface">@color/ivory_text</item>
+        <item name="colorSurfaceVariant">@color/ivory_card</item>
+        <item name="colorOnSurfaceVariant">@color/ivory_muted</item>
+        <item name="colorSurfaceContainer">@color/ivory_card</item>
+        <item name="colorSurfaceContainerLow">@color/ivory_card</item>
+        <item name="colorSurfaceContainerHigh">@color/ivory_card_2</item>
+        <item name="colorSurfaceContainerHighest">@color/ivory_card_2</item>
+        <item name="colorOutline">@color/ivory_hairline</item>
+        <item name="colorOutlineVariant">@color/ivory_hairline</item>
+        <item name="colorControlHighlight">@color/gold_ripple</item>
+        <item name="android:statusBarColor">@color/ivory</item>
+        <item name="android:navigationBarColor">@color/ivory</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">@color/ivory</item>
+        <item name="android:textColorPrimary">@color/ivory_text</item>
+        <item name="android:textColorSecondary">@color/ivory_muted</item>
+        <item name="android:textColorHint">@color/ivory_faint</item>
+        <item name="nbCard">@color/ivory_card</item>
+        <item name="nbCardRaised">@color/ivory_card_2</item>
+        <item name="nbHairline">@color/ivory_hairline</item>
+        <item name="nbGold">@color/ivory_gold</item>
+        <item name="nbGoldDim">@color/tint_gold_l</item>
+        <item name="nbTextMuted">@color/ivory_muted</item>
+        <item name="nbTextFaint">@color/ivory_faint</item>
+        <item name="nbPaper">@color/ivory_card_2</item>
+        <item name="nbInk">@color/ivory_text</item>
+        <item name="materialCardViewStyle">@style/Widget.Notebook.Card</item>
+        <item name="chipStyle">@style/Widget.Notebook.Chip</item>
+        <item name="floatingActionButtonStyle">@style/Widget.Notebook.Fab</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Notebook.BottomSheet</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Notebook.Dialog</item>
+        <item name="snackbarStyle">@style/Widget.Notebook.Snackbar</item>
+        <item name="snackbarTextViewStyle">@style/Widget.Notebook.SnackbarText</item>
+        <item name="snackbarButtonStyle">@style/Widget.Notebook.SnackbarButton</item>
+        <item name="materialButtonStyle">@style/Widget.Notebook.Button</item>
+        <item name="switchStyle">@style/Widget.Notebook.Switch</item>
+        <item name="materialSwitchStyle">@style/Widget.Notebook.Switch</item>
+    </style>
+
+    <!-- Splash: black, icon in the middle (pre-12 devices get a plain window) -->
+    <style name="Theme.Notebook.Splash" parent="Theme.Notebook">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+    </style>
+
+    <!-- Widgets -->
+    <style name="Widget.Notebook.Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardBackgroundColor">?attr/nbCard</item>
+        <item name="cardCornerRadius">18dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">?attr/nbHairline</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="rippleColor">@color/gold_ripple</item>
+    </style>
+
+    <style name="Widget.Notebook.Chip" parent="Widget.Material3.Chip.Filter">
+        <item name="chipBackgroundColor">@color/chip_bg</item>
+        <item name="chipStrokeColor">?attr/nbHairline</item>
+        <item name="chipStrokeWidth">1dp</item>
+        <item name="android:textColor">@color/chip_text</item>
+        <item name="checkedIconVisible">false</item>
+        <item name="chipCornerRadius">17dp</item>
+        <item name="chipMinHeight">34dp</item>
+        <item name="rippleColor">@color/gold_ripple</item>
+        <item name="android:textAppearance">@style/TextAppearance.Notebook.Chip</item>
+    </style>
+
+    <style name="TextAppearance.Notebook.Chip" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Widget.Notebook.Fab" parent="Widget.Material3.FloatingActionButton.Primary">
+        <item name="backgroundTint">@color/gold</item>
+        <item name="tint">@color/ink_black</item>
+        <item name="rippleColor">@color/gold_light</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Notebook.Fab</item>
+        <item name="elevation">10dp</item>
+    </style>
+    <style name="ShapeAppearance.Notebook.Fab" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+    </style>
+
+    <style name="Widget.Notebook.Button" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/gold</item>
+        <item name="android:textColor">@color/ink_black</item>
+        <item name="rippleColor">@color/gold_light</item>
+        <item name="cornerRadius">22dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="Widget.Notebook.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">?attr/nbGold</item>
+        <item name="android:textColor">?attr/nbGold</item>
+        <item name="rippleColor">@color/gold_ripple</item>
+        <item name="cornerRadius">22dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="Widget.Notebook.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">?attr/nbGold</item>
+        <item name="rippleColor">@color/gold_ripple</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="Widget.Notebook.IconButton" parent="Widget.Material3.Button.IconButton">
+        <item name="iconTint">?attr/nbGold</item>
+        <item name="rippleColor">@color/gold_ripple</item>
+        <item name="iconSize">22dp</item>
+        <item name="android:minWidth">44dp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <style name="Widget.Notebook.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="thumbTint">@color/switch_thumb</item>
+        <item name="trackTint">@color/switch_track</item>
+        <item name="trackDecorationTint">@color/switch_track_stroke</item>
+    </style>
+
+    <style name="ThemeOverlay.Notebook.BottomSheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.Notebook.BottomSheet</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    <style name="Widget.Notebook.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">?attr/nbCardRaised</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Notebook.Sheet</item>
+    </style>
+    <style name="ShapeAppearance.Notebook.Sheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">26dp</item>
+        <item name="cornerSizeTopRight">26dp</item>
+    </style>
+
+    <style name="ThemeOverlay.Notebook.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurface">?attr/nbCardRaised</item>
+        <item name="shapeAppearanceCornerLarge">@style/ShapeAppearance.Notebook.Dialog</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Notebook.Button.Text</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.Notebook.Button.Text</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.Notebook.Button.Text</item>
+    </style>
+    <style name="ShapeAppearance.Notebook.Dialog" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">24dp</item>
+    </style>
+
+    <style name="Widget.Notebook.Snackbar" parent="Widget.Material3.Snackbar">
+        <item name="backgroundTint">?attr/nbCardRaised</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Notebook.Snackbar</item>
+        <item name="android:layout_margin">16dp</item>
+    </style>
+    <style name="ShapeAppearance.Notebook.Snackbar" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">14dp</item>
+    </style>
+    <style name="Widget.Notebook.SnackbarText" parent="Widget.Material3.Snackbar.TextView">
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+    </style>
+    <style name="Widget.Notebook.SnackbarButton" parent="Widget.Material3.Button.TextButton.Snackbar">
+        <item name="android:textColor">?attr/nbGold</item>
+    </style>
+
+    <style name="TextAppearance.Notebook.Caps" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">11sp</item>
+        <item name="android:letterSpacing">0.18</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">?attr/nbGold</item>
+    </style>
+    <style name="TextAppearance.Notebook.CardTitle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="TextAppearance.Notebook.CardBody" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">?attr/nbTextMuted</item>
+        <item name="android:lineSpacingMultiplier">1.2</item>
+    </style>
+    <style name="NbIconBtn">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:padding">10dp</item>
+        <item name="tint">?attr/nbGold</item>
+    </style>
+    <style name="NbIconBtn.Muted">
+        <item name="tint">?attr/nbTextMuted</item>
+    </style>
+    <style name="NbSheetRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">52dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:drawablePadding">18dp</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="drawableTint">?attr/nbGold</item>
+    </style>
+    <style name="NbSettingsHeader">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:paddingTop">22dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:textAppearance">@style/TextAppearance.Notebook.Caps</item>
+    </style>
+    <style name="NbBottomBtn">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:scaleType">centerInside</item>
+        <item name="android:padding">13dp</item>
+        <item name="tint">?attr/nbGold</item>
+    </style>
+</resources>
