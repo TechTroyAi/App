@@ -1,3 +1,25 @@
+> **📓 Notebook by Troy · with Echoes — v1.0.0 (`1`) is built and retained as `Notebook-by-Troy-v1.0.0.apk`**
+> (`SHA-256 eb23c9d5bc4258032c36fdc4ddaaea63ab564178d11be71228a0170928ae8a9a`, 5,784,827 bytes).
+> Package `ai.techtroy.notebook`, Android 7.0+ (minSdk 24, targetSdk 35), offline, no accounts.
+> Built by the **Notebook APK** GitHub Actions workflow (AGP 8.7.3 / Kotlin 2.0.21,
+> `:notebook:assembleRelease`, run [33991897355](https://github.com/TechTroyAi/App/actions/runs/33991897355),
+> unsigned SHA-256 `a9c94276d027ba3d5a4a09ea15cc05c1a5a0278f954f3e154c93ff317dc31d04`), then signed locally with
+> `apksigner` (v2 + v3, `apksigner verify` → Verifies). Contains 2 dex files / 7,935 classes, 16 activities,
+> 3 widgets, reminders, per-note lock, Pages handwriting, PDF annotation, note links + Graph, and Echoes.
+>
+> **⚠️ Signing key.** Signed with a dedicated RSA 4096 release key
+> (`CN=Notebook by Troy, OU=Apps, O=TechTroy AI, L=Cagayan de Oro, ST=Northern Mindanao, C=PH`, valid to 2056),
+> certificate SHA-256
+> `B2:C9:ED:0A:42:E6:57:29:90:DE:39:72:A4:57:61:35:13:7D:DB:FE:A6:3A:58:97:AA:C0:BE:BC:F2:5C:3C:4F`.
+> Keystore lives at `.signing/notebook-release.p12` (gitignored) — back it up; every future Notebook update
+> must be signed with this same key or Android will refuse to install over v1.0.0.
+>
+> | File | SHA-256 | Status |
+> |---|---|---|
+> | `Notebook-by-Troy-v1.0.0.apk` | `eb23c9d5bc4258032c36fdc4ddaaea63ab564178d11be71228a0170928ae8a9a` | **current installable** — Notebook v1, `1.0.0` (1); signed v2+v3 |
+>
+> ---
+>
 > **✅ v1.4.4 (`18`) is now built and retained as `Blockhold-Defense-v1.4.4-installable.apk`**
 > (`SHA-256 e1e33918b12d2a30640b0e683ef744927822d0a8d2b0c041987a97a94b99fdea`). It contains the
 > full *Fantasy Machinery* UI and HUD overhaul (brass/copper top and bottom rails, ornate skinned buttons,

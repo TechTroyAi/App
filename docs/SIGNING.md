@@ -160,3 +160,36 @@ Record the certificate SHA-256 and APK SHA-256 in `artifacts/README.md` for ever
 ## Google Play
 
 For a Play release, enroll in Play App Signing and store the dedicated Blockhold key as the upload key only after confirming the final package ID. Never commit either an upload key or a Play app-signing key. Use CI secret storage when automating release builds.
+
+---
+
+## Notebook by Troy (`ai.techtroy.notebook`)
+
+The Notebook app has its **own** release key, separate from the Blockhold key. Never sign one app with
+the other's key.
+
+| | |
+|---|---|
+| Keystore | `.signing/notebook-release.p12` (PKCS12, gitignored) |
+| Passwords | `.signing/notebook.properties` (`storePassword`, `keyAlias=notebook`, `keyPassword`) |
+| Key | RSA 4096, SHA256withRSA, valid 2026-09-05 → 2056-08-28 |
+| Subject | `CN=Notebook by Troy, OU=Apps, O=TechTroy AI, L=Cagayan de Oro, ST=Northern Mindanao, C=PH` |
+| Certificate SHA-256 | `B2:C9:ED:0A:42:E6:57:29:90:DE:39:72:A4:57:61:35:13:7D:DB:FE:A6:3A:58:97:AA:C0:BE:BC:F2:5C:3C:4F` |
+| First release signed | `artifacts/Notebook-by-Troy-v1.0.0.apk` (v1.0.0, versionCode 1) |
+
+`notebook/build.gradle.kts` picks the key up automatically when `.signing/notebook.properties` exists, so a
+local `./gradlew :notebook:assembleRelease` produces a signed APK directly. The CI workflow
+(`.github/workflows/notebook.yml`) builds unsigned unless the `NOTEBOOK_KEYSTORE_BASE64` /
+`NOTEBOOK_STORE_PASSWORD` / `NOTEBOOK_KEY_ALIAS` repository secrets are set; the unsigned CI APK is then
+signed locally:
+
+```bash
+java -jar apksigner.jar sign --ks .signing/notebook-release.p12 --ks-type PKCS12 \
+  --ks-key-alias notebook --ks-pass pass:"$PW" --key-pass pass:"$PW" \
+  --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true \
+  --out artifacts/Notebook-by-Troy-vX.Y.Z.apk notebook-release-unsigned.apk
+java -jar apksigner.jar verify --print-certs artifacts/Notebook-by-Troy-vX.Y.Z.apk
+```
+
+Back the keystore up somewhere outside the repository. If it is lost, users must uninstall v1.0.0
+(losing local notes unless they exported a backup first) before a newly-signed build can be installed.
