@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <files-path name="notebook" path="notebook/"/>
+    <cache-path name="tmp" path="tmp/"/>
+    <cache-path name="export" path="export/"/>
+</paths>

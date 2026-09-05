@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/editorRoot"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:fitsSystemWindows="true">
+
+    <!-- Top bar -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent" android:layout_height="52dp"
+        android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="4dp" android:paddingEnd="4dp">
+        <ImageButton android:id="@+id/btnBack" style="@style/NbIconBtn" android:src="@drawable/ic_back" android:contentDescription="@string/back"/>
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+            <TextView android:id="@+id/savedLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="6dp" android:paddingEnd="6dp" android:text="@string/saved" android:textAppearance="@style/TextAppearance.Notebook.Caps" android:alpha="0"/>
+            <TextView android:id="@+id/folderLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:background="@drawable/bg_outline_pill" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="3dp" android:paddingBottom="3dp" android:textColor="?attr/nbTextMuted" android:textSize="11sp" android:visibility="gone" android:maxLines="1" android:ellipsize="end"/>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/recPill" android:layout_width="wrap_content" android:layout_height="30dp" android:layout_marginEnd="4dp" android:background="@drawable/bg_outline_pill" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="10dp" android:paddingEnd="4dp" android:visibility="gone">
+            <View android:id="@+id/recDot" android:layout_width="8dp" android:layout_height="8dp" android:background="@drawable/bg_rec_dot"/>
+            <TextView android:id="@+id/recTime" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="7dp" android:paddingEnd="4dp" android:text="0:00" android:textColor="?android:attr/textColorPrimary" android:textSize="12sp" android:textStyle="bold" android:fontFamily="monospace"/>
+            <ImageButton android:id="@+id/recPause" android:layout_width="28dp" android:layout_height="28dp" android:background="?attr/selectableItemBackgroundBorderless" android:padding="6dp" android:src="@drawable/ic_pause" app:tint="?attr/nbGold" android:contentDescription="@string/pause"/>
+            <ImageButton android:id="@+id/recStop" android:layout_width="28dp" android:layout_height="28dp" android:background="?attr/selectableItemBackgroundBorderless" android:padding="7dp" android:src="@drawable/ic_stop" app:tint="@color/danger" android:contentDescription="@string/stop"/>
+        </LinearLayout>
+        <ImageButton android:id="@+id/btnPin" style="@style/NbIconBtn" android:src="@drawable/ic_pin" android:contentDescription="@string/pin"/>
+        <ImageButton android:id="@+id/btnColor" style="@style/NbIconBtn" android:src="@drawable/ic_palette" android:contentDescription="@string/color"/>
+        <ImageButton android:id="@+id/btnMore" style="@style/NbIconBtn" android:src="@drawable/ic_more" android:contentDescription="@string/more"/>
+    </LinearLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scroll"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:clipToPadding="false" android:fillViewport="true" android:scrollbars="none">
+        <LinearLayout
+            android:id="@+id/content"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="6dp" android:paddingBottom="24dp">
+
+            <EditText
+                android:id="@+id/title"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="@null" android:hint="@string/title_hint" android:imeOptions="actionNext"
+                android:inputType="textCapSentences|textMultiLine" android:maxLines="3" android:paddingTop="6dp" android:paddingBottom="6dp"
+                android:textColor="?android:attr/textColorPrimary" android:textColorHint="?attr/nbTextFaint" android:textSize="23sp" android:textStyle="bold"/>
+
+            <!-- Capsule / echo banners -->
+            <TextView android:id="@+id/banner" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:layout_marginBottom="6dp" android:background="@drawable/bg_chip_link" android:padding="12dp" android:textColor="?android:attr/textColorPrimary" android:textSize="13sp" android:visibility="gone"/>
+
+            <!-- Pages summary card (PAGES notes) -->
+            <LinearLayout android:id="@+id/pagesCard" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:background="@drawable/bg_card_raised" android:orientation="vertical" android:visibility="gone">
+                <ImageView android:id="@+id/pagesThumb" android:layout_width="match_parent" android:layout_height="220dp" android:scaleType="centerCrop" android:contentDescription="@null"/>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:padding="14dp">
+                    <TextView android:id="@+id/pagesInfo" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textColor="?attr/nbTextMuted" android:textSize="13sp"/>
+                    <TextView android:id="@+id/pagesOpen" android:layout_width="wrap_content" android:layout_height="wrap_content" android:background="@drawable/bg_gold_pill" android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingTop="8dp" android:paddingBottom="8dp" android:text="@string/pages" android:textColor="@color/ink_black" android:textSize="13sp" android:textStyle="bold"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/body"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="@null" android:gravity="top" android:hint="@string/body_hint"
+                android:inputType="textCapSentences|textMultiLine|textAutoCorrect" android:lineSpacingMultiplier="1.35" android:minHeight="120dp"
+                android:paddingTop="6dp" android:paddingBottom="12dp"
+                android:textColor="?android:attr/textColorPrimary" android:textColorHint="?attr/nbTextFaint" android:textSize="16sp"/>
+
+            <!-- Checklist -->
+            <LinearLayout android:id="@+id/checklistWrap" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                <androidx.recyclerview.widget.RecyclerView android:id="@+id/checklist" android:layout_width="match_parent" android:layout_height="wrap_content" android:nestedScrollingEnabled="false" android:overScrollMode="never"/>
+                <TextView android:id="@+id/addItem" android:layout_width="match_parent" android:layout_height="44dp" android:drawablePadding="14dp" android:gravity="center_vertical" android:paddingStart="4dp" android:paddingEnd="4dp" android:text="@string/add_item" android:textColor="?attr/nbGold" android:textSize="15sp" app:drawableStartCompat="@drawable/ic_add" app:drawableTint="?attr/nbGold" android:background="?attr/selectableItemBackground"/>
+                <LinearLayout android:id="@+id/completedHeader" android:layout_width="match_parent" android:layout_height="40dp" android:gravity="center_vertical" android:orientation="horizontal" android:visibility="gone" android:background="?attr/selectableItemBackground">
+                    <ImageView android:id="@+id/completedChevron" android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_chevron_down" app:tint="?attr/nbTextMuted" android:contentDescription="@null"/>
+                    <TextView android:id="@+id/completedLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="10dp" android:paddingEnd="0dp" android:textColor="?attr/nbTextMuted" android:textSize="13sp" android:textStyle="bold"/>
+                </LinearLayout>
+                <androidx.recyclerview.widget.RecyclerView android:id="@+id/checklistDone" android:layout_width="match_parent" android:layout_height="wrap_content" android:nestedScrollingEnabled="false" android:overScrollMode="never"/>
+            </LinearLayout>
+
+            <!-- Attachments -->
+            <HorizontalScrollView android:id="@+id/attachScroll" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:clipToPadding="false" android:scrollbars="none" android:visibility="gone">
+                <LinearLayout android:id="@+id/attachStrip" android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal"/>
+            </HorizontalScrollView>
+            <LinearLayout android:id="@+id/audioList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
+
+            <!-- Links -->
+            <LinearLayout android:id="@+id/linksWrap" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:orientation="vertical" android:visibility="gone">
+                <TextView android:id="@+id/linksOutTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/links_out" android:textAppearance="@style/TextAppearance.Notebook.Caps" android:paddingBottom="6dp"/>
+                <com.google.android.material.chip.ChipGroup android:id="@+id/linksOut" android:layout_width="match_parent" android:layout_height="wrap_content" app:chipSpacingHorizontal="6dp" app:chipSpacingVertical="2dp"/>
+                <TextView android:id="@+id/linksInTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="@string/links_in" android:textAppearance="@style/TextAppearance.Notebook.Caps" android:paddingBottom="6dp"/>
+                <com.google.android.material.chip.ChipGroup android:id="@+id/linksIn" android:layout_width="match_parent" android:layout_height="wrap_content" app:chipSpacingHorizontal="6dp" app:chipSpacingVertical="2dp"/>
+            </LinearLayout>
+
+            <TextView android:id="@+id/meta" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:textColor="?attr/nbTextFaint" android:textSize="11sp"/>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- Bottom bar: 7 equal cells + reminder chip row -->
+    <LinearLayout android:id="@+id/reminderRow" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingBottom="6dp" android:visibility="gone">
+        <TextView android:id="@+id/reminderChip" android:layout_width="wrap_content" android:layout_height="wrap_content" android:background="@drawable/bg_chip_link" android:drawablePadding="6dp" android:gravity="center_vertical" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="5dp" android:paddingBottom="5dp" android:textColor="?android:attr/textColorPrimary" android:textSize="12sp" app:drawableStartCompat="@drawable/ic_bell" app:drawableTint="?attr/nbGold"/>
+    </LinearLayout>
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="?attr/nbHairline"/>
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent" android:layout_height="52dp"
+        android:background="?attr/nbCard" android:orientation="horizontal" android:paddingStart="4dp" android:paddingEnd="4dp">
+        <ImageButton android:id="@+id/btnAttach" style="@style/NbBottomBtn" android:src="@drawable/ic_attach" android:contentDescription="@string/attach"/>
+        <ImageButton android:id="@+id/btnLink" style="@style/NbBottomBtn" android:src="@drawable/ic_link" android:contentDescription="@string/link_note"/>
+        <ImageButton android:id="@+id/btnChecklist" style="@style/NbBottomBtn" android:src="@drawable/ic_checklist" android:contentDescription="@string/to_checklist"/>
+        <ImageButton android:id="@+id/btnReminder" style="@style/NbBottomBtn" android:src="@drawable/ic_bell" android:contentDescription="@string/reminder"/>
+        <ImageButton android:id="@+id/btnLock" style="@style/NbBottomBtn" android:src="@drawable/ic_lock" android:contentDescription="@string/lock"/>
+        <ImageButton android:id="@+id/btnMic" style="@style/NbBottomBtn" android:src="@drawable/ic_mic" android:contentDescription="@string/record_memo"/>
+        <ImageButton android:id="@+id/btnUndo" style="@style/NbBottomBtn" android:src="@drawable/ic_undo" android:contentDescription="@string/undo"/>
+        <ImageButton android:id="@+id/btnRedo" style="@style/NbBottomBtn" android:src="@drawable/ic_redo" android:contentDescription="@string/redo"/>
+    </LinearLayout>
+</LinearLayout>

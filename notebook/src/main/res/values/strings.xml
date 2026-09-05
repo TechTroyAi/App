@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Notebook</string>
+    <string name="app_by">by Troy</string>
+
+    <!-- Home -->
+    <string name="search_hint">Search notes</string>
+    <string name="folder_all">All</string>
+    <string name="folder_unfiled">Unfiled</string>
+    <string name="section_pinned">Pinned</string>
+    <string name="section_others">Others</string>
+    <string name="section_notes">Notes</string>
+    <string name="empty_notes_title">Nothing here yet</string>
+    <string name="empty_notes_body">Tap + to write your first note.</string>
+    <string name="empty_search">No notes match “%1$s”</string>
+    <string name="new_note">New note</string>
+    <string name="new_text_note">Text note</string>
+    <string name="new_checklist">Checklist</string>
+    <string name="new_sketch">Sketch</string>
+    <string name="new_pages">Handwriting pages</string>
+    <string name="new_folder">New folder</string>
+    <string name="menu">Menu</string>
+    <string name="layout_toggle">Toggle layout</string>
+    <string name="selected_count">%1$d selected</string>
+
+    <!-- Drawer -->
+    <string name="nav_all_notes">All notes</string>
+    <string name="nav_graph">Graph</string>
+    <string name="nav_folders">Folders</string>
+    <string name="nav_manage_folders">Manage folders</string>
+    <string name="nav_widgets">Widgets</string>
+    <string name="nav_trash">Trash</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_echoes">Echoes</string>
+
+    <!-- Editor -->
+    <string name="title_hint">Title</string>
+    <string name="body_hint">Start writing…</string>
+    <string name="checklist_item_hint">List item</string>
+    <string name="add_item">Add item</string>
+    <string name="completed_count">Completed (%1$d)</string>
+    <string name="saved">Saved</string>
+    <string name="edited_at">Edited %1$s</string>
+    <string name="words_count">%1$d words</string>
+    <string name="pin">Pin</string>
+    <string name="unpin">Unpin</string>
+    <string name="color">Color</string>
+    <string name="more">More</string>
+    <string name="attach">Attach</string>
+    <string name="link_note">Link note</string>
+    <string name="to_checklist">Convert to checklist</string>
+    <string name="to_text">Convert to text</string>
+    <string name="reminder">Reminder</string>
+    <string name="lock">Lock</string>
+    <string name="unlock">Unlock</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="move_to_folder">Move to folder</string>
+    <string name="share">Share</string>
+    <string name="duplicate">Duplicate</string>
+    <string name="copy_text">Copy text</string>
+    <string name="note_info">Note info</string>
+    <string name="delete">Delete</string>
+    <string name="restore">Restore</string>
+    <string name="delete_forever">Delete forever</string>
+    <string name="empty_trash">Empty trash</string>
+    <string name="trash_hint">Notes are deleted forever after 30 days.</string>
+    <string name="note_moved_to_trash">Note moved to Trash</string>
+    <string name="notes_moved_to_trash">%1$d notes moved to Trash</string>
+    <string name="note_restored">Note restored</string>
+    <string name="note_deleted_forever">Deleted forever</string>
+    <string name="trash_emptied">Trash emptied</string>
+    <string name="uncheck_all">Uncheck all</string>
+    <string name="delete_checked">Delete checked items</string>
+    <string name="links_out">Links →</string>
+    <string name="links_in">← Backlinks</string>
+    <string name="no_links">Type [[ in the note or tap 🔗 to link another note.</string>
+    <string name="link_deleted">(deleted)</string>
+    <string name="pick_note">Link to note</string>
+    <string name="pick_folder">Move to folder</string>
+    <string name="pick_color">Note color</string>
+    <string name="replay">Replay this note</string>
+    <string name="seal_capsule">Seal as time capsule</string>
+
+    <!-- Attachments -->
+    <string name="take_photo">Take photo</string>
+    <string name="pick_media">Photo or video</string>
+    <string name="record_memo">Record voice memo</string>
+    <string name="pick_file">PDF or any file</string>
+    <string name="new_sketch_attach">New sketch</string>
+    <string name="voice_memo">Voice memo</string>
+    <string name="recording">Recording…</string>
+    <string name="recording_notification">Notebook is recording a voice memo</string>
+    <string name="stop">Stop</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="cancel">Cancel</string>
+    <string name="attachment_removed">Attachment removed</string>
+    <string name="rename">Rename</string>
+    <string name="remove">Remove</string>
+    <string name="open_with">Open with…</string>
+    <string name="pages_count">%1$d pages</string>
+    <string name="storage_used">Storage used</string>
+    <string name="storage_summary">%1$s · %2$d notes</string>
+
+    <!-- Folders -->
+    <string name="folder_name">Folder name</string>
+    <string name="folder_color">Folder color</string>
+    <string name="folder_delete_hint">Notes in this folder will move to Unfiled.</string>
+    <string name="folders">Folders</string>
+    <string name="rename_folder">Rename folder</string>
+    <string name="delete_folder">Delete folder</string>
+    <string name="create">Create</string>
+    <string name="save">Save</string>
+    <string name="ok">OK</string>
+
+    <!-- Settings -->
+    <string name="settings">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_black_gold">Black &amp; Gold</string>
+    <string name="theme_ivory_gold">Ivory &amp; Gold</string>
+    <string name="theme_amoled">Pure AMOLED</string>
+    <string name="settings_layout">Layout</string>
+    <string name="layout_grid">Grid</string>
+    <string name="layout_list">List</string>
+    <string name="settings_sort">Sort</string>
+    <string name="sort_edited">Last edited</string>
+    <string name="sort_created">Date created</string>
+    <string name="sort_title">Title</string>
+    <string name="sort_color">Color</string>
+    <string name="settings_font_size">Font size</string>
+    <string name="font_small">Small</string>
+    <string name="font_medium">Medium</string>
+    <string name="font_large">Large</string>
+    <string name="font_xlarge">Extra large</string>
+    <string name="settings_default_note">Default new note</string>
+    <string name="default_ask">Ask every time</string>
+    <string name="settings_security">Security</string>
+    <string name="settings_set_pin">Set PIN</string>
+    <string name="settings_change_pin">Change PIN</string>
+    <string name="settings_biometric">Fingerprint unlock</string>
+    <string name="settings_autolock">Auto-lock</string>
+    <string name="autolock_immediately">Immediately</string>
+    <string name="autolock_1m">After 1 minute</string>
+    <string name="autolock_5m">After 5 minutes</string>
+    <string name="autolock_screen_off">When screen turns off</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_export">Export backup</string>
+    <string name="settings_import">Import backup</string>
+    <string name="settings_include_attachments">Include attachments</string>
+    <string name="backup_done">Backup saved</string>
+    <string name="backup_failed">Backup failed: %1$s</string>
+    <string name="restore_done">Restored %1$d notes</string>
+    <string name="restore_failed">Restore failed: %1$s</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Notebook by Troy</string>
+    <string name="settings_echoes">Echoes</string>
+    <string name="settings_echo_daily">Daily echo card</string>
+
+    <!-- Lock -->
+    <string name="enter_pin">Enter your PIN to open this note</string>
+    <string name="create_pin">Create a PIN</string>
+    <string name="confirm_pin">Confirm your PIN</string>
+    <string name="pin_mismatch">PINs don’t match — try again</string>
+    <string name="wrong_pin">Wrong PIN</string>
+    <string name="forgot_pin">Forgot PIN?</string>
+    <string name="forgot_pin_hint">Confirm with your phone’s screen lock to set a new PIN.</string>
+    <string name="biometric_title">Unlock note</string>
+    <string name="biometric_subtitle">Use your fingerprint to open this note</string>
+    <string name="use_pin">Use PIN</string>
+    <string name="locked_note">Locked note</string>
+    <string name="note_locked">Note locked</string>
+    <string name="note_unlocked">Note unlocked</string>
+    <string name="pin_required_first">Set a PIN first (Settings → Security)</string>
+
+    <!-- Reminders -->
+    <string name="set_reminder">Set reminder</string>
+    <string name="remove_reminder">Remove reminder</string>
+    <string name="reminder_set">Reminder set for %1$s</string>
+    <string name="reminder_removed">Reminder removed</string>
+    <string name="reminder_channel">Reminders</string>
+    <string name="reminder_channel_desc">Note reminders you set</string>
+    <string name="recording_channel">Recording</string>
+    <string name="action_open">Open</string>
+    <string name="action_done">Done</string>
+    <string name="action_snooze">Snooze 10 min</string>
+    <string name="reminder_generic">Reminder</string>
+    <string name="exact_alarm_hint">Allow “Alarms &amp; reminders” for on-time reminders. Without it, reminders may arrive a few minutes late.</string>
+
+    <!-- Widgets -->
+    <string name="widget_sticky_label">Sticky note</string>
+    <string name="widget_list_label">Note list</string>
+    <string name="widget_new_label">New note</string>
+    <string name="widget_pick_note">Choose a note</string>
+    <string name="widget_note_missing">Note no longer exists</string>
+    <string name="widget_voice_note">New voice note</string>
+
+    <!-- Graph -->
+    <string name="graph_title">Graph</string>
+    <string name="graph_empty">Link notes with [[ to see connections here.</string>
+
+    <!-- Echoes -->
+    <string name="echo_title">Echo</string>
+    <string name="echo_dismiss">Dismiss</string>
+    <string name="echo_open">Open</string>
+    <string name="capsule_sealed_until">Sealed until %1$s</string>
+    <string name="capsule_locked_msg">This note is a time capsule. It opens on %1$s.</string>
+    <string name="capsule_seal_title">Seal as time capsule</string>
+    <string name="capsule_seal_body">The note locks itself until the date you choose. It returns as an Echo that day.</string>
+    <string name="capsule_sealed">Sealed. See you on %1$s.</string>
+    <string name="easter_egg">Built in one long conversation between Troy and an AI who talked him into fewer permissions and out of nothing else.\n\n— September 2026</string>
+
+    <!-- Sketch / pages -->
+    <string name="pen">Pen</string>
+    <string name="ballpoint">Ballpoint</string>
+    <string name="technical_pen">Technical pen</string>
+    <string name="pencil">Pencil</string>
+    <string name="highlighter">Highlighter</string>
+    <string name="laser">Laser pointer</string>
+    <string name="eraser">Eraser</string>
+    <string name="lasso">Lasso</string>
+    <string name="ruler">Ruler</string>
+    <string name="zoom_write">Zoom to write</string>
+    <string name="text_box">Text box</string>
+    <string name="insert_image">Insert image</string>
+    <string name="clear_canvas">Clear</string>
+    <string name="paper">Paper</string>
+    <string name="paper_blank">Blank</string>
+    <string name="paper_lined">Lined</string>
+    <string name="paper_grid">Grid</string>
+    <string name="paper_dotted">Dotted</string>
+    <string name="paper_dark">Dark</string>
+    <string name="paper_ivory">Ivory</string>
+    <string name="pages">Pages</string>
+    <string name="add_page">Add page</string>
+    <string name="delete_page">Delete page</string>
+    <string name="page_x_of_y">Page %1$d / %2$d</string>
+    <string name="export_pdf">Export as PDF</string>
+    <string name="exported">Exported</string>
+    <string name="record_while_writing">Record audio while writing</string>
+    <string name="playback_synced">Playback synced to strokes</string>
+    <string name="move">Move</string>
+    <string name="resize">Resize</string>
+    <string name="recolor">Color</string>
+    <string name="hide_annotations">Hide annotations</string>
+    <string name="show_annotations">Show annotations</string>
+    <string name="export_annotated_pdf">Export annotated PDF</string>
+    <string name="go_to_page">Go to page</string>
+    <string name="search_in_pdf">Search in PDF</string>
+
+    <!-- Generic -->
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="just_now">Just now</string>
+    <string name="permission_denied">Permission denied</string>
+    <string name="error_generic">Something went wrong</string>
+    <string name="select_all">Select all</string>
+    <string name="done">Done</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="search">Search</string>
+    <string name="searching">Searching…</string>
+    <string name="no_results">No matches</string>
+    <string name="back">Back</string>
+    <string name="close">Close</string>
+    <string name="none">None</string>
+    <string name="apply">Apply</string>
+</resources>

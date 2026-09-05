@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Black & Gold — the identity palette -->
+    <color name="gold">#D4AF37</color>
+    <color name="gold_light">#F0D77A</color>
+    <color name="gold_deep">#A8862A</color>
+    <color name="gold_dim">#24D4AF37</color>
+    <color name="gold_hairline">#48D4AF37</color>
+    <color name="gold_ripple">#33F0D77A</color>
+
+    <color name="ink_black">#0B0B0C</color>
+    <color name="graphite">#161618</color>
+    <color name="graphite_2">#1D1D20</color>
+    <color name="graphite_3">#26262A</color>
+    <color name="amoled">#000000</color>
+
+    <color name="text_warm_white">#F5F2EA</color>
+    <color name="text_muted">#A7A39A</color>
+    <color name="text_faint">#6F6C66</color>
+    <color name="danger">#C7554D</color>
+
+    <!-- Ivory & Gold (light) -->
+    <color name="ivory">#F4EEDF</color>
+    <color name="ivory_card">#FBF7EC</color>
+    <color name="ivory_card_2">#FFFDF6</color>
+    <color name="ivory_text">#1E1A12</color>
+    <color name="ivory_muted">#6B6455</color>
+    <color name="ivory_faint">#A39C8B</color>
+    <color name="ivory_gold">#B8922A</color>
+    <color name="ivory_hairline">#40B8922A</color>
+
+    <!-- Note tints (dark) — subtle, keep the black base -->
+    <color name="tint_none">#00000000</color>
+    <color name="tint_gold">#2A2412</color>
+    <color name="tint_wine">#2C1719</color>
+    <color name="tint_emerald">#14281E</color>
+    <color name="tint_sapphire">#141F30</color>
+    <color name="tint_plum">#26182D</color>
+    <color name="tint_bronze">#2A1F16</color>
+    <color name="tint_slate">#1C2024</color>
+
+    <!-- Note tints (light) -->
+    <color name="tint_gold_l">#F6E9C2</color>
+    <color name="tint_wine_l">#F3D9DA</color>
+    <color name="tint_emerald_l">#D8EEDF</color>
+    <color name="tint_sapphire_l">#D9E4F5</color>
+    <color name="tint_plum_l">#EADAF2</color>
+    <color name="tint_bronze_l">#EFDCC8</color>
+    <color name="tint_slate_l">#DEE2E6</color>
+
+    <!-- Folder colors -->
+    <color name="folder_blue">#6E9BD1</color>
+    <color name="folder_green">#4FB08A</color>
+    <color name="folder_pink">#B15A8C</color>
+    <color name="folder_orange">#E0873A</color>
+    <color name="folder_purple">#8E7CC3</color>
+    <color name="folder_teal">#57C7C0</color>
+    <color name="folder_red">#C7554D</color>
+    <color name="folder_gold">#D4AF37</color>
+
+    <!-- Sketch palette -->
+    <color name="pen_gold">#D4AF37</color>
+    <color name="pen_white">#F5F2EA</color>
+    <color name="pen_blue">#6E9BD1</color>
+    <color name="pen_green">#4FB08A</color>
+    <color name="pen_red">#C7554D</color>
+    <color name="pen_pink">#B15A8C</color>
+    <color name="pen_orange">#E0873A</color>
+    <color name="pen_purple">#8E7CC3</color>
+    <color name="pen_teal">#57C7C0</color>
+    <color name="pen_gray">#A7A39A</color>
+    <color name="pen_black">#111111</color>
+    <color name="pen_yellow">#E5C36B</color>
+
+    <color name="transparent">#00000000</color>
+</resources>

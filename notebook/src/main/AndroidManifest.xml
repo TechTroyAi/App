@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Only what the features need; every one of these is requested at first use, never at launch. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false"/>
+
+    <application
+        android:name=".App"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.Notebook"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:supportsRtl="true"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
+        android:enableOnBackInvokedCallback="false"
+        tools:targetApi="35">
+
+        <!-- Home: launcher entry. singleTask so widgets / notifications land in the existing instance. -->
+        <activity
+            android:name=".ui.HomeActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Notebook.Splash"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- "Send to Notebook" share target: text and files become a new note with attachments -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+                <data android:mimeType="image/*"/>
+                <data android:mimeType="video/*"/>
+                <data android:mimeType="audio/*"/>
+                <data android:mimeType="application/pdf"/>
+            </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts"/>
+        </activity>
+
+        <activity android:name=".ui.EditorActivity" android:exported="false" android:windowSoftInputMode="adjustResize|stateHidden" android:parentActivityName=".ui.HomeActivity"/>
+        <activity android:name=".ui.SketchActivity" android:exported="false" android:screenOrientation="portrait"/>
+        <activity android:name=".ink.PagesActivity" android:exported="false" android:screenOrientation="portrait" android:windowSoftInputMode="adjustPan"/>
+        <activity android:name=".ui.PdfActivity" android:exported="false" android:screenOrientation="portrait" android:windowSoftInputMode="adjustPan"/>
+        <activity android:name=".ui.ViewerActivity" android:exported="false" android:theme="@style/Theme.Notebook.Amoled"/>
+        <activity android:name=".ui.FoldersActivity" android:exported="false"/>
+        <activity android:name=".ui.TrashActivity" android:exported="false"/>
+        <activity android:name=".ui.GraphActivity" android:exported="false"/>
+        <activity android:name=".ui.EchoesActivity" android:exported="false"/>
+        <activity android:name=".ui.SettingsActivity" android:exported="false"/>
+        <activity android:name=".ui.WidgetsInfoActivity" android:exported="false"/>
+        <activity android:name=".ui.LockActivity" android:exported="false" android:windowSoftInputMode="stateAlwaysHidden" android:excludeFromRecents="true"/>
+        <activity android:name=".echo.ReplayActivity" android:exported="false" android:screenOrientation="portrait"/>
+        <activity android:name=".echo.EasterEggActivity" android:exported="false" android:theme="@style/Theme.Notebook.Amoled" android:screenOrientation="portrait"/>
+
+        <!-- Widgets -->
+        <receiver android:name=".widget.StickyWidget" android:exported="true" android:label="@string/widget_sticky_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_sticky_info"/>
+        </receiver>
+        <activity android:name=".widget.StickyConfigActivity" android:exported="true" android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
+            </intent-filter>
+        </activity>
+        <receiver android:name=".widget.ListWidget" android:exported="true" android:label="@string/widget_list_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_list_info"/>
+        </receiver>
+        <service android:name=".widget.ListWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>
+        <receiver android:name=".widget.NewNoteWidget" android:exported="true" android:label="@string/widget_new_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_new_info"/>
+        </receiver>
+
+        <!-- Reminders -->
+        <receiver android:name=".sys.ReminderReceiver" android:exported="false"/>
+        <receiver android:name=".sys.BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.TIME_SET"/>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- Voice memo recorder (keeps recording with the screen off) -->
+        <service android:name=".sys.RecorderService" android:exported="false" android:foregroundServiceType="microphone"/>
+
+        <!-- Sharing attachments out of the app -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"/>
+        </provider>
+    </application>
+</manifest>

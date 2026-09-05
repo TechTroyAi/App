@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "BlockholdDefense"
 include(":app")
+include(":notebook")

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="nbCard" format="color" />
+    <attr name="nbCardRaised" format="color" />
+    <attr name="nbHairline" format="color" />
+    <attr name="nbGold" format="color" />
+    <attr name="nbGoldDim" format="color" />
+    <attr name="nbTextMuted" format="color" />
+    <attr name="nbTextFaint" format="color" />
+    <attr name="nbPaper" format="color" />
+    <attr name="nbInk" format="color" />
+</resources>
