@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ink">#101512</color>
-    <color name="paper">#F3F5F0</color>
-    <color name="electric_green">#B7F34A</color>
-    <color name="forest">#183B2A</color>
+    <color name="ink">#0B0F0D</color>
+    <color name="paper">#D7EEE4</color>
+    <color name="electric_green">#2EE59B</color>
+    <color name="forest">#0F3D2E</color>
 </resources>
