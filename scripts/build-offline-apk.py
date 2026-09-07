@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Offline APK builder for Blockhold Defense.
+"""Offline APK builder for Jadex.
 
 Builds a fully functional, signed release APK using the offline toolchain:
-  1. Compiles Kotlin sources with kotlinc (class-based lambdas for API 24+ compatibility)
+  1. Compiles Kotlin sources with kotlinc (class-based lambdas for API 26+ compatibility)
   2. Dexes application bytecode + kotlin-stdlib + annotations with dx (format 038)
   3. Packages and links updated resources with apktool (aapt2)
   4. Applies 4-byte and 4096-page zipalign semantics
@@ -20,6 +20,7 @@ import hashlib
 import os
 import re
 import shutil
+import secrets
 import struct
 import subprocess
 import sys
@@ -106,7 +107,7 @@ def ensure_signing_key(java_bin: str) -> tuple[str, str, str]:
     keystore = os.path.join(signing_dir, "jadex-release.p12")
     props_file = os.path.join(signing_dir, "jadex-release.properties")
 
-    password = "jadex-jade-key-2026"
+    password = secrets.token_urlsafe(32)
     alias = "jadex"
 
     if os.path.exists(props_file):
@@ -151,7 +152,7 @@ def ensure_signing_key(java_bin: str) -> tuple[str, str, str]:
 
 
 def find_stdlib_jars() -> tuple[str, str]:
-    kotlinc_dir = "/usr/local/lib/node_modules/kotlin-compiler"
+    kotlinc_dir = os.path.dirname(os.path.dirname(os.path.realpath(find_kotlinc())))
     stdlib = os.path.join(kotlinc_dir, "lib", "kotlin-stdlib.jar")
     annot = os.path.join(kotlinc_dir, "lib", "annotations-13.0.jar")
     if os.path.exists(stdlib) and os.path.exists(annot):
@@ -335,6 +336,7 @@ def build_apk() -> str:
     if vn_match:
         version_name = vn_match.group(1)
 
+    yml = re.sub(r"minSdkVersion:.*", "minSdkVersion: '26'", yml)
     yml = re.sub(r"versionCode:\s*'[0-9]+'", f"versionCode: '{version_code}'", yml)
     yml = re.sub(r"versionName:\s*[0-9.]+", f"versionName: {version_name}", yml)
     yml = re.sub(r"apkFileName:\s*\S+", f"apkFileName: Jadex-v{version_name}-installable.apk", yml)
@@ -374,7 +376,7 @@ def build_apk() -> str:
         "--ks-type", "PKCS12",
         "--ks-key-alias", key_alias,
         "--ks-pass", f"pass:{key_pass}",
-        "--min-sdk-version", "24",
+        "--min-sdk-version", "26",
         "--v1-signing-enabled", "false",
         "--v2-signing-enabled", "true",
         "--v3-signing-enabled", "true",
@@ -387,13 +389,19 @@ def build_apk() -> str:
         fail(f"apksigner failed with exit code {res.returncode}")
     ok(f"Signed APK produced at {final_apk}")
 
+    # Verify the actual signatures, not only the presence of signing blocks.
+    subprocess.run(
+        [java_bin, "-jar", apksigner_jar, "verify", "--verbose", "--print-certs", final_apk],
+        check=True,
+    )
+
     # Verification
     log("Running static verifications...")
     verify_script = os.path.join(REPO, "scripts", "verify-apk.py")
     res = subprocess.run([sys.executable, verify_script, final_apk], capture_output=True, text=True)
     print(res.stdout)
     if res.returncode != 0:
-        print("verify-apk warnings (non-fatal for Jadex rebrand)")
+        fail("APK structural verification failed")
 
     sha256 = hashlib.sha256(open(final_apk, "rb").read()).hexdigest()
     size = os.path.getsize(final_apk)

@@ -236,3 +236,10 @@ body.quiet #titlebar:hover .title-actions, body.quiet #activity:hover { opacity:
 /* Console repaints are batched; keep them from thrashing layout. */
 #console { contain: content; overflow-anchor: none; }
 #highlight, #code { will-change: transform; }
+
+/* Editor-first startup: branding breathes in place, never over the file. */
+.notebook-ready { animation: notebook-breathe 650ms ease-out 1; }
+@keyframes notebook-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) {
+  .notebook-ready, #status-lang.loading { animation: none; }
+}

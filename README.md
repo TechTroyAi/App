@@ -1,3 +1,17 @@
+# Jadex Android build — v1.3.5
+
+The current app is Jadex, a Kotlin Android host with a bundled Python IDE.
+The editor opens without a splash overlay; CPython loads only on first Run/REPL,
+with a 12-second startup timeout and a retryable subset fallback.
+The installable **v1.3.5 (versionCode 27)** APK and build instructions are in
+[artifacts/JADEX.md](artifacts/JADEX.md). This build requires **Android 8.0 / API 26+**.
+It is newly signed and **cannot update the retained v1.3.0 installation in place**;
+export projects before uninstalling an older installation.
+
+The Blockhold documentation below is historical, not the current Jadex build status.
+
+---
+
 # Blockhold Defense
 
 **Blockhold Defense: Endless Pathforge** is an original, offline native-Kotlin tower-defense game for Android. Forge the only enemy route from the entrance gate to the protected core, build a mixed defense, and survive an endless procedural assault.

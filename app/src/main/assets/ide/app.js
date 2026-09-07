@@ -611,14 +611,14 @@
 
   var origRun = runCode;
   var _busy = false;
-  function setBusy(on) {
+  function setBusy(on, loading) {
     _busy = on;
     var b = document.getElementById("btn-run");
-    if (b) { b.classList.toggle("busy", on); b.textContent = on ? "… running" : "▶ Run"; }
+    if (b) { b.classList.toggle("busy", on); b.textContent = on ? (loading ? "… loading Python" : "… running") : "▶ Run"; }
   }
   runCode = async function (debug) {
     if (_busy) return;              // no double-fire from ▶ / IME bar / Ctrl+Enter
-    setBusy(true);
+    setBusy(true, !debug && window.JadexCPython && !JadexCPython.ready);
     var _t0 = (performance && performance.now) ? performance.now() : Date.now();
     function done() {
       var ms = ((performance && performance.now) ? performance.now() : Date.now()) - _t0;
@@ -639,17 +639,20 @@
     if (debugLog) debugLog.textContent = "";
     var ws = {};
     Object.keys(files).forEach(function (k) { if (k[0] !== "_") ws[k] = files[k]; });
-    ws[current] = code.value;
+    var source = code.value;
+    var filename = current;
+    ws[filename] = source;
     var cp = window.JadexCPython;
     if (cp && !debug && !cp.ready) {
       // Editor was never blocked; only Run waits, and it says so in one line.
       log("… CPython is almost ready — one moment\n", "ok");
       try { await cp.ensure(); } catch (e) {}
     }
+    setBusy(true);
     if (cp && cp.ready && !debug) {
-      log(">>> CPython · " + current + "\n", "ok");
+      log(">>> CPython · " + filename + "\n", "ok");
       try {
-        var res = await cp.run(code.value, ws, function (t, stream) {
+        var res = await cp.run(source, ws, function (t, stream) {
           log(t, stream === "err" ? "err" : null);
         });
         if (res && res.error) {
@@ -670,9 +673,9 @@
     if (cp && cp.state === "failed" && !debug) {
       log("[subset engine · tap Run again to retry CPython]\n", "ok");
     }
-    log(">>> " + (debug ? "debug " : "") + current + "\n", "ok");
+    log(">>> " + (debug ? "debug " : "") + filename + "\n", "ok");
     try {
-      running = TroyPython.run(code.value, {
+      running = TroyPython.run(source, {
         print: function (s) { log(s); },
         input: function (prompt) { return window.prompt(prompt, "") || ""; },
         files: ws,
@@ -822,11 +825,4 @@
   syncEditor();
 })();
 
-// Editor first, WASM second: warm CPython in the background after first paint.
-(function () {
-  function warm() {
-    if (window.JadexCPython && window.JadexCPython.prefetch) window.JadexCPython.prefetch(1200);
-  }
-  if (document.readyState === "complete") requestAnimationFrame(warm);
-  else window.addEventListener("load", function () { requestAnimationFrame(warm); });
-})();
+// CPython is started only by Run / REPL, never by opening the notebook.

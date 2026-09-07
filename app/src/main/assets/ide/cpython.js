@@ -67,6 +67,7 @@
       return;
     }
     if (msg.type === "done") {
+      if (!active || msg.runId !== active.runId) return;
       var a = active;
       active = null;
       if (a && a.resolve) a.resolve(msg);
@@ -74,36 +75,70 @@
     }
   }
 
+  // A stalled WASM download must never hold Run indefinitely.
+  var BOOT_TIMEOUT_MS = 12000;
+
+  function markFailed() {
+    state = "failed";
+    bootPromise = null;
+    interruptBuffer = null;
+    stdinBuffer = null;
+    window.JadexCPython.ready = false;
+    window.JadexCPython.engine = "subset";
+    window.JadexCPython.threaded = false;
+    chip("Subset · tap Run again for CPython", "jade warn");
+  }
+
   function spawn() {
     return new Promise(function (resolve, reject) {
       var w;
-      try { w = new Worker("pyworker.js"); }
-      catch (e) { reject(e); return; }
       var settled = false;
-      w.onmessage = function (e) {
-        var msg = e.data || {};
-        if (!settled && msg.type === "ready") {
-          settled = true;
-          worker = w;
-          resolve(msg.version);
-          return;
+      var timer;
+      function fail(err) {
+        clearTimeout(timer);
+        if (w) {
+          w.onmessage = w.onerror = w.onmessageerror = null;
+          w.terminate();
         }
-        if (!settled && msg.type === "bootfail") {
+        if (!settled) {
           settled = true;
-          reject(new Error(msg.error || "boot failed"));
-          return;
+          reject(err);
+        } else if (worker === w) {
+          worker = null;
+          markFailed();
+          // Do not rerun partially executed code: report the crash and release Run.
+          var a = active;
+          active = null;
+          if (a) a.resolve({ type: "done", error: "CPython stopped unexpectedly. Subset · tap Run again for CPython\n" });
         }
-        handle(msg);
-      };
-      w.onerror = function (err) {
-        if (!settled) { settled = true; reject(new Error(err.message || "worker error")); }
-      };
-      if (isolated) {
-        interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
-        stdinBuffer = new SharedArrayBuffer(8 + 4096 * 2);
-        w.postMessage({ type: "interrupt-buffer", buffer: interruptBuffer, stdin: stdinBuffer });
       }
-      w.postMessage({ type: "boot" });
+      try {
+        w = new Worker("pyworker.js");
+        timer = setTimeout(function () { fail(new Error("CPython startup timed out")); }, BOOT_TIMEOUT_MS);
+        w.onmessage = function (e) {
+          var msg = e.data || {};
+          if (!settled && msg.type === "ready") {
+            settled = true;
+            clearTimeout(timer);
+            worker = w;
+            resolve(msg.version);
+            return;
+          }
+          if (!settled && msg.type === "bootfail") {
+            fail(new Error(msg.error || "boot failed"));
+            return;
+          }
+          if (worker === w) handle(msg);
+        };
+        w.onerror = function (err) { fail(new Error(err.message || "worker error")); };
+        w.onmessageerror = function () { fail(new Error("worker message error")); };
+        if (isolated) {
+          interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
+          stdinBuffer = new SharedArrayBuffer(8 + 4096 * 2);
+          w.postMessage({ type: "interrupt-buffer", buffer: interruptBuffer, stdin: stdinBuffer });
+        }
+        w.postMessage({ type: "boot" });
+      } catch (err) { fail(err); }
     });
   }
 
@@ -122,34 +157,22 @@
       return true;
     }).catch(function (err) {
       console.error("CPython boot failed", err);
-      state = "failed";
-      bootPromise = null;              // next Run is a genuine retry
-      window.JadexCPython.ready = false;
-      window.JadexCPython.engine = "subset";
-      chip("Subset · tap Run again for CPython", "jade warn");
+      markFailed();              // next Run is a genuine retry
       return false;
     });
     return bootPromise;
-  };
-
-  window.JadexCPython.prefetch = function (delay) {
-    var start = function () { window.JadexCPython.ensure(); };
-    var go = function () {
-      if (window.requestIdleCallback) window.requestIdleCallback(start, { timeout: 4000 });
-      else setTimeout(start, 0);
-    };
-    setTimeout(go, delay == null ? 1200 : delay);
   };
 
   function dispatch(type, payload, onPrint) {
     if (!worker) return Promise.reject(new Error("CPython not ready"));
     if (active) return Promise.reject(new Error("already running"));
     var runId = ++runSeq;
-    return new Promise(function (resolve) {
+    return new Promise(function (resolve, reject) {
       active = { runId: runId, resolve: resolve, onPrint: onPrint };
       payload.type = type;
       payload.runId = runId;
-      worker.postMessage(payload);
+      try { worker.postMessage(payload); }
+      catch (err) { active = null; reject(err); }
     });
   }
 

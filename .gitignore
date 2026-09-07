@@ -47,3 +47,9 @@ build-manual/
 
 # Brotli-precompressed IDE assets (generated: node scripts/compress-pyodide.js)
 app/src/main/assets/ide/**/*.br
+
+# Requested Jadex installable milestone
+!artifacts/Jadex-v1.3.5-installable.apk
+
+# Generated APK signing sidecars
+*.apk.idsig
