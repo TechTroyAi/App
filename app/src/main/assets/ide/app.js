@@ -47,11 +47,27 @@
       "main.py": 'print("Jadex")\nprint("by Troy")\nprint("black jade · keyboard-safe · wide code")\n\nfor n in range(3):\n    print("ready", n)\n'
     };
   }
-  function saveFiles() {
+  var _saveTimer = 0;
+  function persist() {
+    _saveTimer = 0;
+    try { localStorage.setItem(storeKey, JSON.stringify(files)); } catch (e) {}
+  }
+  // Keep the in-memory model instant; batch the expensive serialize.
+  function saveFiles(immediate) {
     files[current] = code.value;
     files._active = current;
-    localStorage.setItem(storeKey, JSON.stringify(files));
+    if (immediate) {
+      if (_saveTimer) { clearTimeout(_saveTimer); }
+      persist();
+      return;
+    }
+    if (_saveTimer) return;
+    _saveTimer = setTimeout(persist, 400);
   }
+  window.addEventListener("pagehide", function () { saveFiles(true); });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") saveFiles(true);
+  });
   function pushUndo() {
     undoStack.push(code.value);
     if (undoStack.length > 80) undoStack.shift();
@@ -78,14 +94,33 @@
     document.getElementById("btn-horiz").textContent = horiz ? "stack" : "wide";
   }
 
-  function syncEditor() {
+  var _hlText = null;      // last text we painted
+  var _gutterLines = -1;   // last line count we built
+  var _hlFrame = 0;
+
+  // Heavy: full-file syntax paint. Coalesced to one per animation frame and
+  // skipped entirely when the text has not changed.
+  function paintHighlight() {
     var src = code.value;
+    if (src === _hlText) return;
+    _hlText = src;
     if (src.length && src[src.length - 1] !== "\n") src += "\n";
     highlight.innerHTML = TroyPython.highlight(src);
+  }
+  function schedulePaint() {
+    if (_hlFrame) return;
+    _hlFrame = requestAnimationFrame(function () { _hlFrame = 0; paintHighlight(); });
+  }
+
+  function syncEditor() {
+    schedulePaint();
     var lines = code.value.split("\n");
-    var g = "";
-    for (var i = 0; i < lines.length; i++) g += (i + 1) + "\n";
-    gutter.textContent = g || "1\n";
+    if (lines.length !== _gutterLines) {
+      _gutterLines = lines.length;
+      var g = "";
+      for (var i = 0; i < lines.length; i++) g += (i + 1) + "\n";
+      gutter.textContent = g || "1\n";
+    }
     var h = Math.max(editorWrap.clientHeight - 8, lines.length * fontSize * 1.55 + 48);
     code.style.height = h + "px";
     highlight.style.height = code.style.height;
@@ -210,12 +245,27 @@
   };
 
   code.addEventListener("input", function () { syncEditor(); saveFiles(); });
+  var _scrollFrame = 0;
   code.addEventListener("scroll", function () {
-    highlight.style.transform = "translate(" + (-code.scrollLeft) + "px," + (-code.scrollTop) + "px)";
-    gutter.scrollTop = code.scrollTop;
+    if (_scrollFrame) return;
+    _scrollFrame = requestAnimationFrame(function () {
+      _scrollFrame = 0;
+      highlight.style.transform = "translate(" + (-code.scrollLeft) + "px," + (-code.scrollTop) + "px)";
+      gutter.scrollTop = code.scrollTop;
+    });
+  }, { passive: true });
+  function syncCaret() {
+    var pos = code.selectionStart || 0;
+    var before = code.value.slice(0, pos);
+    var ln = before.split("\n").length;
+    statusPos.textContent = "Ln " + ln + ", Col " + (before.length - before.lastIndexOf("\n"));
+  }
+  var NAV = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1, End: 1, PageUp: 1, PageDown: 1, Shift: 1, Control: 1, Alt: 1, Meta: 1 };
+  code.addEventListener("keyup", function (e) {
+    if (e && NAV[e.key]) { syncCaret(); return; }  // moving the caret is not an edit
+    syncEditor();
   });
-  code.addEventListener("keyup", syncEditor);
-  code.addEventListener("click", syncEditor);
+  code.addEventListener("click", syncCaret);
   code.addEventListener("keydown", function (e) {
     if (e.key === "Tab") {
       e.preventDefault();
@@ -329,12 +379,38 @@
     window.addEventListener("touchend", up);
   }
 
-  function log(text, cls) {
-    var span = document.createElement("span");
-    if (cls) span.className = cls;
-    span.textContent = text;
-    consoleEl.appendChild(span);
+  // A tight print() loop used to create one DOM node + one scroll reflow per
+  // call. Batch everything into a single frame, and coalesce runs of plain text.
+  var _logQueue = [];
+  var _logFrame = 0;
+  function flushLog() {
+    _logFrame = 0;
+    if (!_logQueue.length) return;
+    var frag = document.createDocumentFragment();
+    var buf = "", bufCls = null, i;
+    function emit() {
+      if (!buf) return;
+      var span = document.createElement("span");
+      if (bufCls) span.className = bufCls;
+      span.textContent = buf;
+      frag.appendChild(span);
+      buf = "";
+    }
+    for (i = 0; i < _logQueue.length; i++) {
+      var it = _logQueue[i];
+      if (it.cls !== bufCls) { emit(); bufCls = it.cls; }
+      buf += it.text;
+    }
+    emit();
+    _logQueue.length = 0;
+    consoleEl.appendChild(frag);
+    // Trim scrollback so a runaway loop can't grow the DOM without bound.
+    while (consoleEl.childNodes.length > 600) consoleEl.removeChild(consoleEl.firstChild);
     consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+  function log(text, cls) {
+    _logQueue.push({ text: text, cls: cls || null });
+    if (!_logFrame) _logFrame = requestAnimationFrame(flushLog);
   }
 
   function runCode() {
@@ -432,6 +508,7 @@
 
   function drawMinimap() {
     if (!minimap) return;
+    if (minimap.offsetParent === null) return; // hidden: don't pay for pixels nobody sees
     var h = editorWrap.clientHeight || 200;
     minimap.height = h;
     minimap.width = 56;
@@ -455,15 +532,23 @@
   });
 
   var oldSync = syncEditor;
+  var _bpSig = null;
+  var _intelTimer = 0;
   syncEditor = function () {
     oldSync();
     var lines = code.value.split("\n");
-    var g = "";
-    for (var i = 0; i < lines.length; i++) {
-      g += (breakpoints[i + 1] ? "●" : "") + (i + 1) + "\n";
+    var sig = lines.length + "|" + Object.keys(breakpoints).join(",");
+    if (sig !== _bpSig) {
+      _bpSig = sig;
+      var g = "";
+      for (var i = 0; i < lines.length; i++) {
+        g += (breakpoints[i + 1] ? "●" : "") + (i + 1) + "\n";
+      }
+      gutter.textContent = g || "1\n";
     }
-    gutter.textContent = g || "1\n";
-    refreshIntel();
+    // Lint + outline + minimap are not per-keystroke concerns.
+    if (_intelTimer) clearTimeout(_intelTimer);
+    _intelTimer = setTimeout(function () { _intelTimer = 0; refreshIntel(); }, 220);
     maybeComplete();
   };
 
@@ -500,8 +585,31 @@
   }
 
   var origRun = runCode;
+  var _busy = false;
+  function setBusy(on) {
+    _busy = on;
+    var b = document.getElementById("btn-run");
+    if (b) { b.classList.toggle("busy", on); b.textContent = on ? "… running" : "▶ Run"; }
+  }
   runCode = async function (debug) {
-    saveFiles();
+    if (_busy) return;              // no double-fire from ▶ / IME bar / Ctrl+Enter
+    setBusy(true);
+    var _t0 = (performance && performance.now) ? performance.now() : Date.now();
+    function done() {
+      var ms = ((performance && performance.now) ? performance.now() : Date.now()) - _t0;
+      log("[done in " + (ms < 1000 ? Math.round(ms) + "ms" : (ms / 1000).toFixed(2) + "s") + "]\n", "ok");
+      setBusy(false);
+    }
+    try {
+      return await realRun(debug, done);
+    } catch (e) {
+      setBusy(false);
+      throw e;
+    }
+  };
+  async function realRun(debug, done) {
+    saveFiles(true);
+    _logQueue.length = 0;
     consoleEl.textContent = "";
     if (debugLog) debugLog.textContent = "";
     var ws = {};
@@ -517,9 +625,10 @@
       log(">>> CPython · " + current + "\n", "ok");
       try {
         await JadexCPython.run(code.value, ws, function (s) { log(s); });
-        log("\n[done]\n", "ok");
+        done();
       } catch (err) {
         log((err && err.message ? err.message : String(err)) + "\n", "err");
+        setBusy(false);
       }
       return;
     }
@@ -542,18 +651,19 @@
           debugLog.textContent += "break L" + line + "\n  " + dump.join("\n  ") + "\n";
         } : null
       });
-      log("\n[done]\n", "ok");
+      done();
     } catch (err) {
       var msg = (err && err.message) ? err.message : String(err);
       var line = err && err.line;
       if (line) msg += "  (line " + line + ")";
       log(msg + "\n", "err");
+      setBusy(false);
       if (line) {
         gotoLine(line);
         if (window.JadexStudio && JadexStudio.markError) JadexStudio.markError(line);
       }
     }
-  };
+  }
   document.getElementById("btn-run").onclick = function () { runCode(false); };
   document.getElementById("btn-debug").onclick = function () { runCode(true); };
   window.runCode = runCode;

@@ -230,3 +230,9 @@ body.quiet #activity, body.quiet #sidebar, body.quiet .title-actions { opacity: 
 body.quiet #titlebar:hover .title-actions, body.quiet #activity:hover { opacity: 1; }
 .keep { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); padding: 8px; }
 #gutter.errline { box-shadow: inset 2px 0 #e05a5a; }
+
+/* Run button carries its own busy state — no separate spinner, no dead button. */
+#btn-run.busy { opacity: 0.72; animation: chip-breathe 1.2s ease-in-out infinite; }
+/* Console repaints are batched; keep them from thrashing layout. */
+#console { contain: content; overflow-anchor: none; }
+#highlight, #code { will-change: transform; }
