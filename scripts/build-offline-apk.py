@@ -119,7 +119,21 @@ def ensure_signing_key(java_bin: str) -> tuple[str, str, str]:
                     alias = line.strip().split("=", 1)[1]
 
     if not os.path.exists(keystore):
-        log("Generating Jadex release signing key...")
+        # A missing keystore is almost never what you want for a release: the
+        # build will happily succeed and produce an APK that Android refuses to
+        # install over the previous one (INSTALL_FAILED_UPDATE_INCOMPATIBLE).
+        # Make that an explicit, opt-in decision instead of a silent surprise.
+        if os.environ.get("JADEX_ALLOW_NEW_KEY") != "1":
+            fail(
+                f"No signing key at {keystore}.\n"
+                "        Building now would mint a NEW certificate, and the resulting APK\n"
+                "        could NOT update any existing Jadex installation in place.\n"
+                "        - To reuse the real key: restore .signing/jadex-release.p12\n"
+                "          and .signing/jadex-release.properties, then re-run.\n"
+                "        - To intentionally start a new signing identity:\n"
+                "          JADEX_ALLOW_NEW_KEY=1 python3 scripts/build-offline-apk.py"
+            )
+        log("Generating Jadex release signing key (JADEX_ALLOW_NEW_KEY=1)...")
         keytool_bin = os.path.join(os.path.dirname(java_bin), "keytool")
         if not os.path.exists(keytool_bin):
             keytool_bin = "keytool"

@@ -94,6 +94,7 @@
     document.getElementById("btn-horiz").textContent = horiz ? "stack" : "wide";
   }
 
+  var breakpoints = {};    // line number -> true; read by renderGutter
   var _hlText = null;      // last text we painted
   var _gutterLines = -1;   // last line count we built
   var _hlFrame = 0;
@@ -132,15 +133,30 @@
     _hlFrame = requestAnimationFrame(function () { _hlFrame = 0; paintHighlight(); });
   }
 
+  // Single owner of the gutter markup. One <span class="gl"> per line, so a
+  // line number is always exactly one row tall and can never wrap or collapse
+  // against its code line.
+  var _gutterSig = null;
+  function renderGutter(count, curLine) {
+    var sig = count + "|" + curLine + "|" + Object.keys(breakpoints).join(",");
+    if (sig === _gutterSig) return;
+    _gutterSig = sig;
+    var n = Math.max(count, 1);
+    var out = [];
+    for (var i = 1; i <= n; i++) {
+      out.push(
+        '<span class="gl' + (i === curLine ? " cur" : "") + '">' +
+        '<span class="bp' + (breakpoints[i] ? "" : " off") + '">\u25cf</span>' +
+        i + "</span>"
+      );
+    }
+    gutter.innerHTML = out.join("");
+  }
+
   function syncEditor() {
     schedulePaint();
     var lines = code.value.split("\n");
-    if (lines.length !== _gutterLines) {
-      _gutterLines = lines.length;
-      var g = "";
-      for (var i = 0; i < lines.length; i++) g += (i + 1) + "\n";
-      gutter.textContent = g || "1\n";
-    }
+    if (lines.length !== _gutterLines) _gutterLines = lines.length;
     var h = Math.max(editorWrap.clientHeight - 8, lines.length * fontSize * 1.55 + 48);
     code.style.height = h + "px";
     highlight.style.height = code.style.height;
@@ -152,6 +168,7 @@
     var col = before.length - before.lastIndexOf("\n");
     statusPos.textContent = "Ln " + ln + ", Col " + col;
     chip.textContent = current;
+    renderGutter(lines.length, ln);
   }
 
   function renderFiles() {
@@ -280,6 +297,7 @@
     var before = code.value.slice(0, pos);
     var ln = before.split("\n").length;
     statusPos.textContent = "Ln " + ln + ", Col " + (before.length - before.lastIndexOf("\n"));
+    renderGutter(code.value.split("\n").length, ln);
   }
   var NAV = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1, End: 1, PageUp: 1, PageDown: 1, Shift: 1, Control: 1, Alt: 1, Meta: 1 };
   code.addEventListener("keyup", function (e) {
@@ -490,7 +508,6 @@
     layoutForKeyboard();
   });
 
-  var breakpoints = {};
   var acEl = document.getElementById("ac");
   var minimap = document.getElementById("minimap");
   var debugLog = document.getElementById("debug-log");
@@ -549,28 +566,21 @@
   }
 
   gutter.addEventListener("click", function (e) {
-    var y = e.offsetY;
+    // Measure against the gutter box, not e.target: the rows are child spans
+    // now, so offsetY would be relative to whichever span was hit.
+    var rect = gutter.getBoundingClientRect();
+    var y = (e.clientY - rect.top) + gutter.scrollTop - 8; // 8 = padding-top
     var line = Math.max(1, Math.floor(y / (fontSize * 1.55)) + 1);
+    line = Math.min(line, code.value.split("\n").length);
     if (breakpoints[line]) delete breakpoints[line];
     else breakpoints[line] = true;
     syncEditor();
   });
 
   var oldSync = syncEditor;
-  var _bpSig = null;
   var _intelTimer = 0;
   syncEditor = function () {
-    oldSync();
-    var lines = code.value.split("\n");
-    var sig = lines.length + "|" + Object.keys(breakpoints).join(",");
-    if (sig !== _bpSig) {
-      _bpSig = sig;
-      var g = "";
-      for (var i = 0; i < lines.length; i++) {
-        g += (breakpoints[i + 1] ? "●" : "") + (i + 1) + "\n";
-      }
-      gutter.textContent = g || "1\n";
-    }
+    oldSync();   // renderGutter() already ran in here, breakpoints included
     // Lint + outline + minimap are not per-keystroke concerns.
     if (_intelTimer) clearTimeout(_intelTimer);
     _intelTimer = setTimeout(function () { _intelTimer = 0; refreshIntel(); }, 220);
@@ -777,6 +787,7 @@
   var palQ = document.getElementById("palette-q");
   var palList = document.getElementById("palette-list");
   function openPalette() {
+    if (!pal || !palQ) return;
     pal.classList.remove("hidden");
     palQ.value = "";
     renderPal("");
@@ -792,14 +803,21 @@
       palList.appendChild(li);
     });
   }
-  palQ.oninput = function () { renderPal(this.value); };
-  palQ.onkeydown = function (e) {
-    if (e.key === "Escape") pal.classList.add("hidden");
-    if (e.key === "Enter") {
-      var first = palList.querySelector("li");
-      if (first) first.click();
-    }
-  };
+  if (palQ) {
+    palQ.oninput = function () { renderPal(this.value); };
+    palQ.onkeydown = function (e) {
+      if (e.key === "Escape") pal.classList.add("hidden");
+      if (e.key === "Enter") {
+        var first = palList.querySelector("li");
+        if (first) first.click();
+      }
+    };
+  }
+  if (pal) {
+    pal.addEventListener("click", function (e) {
+      if (e.target === pal) pal.classList.add("hidden");
+    });
+  }
   document.getElementById("btn-cmd").onclick = openPalette;
 
   window.addEventListener("keydown", function (e) {

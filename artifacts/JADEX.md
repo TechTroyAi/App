@@ -1,44 +1,121 @@
-# Jadex v1.3.5
+# Jadex v1.3.6
 
 Built from the current Kotlin MainActivity and bundled IDE assets on 2026-09-08.
 
 | Field | Value |
 |---|---|
-| APK | `Jadex-v1.3.5-installable.apk` |
+| APK | `Jadex-v1.3.6-installable.apk` |
 | Package | `ai.techtroy.jadex` |
-| Version | `1.3.5` / code `27` |
+| Version | `1.3.6` / code `28` |
 | Android | 8.0 (API 26) or newer; target API 35 |
 | Size | 20,013,995 bytes (19.1 MiB) |
 | Signing | RSA 4096, APK signature v2 + v3 |
-| APK SHA-256 | `574143a08d9dc4ea874ff847462e89ceca99497ac9395d70199e8b9ba6b362f1` |
-| Certificate SHA-256 | `aa4c15678d59d9e7d0bc269626d6a6e0c6576b09711d9ef6cc7519af65f73ba6` |
+| APK SHA-256 | `e2907b9a4c4fe863c6ae529e1495cac18cdd59c9f97a706a5d056836cd759daa` |
+| Certificate SHA-256 | `78dd08ba8e1ce5e520606492f1560e6ced744191596ac6b8bc72112749e4f008` |
 
-## Editor-first / lazy CPython changes
+## ⚠️ Read before installing: this is a fresh signing identity
 
-- No full-screen startup overlay. JX breathes once in the title bar; by Troy stays.
-- Opening/viewing/editing a file never starts WASM. First Run or REPL starts the
-  CPython worker, with a jade `Loading CPython…` status and one terminal line.
-- Warm runs reuse the same interpreter. Debug continues to use the subset engine.
-- Startup has a 12-second deadline. Failure/timeout terminates the worker and lets
-  the pending Run use the subset; the chip says `Subset · tap Run again for CPython`.
-- Next Run retries cleanly. Worker crashes release the busy state and show an error;
-  partially executed code is not automatically replayed (to avoid duplicate effects).
-- Run snapshots the code and files before waiting, so typing during startup does
-  not change the pending program.
-- Android `adjustResize` / 45% IME cap and editor keyboard layout are unchanged.
-- Internal code increased to 27. This replaces the earlier code-26 build using
-  the same signing key, so that particular build can update in place.
+v1.3.6 is **not** update-compatible with v1.3.5. The `.signing/` directory was not
+present in the checkout (it is git-ignored), so the offline builder minted a new
+RSA 4096 key. Android rejects an update whose certificate differs from the
+installed one with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+
+| Build | Certificate SHA-256 |
+|---|---|
+| v1.3.5 | `aa4c15678d59d9e7d0bc269626d6a6e0c6576b09711d9ef6cc7519af65f73ba6` |
+| v1.3.6 | `78dd08ba8e1ce5e520606492f1560e6ced744191596ac6b8bc72112749e4f008` |
+
+**To install:** export your projects, uninstall the old Jadex, then install v1.3.6.
+Uninstalling erases the app's local data, and IDE files live in browser
+localStorage inside the app — back them up first.
+
+**Keep the new key.** `.signing/jadex-release.p12` +
+`.signing/jadex-release.properties` now define the Jadex identity going forward.
+If they are lost again, the next build cannot update v1.3.6 either. They are
+git-ignored on purpose (never commit a private key) — store them somewhere
+durable, e.g. a password manager or private backup.
+
+To prevent silent recurrences, `scripts/build-offline-apk.py` now **aborts** when
+no keystore is present. Starting a deliberately new identity requires:
+
+```bash
+JADEX_ALLOW_NEW_KEY=1 python3 scripts/build-offline-apk.py
+```
+
+Verify update compatibility before shipping:
+
+```bash
+python3 scripts/check-update-compatible.py \
+  --reference artifacts/Jadex-v1.3.5-installable.apk \
+  artifacts/Jadex-v1.3.6-installable.apk
+```
+
+## Fixes in this build
+
+### Line numbers rendered as `1 2 3` on one wrapped row
+
+The gutter was filled as plain text (`"1\n2\n3\n"`) but `#gutter` never set
+`white-space`, so HTML collapsed the newlines to spaces and word-wrapped the run
+of numbers inside the 46px column. Code lines stayed one per row; the numbers did
+not, so nothing lined up.
+
+The gutter is now built as one `<span class="gl">` element per line, so a line
+number is structurally one row tall and cannot collapse or wrap. `white-space: pre`
+and `font-variant-numeric: tabular-nums` back it up.
+
+### Root cause: a null crash killed the tail of `app.js`
+
+`app.js` assigned `palQ.oninput`, but `#palette`, `#palette-q` and `#palette-list`
+existed only in `app.css` — they were never in `index.html`. The assignment threw
+`Cannot set properties of null`, and **every statement after it stopped running**:
+
+- the `⌘` command palette (all 9 commands) — completely dead
+- the `Ctrl+P`, `Ctrl+F` and `F5` shortcuts
+- the init tail: `applyFont()`, `applyWrap()`, `applyHoriz()`, `renderFiles()`,
+  `syncEditor()`
+
+Because init never completed, the gutter was only ever written by a later stray
+event, in the collapsed state above. The palette markup was added to
+`index.html`, and the palette wiring is now null-safe so one missing node can no
+longer take down the rest of the editor.
+
+### Gutter click mapped to the wrong line
+
+The breakpoint handler used `e.offsetY`, which became relative to whichever child
+span was clicked once the gutter had element rows. It now measures against the
+gutter's own box (accounting for scroll and padding) and clamps to the line count.
+
+### Smaller editor improvements
+
+- The current line is highlighted in the gutter and tracks caret movement.
+- Breakpoint dots reserve their column (`visibility: hidden` when off), so numbers
+  no longer shift sideways when a breakpoint is toggled.
+- Clicking the palette backdrop dismisses it.
+
+## Verification
+
+`scripts/verify-apk.py` reports **0 failures** (1 pre-existing warning about
+unreferenced legacy game drawables):
+
+- ZIP layout: `resources.arsc` and `classes.dex` STORED, 285 entries 4-byte aligned
+- Signing: v2 + v3 present and verified by `apksigner verify`
+- DEX: format 038, adler32 + SHA-1 valid, all 1330 referenced types resolve
+- Manifest: `package=ai.techtroy.jadex versionName=1.3.6 versionCode=28`,
+  `minSdk=26`, `targetSdk=35`, exported MAIN/LAUNCHER activity present in DEX
+
+The shipped assets were read back out of the built APK to confirm the fixes are
+actually packaged (`renderGutter` present in `app.js`, `palette-q` present in
+`index.html`, the collapsing `gutter.textContent = g` write gone).
+
+The APK is byte-for-byte the same *size* as v1.3.5 (20,013,995) because the
+uncompressed ~19 MiB Pyodide payload dominates and the edited text assets are
+small; the SHA-256 differs.
 
 ## Install
 
 Download the APK to your Android device, open it, and allow installation from that
-browser/file manager when Android prompts you.
-
-**Back up/export your projects first.** The retained v1.3.0 APK uses certificate
-`8b912d1ecc75af8abd9becb2489a8c6a95b7e9dbf3c3c9ac01658918e88f6129`.
-Its private key was unavailable, so this build uses a new key and cannot update
-that installation in place. Uninstalling the old app erases its local data.
-For an in-place upgrade instead, rebuild with the original signing key.
+browser/file manager when Android prompts you. See the signing note above — you
+must uninstall v1.3.5 first.
 
 ## Build this APK
 
@@ -58,35 +135,3 @@ npm install --prefix ~/.local kotlin-compiler@1.9.25
 export PATH="$HOME/.local/node_modules/kotlin-compiler/bin:$PATH"
 ~/.local/build-venv/bin/python scripts/build-offline-apk.py
 ```
-
-Output: `artifacts/Jadex-v1.3.5-installable.apk`.
-Version metadata comes from `app/build.gradle.kts`. The minimum SDK was raised
-from 24 to 26 because the bundled Kotlin runtime contains invokedynamic bytecode
-and this dx-based pipeline does not desugar it for Android 7. Do not lower the
-manifest minimum without switching to a desugaring toolchain.
-
-The builder reuses `.signing/jadex-release.p12` and
-`.signing/jadex-release.properties`; if absent it creates a new signing identity
-with a random password. These files are ignored by Git. Back them up securely
-outside this sandbox for future update compatibility; never commit them.
-The legacy Gradle release configuration still points to Blockhold signing files;
-use the offline command above to reproduce this Jadex signing workflow.
-
-## Verification
-
-- Kotlin compilation and DEX generation succeeded.
-- APK structural checks passed: manifest, launcher, DEX checksums/type resolution,
-  resource table, and ZIP alignment. One warning reports unused legacy drawables.
-- `apksigner verify --verbose --print-certs` verified both v2 and v3 signatures.
-- Startup lifecycle and Run/fallback tests passed (`node scripts/test-cpython-startup.js`):
-  idle startup, shared boot, warm reuse, stale messages, timeout, boot failure,
-  runtime crash, retry, unsupported Worker, and typing during a pending Run.
-- All five worker-protocol tests passed (`node scripts/test-worker-protocol.js`).
-- Kotlin pitfall lint: zero errors, ten warnings in legacy game sources.
-- Browser smoke testing was blocked by the Chromium download failing.
-- No Android device/emulator runtime test was performed. Static verification does
-  not establish device-specific WebView/Python runtime behavior.
-
-The under-one-second editor target still requires measurement on a real Android
-device; these changes remove interpreter and overlay waits but do not prove a
-specific cold-start time.
