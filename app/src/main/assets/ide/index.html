@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Jadex</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div id="splash">
+    <div class="splash-mark">JX</div>
+    <div class="splash-name">Jadex</div>
+    <div class="by-troy">by Troy</div>
+    <div id="splash-msg">Loading CPython…</div>
+    <button id="splash-skip">Write code anyway</button>
+  </div>
+  <div id="app">
+    <header id="titlebar">
+      <div class="brand">
+        <span class="logo">JX</span>
+        <span class="name">Jadex</span>
+        <span class="by-troy">by Troy</span>
+        <span id="file-chip">main.py</span>
+      </div>
+      <div class="title-actions">
+        <button id="btn-side" title="Explorer">files</button>
+        <button id="btn-horiz" title="Wide / landscape layout">wide</button>
+        <button id="btn-kb" title="Hide keyboard">hide kb</button>
+        <button id="btn-zoom-out">−</button>
+        <button id="zoom-label">15px</button>
+        <button id="btn-zoom-in">+</button>
+        <button id="btn-wrap">wrap</button>
+        <button id="btn-cmd" title="Command palette">⌘</button>
+        <button id="btn-debug" title="Debug with breakpoints">dbg</button>
+        <button id="btn-test" title="Run test_*.py">test</button>
+        <button id="btn-run" class="run">▶ Run</button>
+        <button id="btn-stop" class="stop">■</button>
+      </div>
+    </header>
+    <div id="stage">
+      <div id="workbench">
+        <nav id="activity">
+          <button class="act active" data-panel="files" title="Explorer">☰</button>
+          <button class="act" data-panel="search" title="Search">⌕</button>
+          <button class="act" data-panel="snippets" title="Snippets">{ }</button>
+          <button class="act" data-panel="outline" title="Outline">ƒ</button>
+          <button class="act" data-panel="problems" title="Problems">!</button>
+          <button class="act" data-panel="debug" title="Debug">◉</button>
+          <button class="act" data-panel="help" title="Help">?</button>
+        </nav>
+        <aside id="sidebar">
+          <div class="side-head">EXPLORER</div>
+          <div id="panel-files" class="panel">
+            <button id="btn-new-file">+ New file</button>
+            <ul id="file-list"></ul>
+          </div>
+          <div id="panel-search" class="panel hidden">
+            <input id="search-q" placeholder="Find in files" />
+            <ul id="search-hits"></ul>
+          </div>
+          <div id="panel-snippets" class="panel hidden">
+            <button class="snip" data-snip="hello">Hello world</button>
+            <button class="snip" data-snip="loop">For loop</button>
+            <button class="snip" data-snip="func">Function</button>
+            <button class="snip" data-snip="list">Lists &amp; dicts</button>
+            <button class="snip" data-snip="class">Class</button>
+            <button class="snip" data-snip="input">Input &amp; math</button>
+            <button class="snip" data-snip="plot">Plot pane</button>
+            <button class="snip" data-snip="troy"># by Troy</button>
+            <button class="snip" data-snip="test">Unit test</button>
+          </div>
+          <div id="panel-outline" class="panel hidden">
+            <ul id="outline-list"></ul>
+          </div>
+          <div id="panel-problems" class="panel hidden">
+            <ul id="problems-list"></ul>
+          </div>
+          <div id="panel-debug" class="panel hidden">
+            <p class="hint">Tap a gutter line to toggle a breakpoint. Run with <b>dbg</b> to dump locals at each hit.</p>
+            <pre id="debug-log"></pre>
+          </div>
+          <div id="panel-help" class="panel hidden">
+            <p>Jadex · <b>by Troy</b>. Terminal + optional plot pane. No web preview. Ctrl+click a name to go to def. Tests: files named test_*.py.</p>
+            <label class="keep"><input type="checkbox" id="keep-on" /> Keep screen on while running</label>
+          </div>
+        </aside>
+        <section id="editor-col">
+          <div id="tabs"></div>
+          <div id="findbar" class="hidden">
+            <input id="find-q" placeholder="Find" />
+            <input id="repl-q" placeholder="Replace" />
+            <button id="find-next">next</button>
+            <button id="find-repl">replace</button>
+            <button id="find-close">×</button>
+          </div>
+          <div id="editor-wrap">
+            <div id="gutter"></div>
+            <div id="code-scroll">
+              <pre id="highlight" aria-hidden="true"></pre>
+              <textarea id="code" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" wrap="off"></textarea>
+              <ul id="ac" class="hidden"></ul>
+            </div>
+            <canvas id="minimap" width="64" height="200"></canvas>
+          </div>
+          <div id="status">
+            <span id="status-lang">Python · Jadex</span>
+            <span id="status-by">by Troy</span>
+            <span id="status-pos">Ln 1, Col 1</span>
+            <span id="status-indent">Spaces: 4</span>
+            <span id="status-wrap">No wrap</span>
+            <span id="status-kb">KB safe</span>
+          </div>
+        </section>
+      </div>
+      <div id="split-handle" title="Resize terminal"></div>
+      <section id="console-pane">
+        <div class="console-bar">
+          <span>TERMINAL</span>
+          <button id="btn-clear">Clear</button>
+        </div>
+        <pre id="console"></pre>
+        <section id="plot-pane" class="hidden">
+          <div class="console-bar"><span>PLOT</span><button id="plot-close">×</button></div>
+          <canvas id="plot-cv" width="640" height="220"></canvas>
+        </section>
+        <div id="repl-row">
+          <span class="prompt">&gt;&gt;&gt;</span>
+          <input id="repl-in" placeholder="REPL / stdin · Enter" />
+        </div>
+      </section>
+    </div>
+    <div id="ime-bar">
+      <button data-ins="    ">Tab</button>
+      <button data-cmd="unindent">⇤</button>
+      <button data-ins="()">( )</button>
+      <button data-ins="[]">[ ]</button>
+      <button data-ins="{}">{ }</button>
+      <button data-ins=":">:</button>
+      <button data-ins="_">_</button>
+      <button data-ins="#">#</button>
+      <button data-ins="=">=</button>
+      <button data-ins="->">→</button>
+      <button data-cmd="undo">undo</button>
+      <button data-cmd="redo">redo</button>
+      <button data-cmd="run">▶</button>
+      <button data-cmd="hide">hide</button>
+    </div>
+  </div>
+  <script src="python.js"></script>
+  <script src="cpython.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

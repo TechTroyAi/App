@@ -17,11 +17,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "ai.techtroy.blockhold"
+        applicationId = "ai.techtroy.jadex"
         minSdk = 24
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.4.4"
+        versionCode = 24
+        versionName = "1.3.0"
     }
 
     signingConfigs {
