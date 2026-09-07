@@ -59,6 +59,25 @@ android {
         jvmTarget = "1.8"
     }
 
+    // Best-effort Brotli precompression of the Pyodide payload before assets are
+    // packaged. Requires node; if it is absent the build still succeeds and the
+    // asset loader simply serves the uncompressed originals.
+    tasks.register<Exec>("compressPyodide") {
+        workingDir = rootProject.projectDir
+        commandLine("node", "scripts/compress-pyodide.js")
+        isIgnoreExitValue = true
+        onlyIf { rootProject.file("scripts/compress-pyodide.js").exists() }
+    }
+    tasks.matching { it.name == "preBuild" }.configureEach {
+        dependsOn("compressPyodide")
+    }
+
+    androidResources {
+        // These are already Brotli-compressed on disk; let aapt store them as-is
+        // instead of spending build time and APK bytes deflating them again.
+        noCompress += listOf("br", "wasm", "zip")
+    }
+
     packaging {
         resources.excludes += setOf(
             "META-INF/AL2.0",

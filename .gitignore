@@ -44,3 +44,6 @@ Thumbs.db
 
 # Offline toolchain build workspace (JDK/Android tooling lives outside the repo)
 build-manual/
+
+# Brotli-precompressed IDE assets (generated: node scripts/compress-pyodide.js)
+app/src/main/assets/ide/**/*.br

@@ -100,12 +100,32 @@
 
   // Heavy: full-file syntax paint. Coalesced to one per animation frame and
   // skipped entirely when the text has not changed.
-  function paintHighlight() {
+  function escHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  var _hlRange = "";
+  function paintHighlight(force) {
     var src = code.value;
-    if (src === _hlText) return;
+    var lines = src.split("\n");
+    // Virtualized: only the visible window is tokenized. Off-screen lines are
+    // emitted as escaped text so line boxes (and therefore caret alignment,
+    // scroll height and the gutter) stay pixel-identical.
+    var lh = fontSize * 1.55;
+    var top = code.scrollTop || 0;
+    var viewH = (editorWrap.clientHeight || 400);
+    var pad = 80;
+    var first = Math.max(0, Math.floor(top / lh) - pad);
+    var last = Math.min(lines.length, Math.ceil((top + viewH) / lh) + pad);
+    var rangeKey = first + ":" + last;
+    if (!force && src === _hlText && rangeKey === _hlRange) return;
     _hlText = src;
-    if (src.length && src[src.length - 1] !== "\n") src += "\n";
-    highlight.innerHTML = TroyPython.highlight(src);
+    _hlRange = rangeKey;
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      if (i >= first && i < last) out.push(TroyPython.highlightLine(lines[i]));
+      else out.push(escHtml(lines[i]));
+    }
+    highlight.innerHTML = out.join("\n") + "\n";
   }
   function schedulePaint() {
     if (_hlFrame) return;
@@ -252,6 +272,7 @@
       _scrollFrame = 0;
       highlight.style.transform = "translate(" + (-code.scrollLeft) + "px," + (-code.scrollTop) + "px)";
       gutter.scrollTop = code.scrollTop;
+      paintHighlight();   // colour whatever just scrolled into view
     });
   }, { passive: true });
   function syncCaret() {
@@ -312,6 +333,10 @@
   document.getElementById("btn-clear").onclick = function () { consoleEl.textContent = ""; };
   document.getElementById("btn-stop").onclick = function () {
     if (running && running.stopped !== undefined) running.stopped = true;
+    // Worker-backed CPython: this genuinely breaks a runaway loop.
+    if (window.JadexCPython && JadexCPython.busy && JadexCPython.busy()) {
+      JadexCPython.interrupt();
+    }
   };
 
   document.getElementById("ime-bar").addEventListener("mousedown", function (e) { e.preventDefault(); });
@@ -621,10 +646,20 @@
       log("… CPython is almost ready — one moment\n", "ok");
       try { await cp.ensure(); } catch (e) {}
     }
-    if (cp && cp.ready && cp.py && !debug) {
+    if (cp && cp.ready && !debug) {
       log(">>> CPython · " + current + "\n", "ok");
       try {
-        await JadexCPython.run(code.value, ws, function (s) { log(s); });
+        var res = await cp.run(code.value, ws, function (t, stream) {
+          log(t, stream === "err" ? "err" : null);
+        });
+        if (res && res.error) {
+          log(res.error, res.interrupted ? "ok" : "err");
+          if (res.line) {
+            // Real CPython traceback, mapped back onto the editor.
+            gotoLine(res.line);
+            if (window.JadexStudio && JadexStudio.markError) JadexStudio.markError(res.line);
+          }
+        }
         done();
       } catch (err) {
         log((err && err.message ? err.message : String(err)) + "\n", "err");
@@ -680,7 +715,10 @@
         try { await JadexCPython.ensure(); } catch (e) {}
       }
       if (window.JadexCPython && JadexCPython.ready) {
-        await JadexCPython.run(line, files, function (s) { log(s); });
+        var r = await JadexCPython.repl(line, function (t, stream) {
+          log(t, stream === "err" ? "err" : null);
+        });
+        if (r && r.error) log(r.error, r.interrupted ? "ok" : "err");
       } else {
         TroyPython.run(line, {
           print: function (s) { log(s); },
