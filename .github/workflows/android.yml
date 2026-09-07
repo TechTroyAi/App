@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Blockhold-Defense-v1.4.4-debug
+          name: Jadex-v1.4.0-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -58,9 +58,25 @@ jobs:
             ./gradlew --no-daemon assembleRelease -PskipSigning=true
           fi
 
+      # An APK only updates an existing install if it carries the SAME signing
+      # certificate and a HIGHER versionCode. Fail loudly rather than shipping
+      # something the device will reject with INSTALL_FAILED_UPDATE_INCOMPATIBLE.
+      - name: Check update compatibility
+        if: steps.signing.outputs.signing_configured == 'true'
+        run: |
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          python3 scripts/check-update-compatible.py "$apk"
+
+      - name: Warn when the release is not update-capable
+        if: steps.signing.outputs.signing_configured != 'true'
+        run: |
+          echo "::warning::No signing secrets configured, so this release APK is unsigned."
+          echo "::warning::It cannot update an installed Jadex. Add BLOCKHOLD_KEYSTORE_BASE64,"
+          echo "::warning::BLOCKHOLD_STORE_PASSWORD and BLOCKHOLD_KEY_ALIAS to repository secrets."
+
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Blockhold-Defense-v1.4.4-release
+          name: Jadex-v1.4.0-release
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: warn

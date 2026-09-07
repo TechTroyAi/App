@@ -20,8 +20,8 @@ android {
         applicationId = "ai.techtroy.jadex"
         minSdk = 24
         targetSdk = 35
-        versionCode = 24
-        versionName = "1.3.0"
+        versionCode = 25
+        versionName = "1.4.0"
     }
 
     signingConfigs {
@@ -42,7 +42,12 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.findByName("release")
+            // -PskipSigning=true produces an unsigned release (CI without secrets).
+            signingConfig = if (project.hasProperty("skipSigning")) {
+                null
+            } else {
+                signingConfigs.findByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -57,6 +62,25 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+    }
+
+    // Best-effort Brotli precompression of the Pyodide payload before assets are
+    // packaged. Requires node; if it is absent the build still succeeds and the
+    // asset loader simply serves the uncompressed originals.
+    tasks.register<Exec>("compressPyodide") {
+        workingDir = rootProject.projectDir
+        commandLine("node", "scripts/compress-pyodide.js")
+        isIgnoreExitValue = true
+        onlyIf { rootProject.file("scripts/compress-pyodide.js").exists() }
+    }
+    tasks.matching { it.name == "preBuild" }.configureEach {
+        dependsOn("compressPyodide")
+    }
+
+    androidResources {
+        // These are already Brotli-compressed on disk; let aapt store them as-is
+        // instead of spending build time and APK bytes deflating them again.
+        noCompress += listOf("br", "wasm", "zip")
     }
 
     packaging {

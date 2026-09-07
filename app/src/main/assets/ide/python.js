@@ -883,7 +883,7 @@
     }
   };
 
-  global.TroyPython = {
+  var API = global.TroyPython = {
     keywords: Object.keys(KEYWORDS),
     builtins: ["print","input","len","str","int","float","list","dict","tuple","range","enumerate","zip","min","max","sum","abs","round","sorted","reversed","type","bool","pow","math","random","time","json","sys","os"],
     parse: function (src) {
@@ -923,6 +923,21 @@
       interp.run(src);
       return interp;
     },
+    // Per-line highlight with a memo cache. Most edits touch one line, so the
+    // other N-1 lines are served from the cache instead of re-tokenized.
+    highlightLine: (function () {
+      var cache = Object.create(null);
+      var keys = [];
+      return function (line) {
+        var hit = cache[line];
+        if (hit !== undefined) return hit;
+        var html = API.highlight(line);
+        cache[line] = html;
+        keys.push(line);
+        if (keys.length > 4000) { delete cache[keys.shift()]; }
+        return html;
+      };
+    })(),
     highlight: function (src) {
       var html = "";
       var i = 0, n = src.length;

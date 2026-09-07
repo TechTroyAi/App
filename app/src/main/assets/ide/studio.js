@@ -13,10 +13,13 @@
     } catch (e) { return null; }
   }
 
+  // Splash is a whisper, not a lock: it breathes once and leaves.
   var splash = document.getElementById("splash");
-  var skip = document.getElementById("splash-skip");
-  if (skip) skip.onclick = function () { if (splash) splash.classList.add("gone"); };
-  setTimeout(function () { if (splash) splash.classList.add("gone"); }, 20000);
+  if (splash) {
+    var dismiss = function () { splash.classList.add("gone"); };
+    setTimeout(dismiss, 650);
+    splash.addEventListener("pointerdown", dismiss);
+  }
 
   var consoleEl = document.getElementById("console");
   if (consoleEl && !consoleEl.textContent) {
