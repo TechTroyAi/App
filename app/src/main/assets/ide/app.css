@@ -206,7 +206,16 @@ body.side-collapsed #sidebar { display: none; }
   position: fixed; inset: 0; z-index: 40; background: #0b0f0d;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
 }
+#splash { pointer-events: none; animation: splash-breathe 650ms ease-out forwards; }
 #splash.gone { display: none; }
+@keyframes splash-breathe {
+  0% { opacity: 0; transform: scale(0.985); }
+  35% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.01); }
+}
+#status-lang.loading { color: #2ee59b; animation: chip-breathe 1.6s ease-in-out infinite; }
+#status-lang.warn { color: #c9a227; }
+@keyframes chip-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .splash-mark {
   width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
   background: #0f3d2e; color: #2ee59b; font-weight: 800; border: 1px solid #1a7a58;

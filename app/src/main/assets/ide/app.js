@@ -507,7 +507,13 @@
     var ws = {};
     Object.keys(files).forEach(function (k) { if (k[0] !== "_") ws[k] = files[k]; });
     ws[current] = code.value;
-    if (window.JadexCPython && JadexCPython.ready && JadexCPython.py && !debug) {
+    var cp = window.JadexCPython;
+    if (cp && !debug && !cp.ready) {
+      // Editor was never blocked; only Run waits, and it says so in one line.
+      log("… CPython is almost ready — one moment\n", "ok");
+      try { await cp.ensure(); } catch (e) {}
+    }
+    if (cp && cp.ready && cp.py && !debug) {
       log(">>> CPython · " + current + "\n", "ok");
       try {
         await JadexCPython.run(code.value, ws, function (s) { log(s); });
@@ -516,6 +522,9 @@
         log((err && err.message ? err.message : String(err)) + "\n", "err");
       }
       return;
+    }
+    if (cp && cp.state === "failed" && !debug) {
+      log("[subset engine · tap Run again to retry CPython]\n", "ok");
     }
     log(">>> " + (debug ? "debug " : "") + current + "\n", "ok");
     try {
@@ -557,6 +566,9 @@
     this.value = "";
     log(">>> " + line + "\n", "ok");
     try {
+      if (window.JadexCPython && !JadexCPython.ready) {
+        try { await JadexCPython.ensure(); } catch (e) {}
+      }
       if (window.JadexCPython && JadexCPython.ready) {
         await JadexCPython.run(line, files, function (s) { log(s); });
       } else {
@@ -660,4 +672,13 @@
   applyHoriz();
   renderFiles();
   syncEditor();
+})();
+
+// Editor first, WASM second: warm CPython in the background after first paint.
+(function () {
+  function warm() {
+    if (window.JadexCPython && window.JadexCPython.prefetch) window.JadexCPython.prefetch(1200);
+  }
+  if (document.readyState === "complete") requestAnimationFrame(warm);
+  else window.addEventListener("load", function () { requestAnimationFrame(warm); });
 })();

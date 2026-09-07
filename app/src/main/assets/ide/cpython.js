@@ -1,12 +1,22 @@
 (function () {
-  window.JadexCPython = { ready: false, engine: "subset", py: null };
-  window.jadexStdinQueue = [];
+  // Jadex · lazy CPython. The editor never waits for WASM.
+  // State: "idle" -> "loading" -> "ready" | "failed"
+  var state = "idle";
+  var bootPromise = null;
 
-  function setStatus(text) {
+  window.jadexStdinQueue = [];
+  window.JadexCPython = {
+    ready: false,
+    engine: "subset",
+    py: null,
+    get state() { return state; }
+  };
+
+  function chip(text, cls) {
     var el = document.getElementById("status-lang");
-    if (el) el.textContent = text;
-    var msg = document.getElementById("splash-msg");
-    if (msg) msg.textContent = text;
+    if (!el) return;
+    el.textContent = text;
+    el.className = cls || "jade";
   }
 
   function loadScript(src) {
@@ -28,21 +38,50 @@
   }
 
   async function boot() {
-    setStatus("Loading CPython…");
+    chip("Loading CPython…", "jade loading");
     await loadScript("pyodide/pyodide.js");
     try { await loadScript("pyodide/pyodide.asm.js"); } catch (e) {}
     var indexURL = new URL("pyodide/", window.location.href).href;
     var loader = window.loadPyodide;
     if (loader && loader.loadPyodide) loader = loader.loadPyodide;
-    var py = await loader({
-      indexURL: indexURL,
-      stdin: readStdin
-    });
-    window.JadexCPython = { ready: true, engine: "cpython", py: py, version: py.version };
-    setStatus("CPython " + String(py.version).split(" ")[0]);
-    var splash = document.getElementById("splash");
-    if (splash) splash.classList.add("gone");
+    var py = await loader({ indexURL: indexURL, stdin: readStdin });
+    window.JadexCPython.ready = true;
+    window.JadexCPython.engine = "cpython";
+    window.JadexCPython.py = py;
+    window.JadexCPython.version = py.version;
+    return py;
   }
+
+  // Idempotent. Safe to call from Run, from idle prefetch, from anywhere.
+  window.JadexCPython.ensure = function () {
+    if (state === "ready") return Promise.resolve(window.JadexCPython.py);
+    if (bootPromise) return bootPromise;
+    state = "loading";
+    bootPromise = boot().then(function (py) {
+      state = "ready";
+      chip("CPython " + String(py.version).split(" ")[0], "jade");
+      return py;
+    }).catch(function (err) {
+      console.error("CPython boot failed", err);
+      state = "failed";
+      bootPromise = null; // allow a retry on the next Run
+      window.JadexCPython.ready = false;
+      window.JadexCPython.engine = "subset";
+      chip("Subset · tap Run again for CPython", "jade warn");
+      return null;
+    });
+    return bootPromise;
+  };
+
+  // Warm up quietly after first paint, without blocking anything.
+  window.JadexCPython.prefetch = function (delay) {
+    var start = function () { window.JadexCPython.ensure(); };
+    var go = function () {
+      if (window.requestIdleCallback) window.requestIdleCallback(start, { timeout: 4000 });
+      else setTimeout(start, 0);
+    };
+    setTimeout(go, delay == null ? 1200 : delay);
+  };
 
   window.JadexCPython.run = async function (src, files, onPrint) {
     var py = window.JadexCPython.py;
@@ -91,13 +130,4 @@
     ].join("\n");
     return await py.runPythonAsync(runner);
   };
-
-  boot().catch(function (err) {
-    console.error("CPython boot failed", err);
-    setStatus("Subset · CPython offline");
-    window.JadexCPython.ready = false;
-    window.JadexCPython.engine = "subset";
-    var splash = document.getElementById("splash");
-    if (splash) splash.classList.add("gone");
-  });
 })();
