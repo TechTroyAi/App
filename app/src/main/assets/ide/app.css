@@ -150,8 +150,11 @@ body.kb-open #ime-bar { display: flex; }
 body.kb-open #console-pane,
 body.kb-open #split-handle { display: none !important; }
 body.kb-open #sidebar { display: none; }
-body.kb-open #editor-wrap { min-height: 58vh; }
 body.kb-open #status { display: none; }
+/* The editor must FILL what is left above the keyboard, not demand 58% of the
+   whole screen. A 58vh floor is taller than the visible area on a phone with
+   the IME up, which pushed the caret's line — and the IME bar — off-screen. */
+body.kb-open #editor-wrap { flex: 1 1 auto; min-height: 0; }
 
 /* PC-style horizontal: code left, terminal right */
 body.horiz #stage,
@@ -173,6 +176,14 @@ body.horiz #console-pane {
 body.horiz.kb-open #console-pane { display: none !important; }
 
 body.side-collapsed #sidebar { display: none; }
+
+/* A phone in portrait cannot afford a 190px explorer next to the activity rail:
+   it left the code column ~76px wide, so the caret's own column was always off
+   screen. Start collapsed on narrow portrait screens; "files" opens it. */
+@media (max-width: 719px) and (orientation: portrait) {
+  body:not(.side-open) #sidebar { display: none; }
+}
+body.side-open #sidebar { display: block; }
 
 #findbar {
   display: flex; gap: 6px; padding: 6px 8px; background: #101613;

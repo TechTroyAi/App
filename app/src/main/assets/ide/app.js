@@ -87,6 +87,8 @@
     statusWrap.textContent = wrap ? "Wrap" : "No wrap";
     localStorage.setItem("jadex-wrap", wrap ? "1" : "0");
     document.getElementById("btn-wrap").textContent = wrap ? "no wrap" : "wrap";
+    // Row heights change meaning under wrap, so the caret's row moves too.
+    revealCaretSoon();
   }
   function applyHoriz() {
     document.body.classList.toggle("horiz", horiz);
@@ -112,7 +114,10 @@
     // emitted as escaped text so line boxes (and therefore caret alignment,
     // scroll height and the gutter) stay pixel-identical.
     var lh = fontSize * 1.55;
-    var top = code.scrollTop || 0;
+    // The textarea is overflow:hidden, so #code-scroll is the element that
+    // actually scrolls. Reading code.scrollTop here always returned 0 and the
+    // virtualized window never moved with the user.
+    var top = (code.scrollTop || 0) + (codeScroll.scrollTop || 0);
     var viewH = (editorWrap.clientHeight || 400);
     var pad = 80;
     var first = Math.max(0, Math.floor(top / lh) - pad);
@@ -169,6 +174,9 @@
     statusPos.textContent = "Ln " + ln + ", Col " + col;
     chip.textContent = current;
     renderGutter(lines.length, ln);
+    // Every edit path funnels through here, so this is the one place that
+    // guarantees the line you are typing on is the line you can see.
+    ensureCaretVisible();
   }
 
   function renderFiles() {
@@ -282,22 +290,131 @@
   };
 
   code.addEventListener("input", function () { syncEditor(); saveFiles(); });
+
+  // ---------------------------------------------------------------------
+  // The view follows the caret.
+  //
+  // #code is overflow:hidden and stretched to the full document height, so the
+  // browser never scrolls it on its own: the caret can sit far below the fold
+  // (and, with the soft keyboard up, underneath it) while we keep typing blind.
+  // Everything that moves the caret therefore has to bring it back into view.
+  // ---------------------------------------------------------------------
+  function scrollerTop() { return (codeScroll.scrollTop || 0) + (code.scrollTop || 0); }
+  function scrollerLeft() { return (codeScroll.scrollLeft || 0) + (code.scrollLeft || 0); }
+
+  // Off-screen twin of the textarea, used to find the caret's x. Same font,
+  // same padding, same tab-size, so text metrics match the real thing. Only the
+  // caret's own line is ever measured: measuring the whole file would push the
+  // mirror past the scroller's right edge and invent horizontal scroll range.
+  var caretMirror = null;
+  function measureCaretX(pos) {
+    if (wrap) return null;   // wrapped rows make an x measurement meaningless
+    if (!caretMirror) {
+      caretMirror = document.createElement("pre");
+      caretMirror.setAttribute("aria-hidden", "true");
+      caretMirror.style.cssText =
+        "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;" +
+        "margin:0;border:0;padding:0;overflow:hidden;white-space:pre;z-index:-1;";
+      codeScroll.appendChild(caretMirror);
+    }
+    var cs = window.getComputedStyle(code);
+    caretMirror.style.fontFamily = cs.fontFamily;
+    caretMirror.style.fontSize = cs.fontSize;
+    caretMirror.style.lineHeight = cs.lineHeight;
+    caretMirror.style.tabSize = cs.tabSize;
+    caretMirror.style.letterSpacing = cs.letterSpacing;
+    var lineText = code.value.slice(0, pos).split("\n").pop();
+    caretMirror.textContent = lineText;
+    var lineW = caretMirror.getBoundingClientRect().width;
+    if (!lineW) lineW = lineText.length * fontSize * 0.6;   // no layout: fall back
+    return lineW + (parseFloat(cs.paddingLeft) || 8);
+  }
+
+  function ensureCaretVisible() {
+    var viewH = codeScroll.clientHeight || editorWrap.clientHeight || 0;
+    if (viewH <= 0) return;
+    var viewW = codeScroll.clientWidth || 0;
+    var pos = code.selectionStart || 0;
+    var before = code.value.slice(0, pos);
+    var line = before.slice(before.lastIndexOf("\n") + 1);
+    var lh = fontSize * 1.55;
+    var padTop = parseFloat(window.getComputedStyle(code).paddingTop) || 8;
+
+    // Rows the caret must clear above and below. 16px covers the IME bar
+    // shadow / status strip so the line never hugs the bottom edge.
+    var above = Math.min(lh * 2, viewH * 0.3) + 8;
+    var below = Math.min(lh * 2, viewH * 0.3) + 16;
+
+    var caretTop, caretBottom;
+    if (wrap) {
+      // Wrapped text: the caret's row index is a count of *visual* rows, so
+      // every hard line before it contributes ceil(len / charsPerRow) of them.
+      var per = Math.max(1, Math.floor((viewW - 20) / Math.max(6, fontSize * 0.6)));
+      var visual = 0;
+      before.split("\n").forEach(function (l) {
+        visual += Math.max(1, Math.ceil(l.length / per));
+      });
+      // `visual` now counts the caret's own row too.
+      caretTop = padTop + (visual - 1) * lh;
+      caretBottom = caretTop + lh;
+    } else {
+      var row = before.split("\n").length - 1;
+      caretTop = padTop + row * lh;
+      caretBottom = caretTop + lh;
+    }
+
+    var top = scrollerTop();
+    var moved = false;
+    if (caretTop < top + above) {
+      codeScroll.scrollTop = Math.max(0, caretTop - above);
+      moved = true;
+    } else if (caretBottom > top + viewH - below) {
+      codeScroll.scrollTop = caretBottom - viewH + below;
+      moved = true;
+    }
+
+    if (viewW > 0 && !wrap) {
+      var cx = measureCaretX(pos);
+      if (cx != null) {
+        var left = scrollerLeft();
+        var margin = Math.min(48, viewW * 0.2);
+        if (cx < left + margin) { codeScroll.scrollLeft = Math.max(0, cx - margin); moved = true; }
+        else if (cx > left + viewW - margin) { codeScroll.scrollLeft = cx - viewW + margin; moved = true; }
+      }
+    }
+    // Sync now rather than waiting on the scroll event: the gutter and the
+    // highlight layer must never lag a line behind the text they belong to.
+    if (moved) onEditorScroll();
+  }
+
+  var _revealFrame = 0;
+  function revealCaretSoon() {
+    if (_revealFrame) return;
+    _revealFrame = requestAnimationFrame(function () { _revealFrame = 0; ensureCaretVisible(); });
+  }
+
   var _scrollFrame = 0;
-  code.addEventListener("scroll", function () {
+  function onEditorScroll() {
+    // Transform + gutter follow instantly; only the repaint is deferred.
+    var st = scrollerTop();
+    var sl = scrollerLeft();
+    highlight.style.transform = "translate(" + (-sl) + "px," + (-st) + "px)";
+    gutter.scrollTop = st;
     if (_scrollFrame) return;
     _scrollFrame = requestAnimationFrame(function () {
       _scrollFrame = 0;
-      highlight.style.transform = "translate(" + (-code.scrollLeft) + "px," + (-code.scrollTop) + "px)";
-      gutter.scrollTop = code.scrollTop;
       paintHighlight();   // colour whatever just scrolled into view
     });
-  }, { passive: true });
+  }
+  codeScroll.addEventListener("scroll", onEditorScroll, { passive: true });
+  code.addEventListener("scroll", onEditorScroll, { passive: true });
   function syncCaret() {
     var pos = code.selectionStart || 0;
     var before = code.value.slice(0, pos);
     var ln = before.split("\n").length;
     statusPos.textContent = "Ln " + ln + ", Col " + (before.length - before.lastIndexOf("\n"));
     renderGutter(code.value.split("\n").length, ln);
+    ensureCaretVisible();
   }
   var NAV = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Home: 1, End: 1, PageUp: 1, PageDown: 1, Shift: 1, Control: 1, Alt: 1, Meta: 1 };
   code.addEventListener("keyup", function (e) {
@@ -347,6 +464,10 @@
   document.getElementById("btn-horiz").onclick = function () { horiz = !horiz; applyHoriz(); };
   document.getElementById("btn-side").onclick = function () {
     document.body.classList.toggle("side-collapsed");
+    // On a narrow portrait screen the sidebar starts hidden (see app.css), so
+    // this button has to be able to bring it back as well as put it away.
+    document.body.classList.toggle("side-open");
+    revealCaretSoon();
   };
   document.getElementById("btn-clear").onclick = function () { consoleEl.textContent = ""; };
   document.getElementById("btn-stop").onclick = function () {
@@ -474,32 +595,59 @@
   }
   document.getElementById("btn-run").onclick = runCode;
 
+  // Height of the soft keyboard, in CSS px, as reported by the native side.
+  // WebView's own visualViewport often refuses to shrink for an IME, so the
+  // native WindowInsets are the number we can trust on Android.
+  function nativeImeHeight() {
+    try {
+      if (window.JadexNative && window.JadexNative.imeInsetPx) {
+        return Math.max(0, window.JadexNative.imeInsetPx() | 0);
+      }
+    } catch (e) {}
+    return 0;
+  }
+
   function layoutForKeyboard() {
     var vv = window.visualViewport;
     var layoutH = window.innerHeight;
-    var vis = vv ? vv.height : layoutH;
+    var vis = vv && vv.height ? Math.min(vv.height, layoutH) : layoutH;
     var kb = Math.max(0, layoutH - vis);
-    var ratio = kb / Math.max(layoutH, 1);
-    var open = kb > 90;
+
+    var ime = nativeImeHeight();
+    if (ime > 0) kb = Math.max(kb, ime);
+
+    // A keyboard is only "open" while an editable field actually owns focus.
+    // Without that guard the navigation bar alone (which WindowInsets also
+    // reports as an ime() inset on some Android versions) would count as one.
+    var ae = document.activeElement;
+    var editing = !!ae && (ae.id === "code" || ae.id === "repl-in" || ae.id === "find-q" ||
+      ae.id === "search-q" || ae.id === "palette-q");
+    var open = editing && kb > 120;
+
     document.body.classList.toggle("kb-open", open);
-    // Cap usable chrome to 55%+ editor: never let IME-owned layout exceed 45%.
-    var used = Math.min(vis, layoutH * 0.55 + (open ? 0 : layoutH * 0.45));
     if (open) {
-      var keep = Math.max(layoutH * 0.55, vis);
-      app.style.height = Math.min(keep, vis) + "px";
+      // If the platform resized us, vis already excludes the keyboard and this
+      // is a no-op. If it did not, this is what keeps the editor above it.
+      app.style.height = vis + "px";
       document.documentElement.style.setProperty("--vvh", vis + "px");
-      statusKb.textContent = "KB " + Math.round(ratio * 100) + "% capped";
+      statusKb.textContent = "KB " + Math.round((kb / Math.max(layoutH, 1)) * 100) + "% · view follows caret";
     } else {
       app.style.height = "";
       document.documentElement.style.setProperty("--vvh", "100dvh");
       statusKb.textContent = "KB safe";
     }
-    syncEditor();
+    syncEditor();      // re-fits the textarea to the new height …
+    ensureCaretVisible();   // … and drags the caret's line back into view
   }
+  window.layoutForKeyboard = layoutForKeyboard;
+  window.ensureCaretVisible = ensureCaretVisible;
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", layoutForKeyboard);
     window.visualViewport.addEventListener("scroll", layoutForKeyboard);
   }
+  ["focus", "blur"].forEach(function (ev) {
+    code.addEventListener(ev, function () { revealCaretSoon(); layoutForKeyboard(); });
+  });
   window.addEventListener("resize", function () {
     if (window.innerWidth > window.innerHeight) {
       horiz = true;
@@ -616,6 +764,7 @@
     acEl.classList.add("hidden");
     code.focus();
     oldSync();
+    ensureCaretVisible();
     saveFiles();
   }
 

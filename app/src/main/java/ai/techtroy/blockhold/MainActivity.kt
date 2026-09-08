@@ -86,8 +86,10 @@ class MainActivity : Activity() {
                 @Suppress("DEPRECATION")
                 insets.systemWindowInsetBottom
             }
-            val cap = (resources.displayMetrics.heightPixels * 0.45f).toInt()
-            v.setPadding(0, 0, 0, Math.min(bottom, cap))
+            // The WebView has to give up the whole inset. The old 45% cap left
+            // the bottom of the editor underneath the keyboard, so the line
+            // being typed on was covered and nothing could scroll it back up.
+            v.setPadding(0, 0, 0, bottom)
             insets
         }
 
@@ -225,6 +227,27 @@ class MainActivity : Activity() {
         fun listFiles(): String {
             val names = host.padDir().listFiles() ?: return "[]"
             return names.filter { it.isFile }.joinToString(",", "[", "]") { "\"${it.name}\"" }
+        }
+
+        /**
+         * Soft-keyboard height in CSS pixels, 0 when it is closed.
+         *
+         * WebView's own `visualViewport` frequently does not shrink for an IME,
+         * so the page cannot detect the keyboard by itself. It polls this while
+         * laying out, which is what lets the editor give the keyboard its space
+         * and keep the caret's line on screen.
+         */
+        @JavascriptInterface
+        fun imeInsetPx(): Int {
+            val root = host.window?.decorView ?: return 0
+            val raw = if (Build.VERSION.SDK_INT >= 30) {
+                root.rootWindowInsets?.getInsets(WindowInsets.Type.ime())?.bottom ?: 0
+            } else {
+                @Suppress("DEPRECATION")
+                root.rootWindowInsets?.systemWindowInsetBottom ?: 0
+            }
+            val density = host.resources.displayMetrics.density
+            return if (density > 0f) (raw / density).toInt() else raw
         }
     }
 }
