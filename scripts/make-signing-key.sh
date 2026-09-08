@@ -36,9 +36,13 @@ SIGNING_DIR=".signing"
 # repo (e.g. $HOME/.config/blockhold/release.p12) so the key survives between build
 # sessions instead of being regenerated — each new key forces players to uninstall.
 KEYSTORE="${BLOCKHOLD_KEYSTORE:-$SIGNING_DIR/blockhold-release.p12}"
-PROPS="$SIGNING_DIR/release.properties"
-ALIAS="blockhold"
-DNAME="CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH"
+PROPS="${BLOCKHOLD_PROPS:-$SIGNING_DIR/release.properties}"
+# Alias and subject default to Blockhold, but are overridable so the same script can
+# back up the Jadex identity too (`.signing/jadex-release.p12`, alias `jadex`). Without
+# this, --export could not open a non-Blockhold keystore and each new sandbox silently
+# minted a fresh key - which is what forced the v1.3.5 -> v1.3.6 uninstall.
+ALIAS="${BLOCKHOLD_KEY_ALIAS:-blockhold}"
+DNAME="${BLOCKHOLD_KEY_DNAME:-CN=Blockhold Defense, OU=Game Release, O=TechTroyAi, L=Davao City, ST=Davao Region, C=PH}"
 VALIDITY_DAYS=10950   # 30 years; must outlive the app
 
 if ! command -v keytool >/dev/null 2>&1; then
@@ -46,7 +50,7 @@ if ! command -v keytool >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ -f "$KEYSTORE" ]]; then
+if [[ -f "$KEYSTORE" && "${1:-}" != "--export" ]]; then
   echo "error: $KEYSTORE already exists." >&2
   echo "       Refusing to overwrite - that would break updates for anyone already installed." >&2
   echo "       Delete it deliberately if you really mean to start over." >&2
@@ -62,6 +66,12 @@ if [[ "${1:-}" == "--export" ]]; then
     exit 1
   fi
   EXPORT_PASS="${BLOCKHOLD_STORE_PASS:-}"
+  if [[ -z "$EXPORT_PASS" && -f "$PROPS" ]]; then
+    # A key minted by scripts/build-offline-apk.py has its password in the sibling
+    # .properties file; reuse it instead of asking for one nobody recorded.
+    EXPORT_PASS="$(sed -n 's/^storePassword=//p' "$PROPS" | head -1)"
+    [[ -n "$EXPORT_PASS" ]] && echo "  (password read from $PROPS)"
+  fi
   if [[ -z "$EXPORT_PASS" ]]; then
     read -r -s -p "Keystore password: " EXPORT_PASS; echo
   fi

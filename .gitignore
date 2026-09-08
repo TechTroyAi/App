@@ -51,6 +51,7 @@ app/src/main/assets/ide/**/*.br
 # Requested Jadex installable milestones
 !artifacts/Jadex-v1.3.5-installable.apk
 !artifacts/Jadex-v1.3.6-installable.apk
+!artifacts/Jadex-v1.3.7-installable.apk
 
 # Generated APK signing sidecars
 *.apk.idsig
