@@ -20,8 +20,8 @@ android {
         applicationId = "ai.techtroy.jadex"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.3.5"
+        versionCode = 28
+        versionName = "1.3.6"
     }
 
     signingConfigs {
