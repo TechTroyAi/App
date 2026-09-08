@@ -13,6 +13,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Artifact names used to be hardcoded to v1.4.0, so every CI upload was
+      # labelled with a version the repo never shipped. Read the real stamp from
+      # the build file instead and the names track releases automatically.
+      - name: Read versionName from app/build.gradle.kts
+        id: version
+        run: echo "name=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)" >> "$GITHUB_OUTPUT"
+
       - run: python3 scripts/lint-kotlin-pitfalls.py
 
       # Debug APK — always built for testing
@@ -22,7 +29,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Jadex-v1.4.0-debug
+          name: Jadex-v${{ steps.version.outputs.name }}-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -77,6 +84,6 @@ jobs:
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Jadex-v1.4.0-release
+          name: Jadex-v${{ steps.version.outputs.name }}-release
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
