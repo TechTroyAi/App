@@ -1,20 +1,22 @@
-# Jadex Android build — v1.3.6
+# Jadex Android build — v1.3.7
 
 The current app is Jadex, a Kotlin Android host with a bundled Python IDE.
 The editor opens without a splash overlay; CPython loads only on first Run/REPL,
 with a 12-second startup timeout and a retryable subset fallback.
-The installable **v1.3.6 (versionCode 28)** APK and build instructions are in
+The installable **v1.3.7 (versionCode 29)** APK and build instructions are in
 [artifacts/JADEX.md](artifacts/JADEX.md). This build requires **Android 8.0 / API 26+**.
 
-v1.3.6 fixes the gutter rendering line numbers as a collapsed `1 2 3` run, and the
-underlying null crash (`#palette` markup missing from `index.html`) that aborted the
-tail of `app.js` — which had also left the `⌘` command palette, `Ctrl+P`/`Ctrl+F`/`F5`
-and the whole init sequence dead.
+v1.3.7 carries the same editor and engine source as v1.3.6 (which fixed the collapsed
+`1 2 3` gutter, the `#palette` null crash that killed the tail of `app.js`, and the
+`Ctrl+P`/`Ctrl+F`/`F5` shortcuts); it is a version bump plus a new signing identity, and it
+contains **no** change to user `.py` files — those live in the app's own storage on the
+device, not in this repository.
 
-⚠️ **v1.3.6 uses a new signing certificate and cannot update v1.3.5 in place.**
-Export your projects, uninstall the old build, then install. See
-[artifacts/JADEX.md](artifacts/JADEX.md) for the certificate hashes and for how the
-build script now refuses to silently mint a new key.
+⚠️ **v1.3.7 uses a new signing certificate and cannot update v1.3.6 in place.**
+Export your projects first (uninstalling erases them), then uninstall and install. See
+[artifacts/JADEX.md](artifacts/JADEX.md) for the certificate hashes, for how the build script
+refuses to silently mint a new key, and for the `make-signing-key.sh --export` path that gets
+this key into CI secrets so v1.3.8 can be an in-place update.
 
 The Blockhold documentation below is historical, not the current Jadex build status.
 
