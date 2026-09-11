@@ -37,7 +37,8 @@ jobs:
 
       - name: Smoke test the exe
         run: |
-          exe=$(ls artifacts/ScreenRecorder-*.exe)
+          exe=$(ls -t artifacts/ScreenRecorder-*.exe | head -1)
+          echo "smoke testing $exe"
           if "$exe" -h 2>&1 | grep -q ScreenRecorder; then
             echo "smoke test OK: $exe prints usage"
           else
