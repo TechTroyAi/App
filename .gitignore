@@ -55,3 +55,8 @@ app/src/main/assets/ide/**/*.br
 
 # Generated APK signing sidecars
 *.apk.idsig
+
+# Windows exes are generated artifacts; keep only the requested installable milestone.
+*.exe
+!artifacts/ScreenRecorder-v1.0.0.exe
+!artifacts/ScreenRecorder-v1.0.1.exe
