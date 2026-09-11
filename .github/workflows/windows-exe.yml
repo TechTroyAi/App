@@ -63,6 +63,9 @@ jobs:
           Write-Host "version info embedded OK (Made by Troy)"
 
       - name: Sign the exe with the self-signed certificate
+        # continue-on-error while we shake out signtool on the runner; the
+        # step prints its captured output as annotations so we can read it.
+        continue-on-error: true
         shell: pwsh
         run: |
           $exe = (Get-ChildItem artifacts\Aureus-*.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
@@ -72,6 +75,7 @@ jobs:
 
           # Trust our own cert for this runner only, so `signtool verify /pa`
           # can validate the chain. CurrentUser stores need no elevation.
+          Write-Host "::warning::importing cert into trust stores"
           $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($crt)
           foreach ($store in "Root","TrustedPublisher") {
             $st = New-Object System.Security.Cryptography.X509Certificates.X509Store($store, [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
@@ -79,17 +83,39 @@ jobs:
             $st.Add($cert)
             $st.Close()
           }
+          Write-Host "::warning::cert imported"
 
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
                        Sort-Object FullName -Descending | Select-Object -First 1).FullName
           if (-not $signtool) { throw "signtool.exe not found on the runner" }
-          Write-Host "signtool: $signtool"
+          Write-Host "::warning::signtool: $signtool"
 
-          & $signtool sign /f $p12 /p $pfxpw /fd sha256 /d "Aureus screen recorder" /du "https://github.com/TechTroyAi/App" $exe
-          if ($LASTEXITCODE -ne 0) { throw "signtool sign failed (exit $LASTEXITCODE)" }
-          & $signtool verify /pa /v $exe
-          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed (exit $LASTEXITCODE)" }
-          Write-Host "signed and verified OK"
+          # Run signtool as a child process we can kill if it ever prompts,
+          # capturing its output so a failure is readable.
+          $so="sign-out.log"; $se="sign-err.log"
+          $p = Start-Process -FilePath $signtool -NoNewWindow -PassThru `
+               -ArgumentList @("sign","/f",$p12,"/p",$pfxpw,"/fd","sha256","/d","Aureus screen recorder","/du","https://github.com/TechTroyAi/App",$exe) `
+               -RedirectStandardOutput $so -RedirectStandardError $se
+          if (-not $p.WaitForExit(60000)) {
+            $p.Kill()
+            Get-Content $so,$se -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "::error::$_" }
+            throw "signtool sign timed out (likely an interactive prompt)"
+          }
+          Get-Content $so,$se -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+          if ($p.ExitCode -ne 0) { throw "signtool sign failed (exit $($p.ExitCode))" }
+
+          $vo="verify-out.log"; $ve="verify-err.log"
+          $v = Start-Process -FilePath $signtool -NoNewWindow -PassThru `
+               -ArgumentList @("verify","/pa","/v",$exe) `
+               -RedirectStandardOutput $vo -RedirectStandardError $ve
+          if (-not $v.WaitForExit(60000)) {
+            $v.Kill()
+            Get-Content $vo,$ve -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "::error::$_" }
+            throw "signtool verify timed out"
+          }
+          Get-Content $vo,$ve -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+          if ($v.ExitCode -ne 0) { throw "signtool verify failed (exit $($v.ExitCode))" }
+          Write-Host "::warning::signed and verified OK"
 
       - uses: actions/upload-artifact@v4
         with:
