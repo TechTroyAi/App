@@ -56,7 +56,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add artifacts/ScreenRecorder-*.exe
+          # .gitignore ignores *.exe and un-ignores each shipped version by
+          # name, so a version bump without a matching negation makes git add
+          # fail here. Say so instead of exiting 1 with no explanation.
+          if ! git add artifacts/ScreenRecorder-*.exe; then
+            echo "::error::git add failed. The new exe is matched by the '*.exe' rule in .gitignore - add a '!artifacts/ScreenRecorder-v<version>.exe' negation for it."
+            exit 1
+          fi
           if git diff --cached --quiet; then
             echo "exe unchanged; nothing to commit"
           elif [[ "$GITHUB_REF" != refs/heads/* ]]; then

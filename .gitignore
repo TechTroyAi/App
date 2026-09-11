@@ -60,3 +60,4 @@ app/src/main/assets/ide/**/*.br
 *.exe
 !artifacts/ScreenRecorder-v1.0.0.exe
 !artifacts/ScreenRecorder-v1.0.1.exe
+!artifacts/ScreenRecorder-v1.0.2.exe
