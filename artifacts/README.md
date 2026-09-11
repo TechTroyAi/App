@@ -128,7 +128,7 @@ too if ffmpeg is installed). Full usage and flags:
 
 | File | SHA-256 | Status |
 |---|---|---|
-| `ScreenRecorder-v1.0.1.exe` | `PENDING_CI` | **current** — black & gold minimal console theme |
+| `ScreenRecorder-v1.0.1.exe` | `b858c98820558f0d6c7e7d3d43692b1aa99a6a0a23fd38044360ed1c48c60979` | **current** — black & gold minimal console theme |
 | `ScreenRecorder-v1.0.0.exe` | `c57e46bb749ba0f61f6df8bae753d61fc9e6b8ce09fdafc145cc764b18d4cc49` | superseded — initial release, plain console output |
 
 - Size: ~2.1 MB · Format: PE32+ executable for MS Windows, x86-64 (verified: `MZ`/`PE` header, machine `0x8664`)
