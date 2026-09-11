@@ -1,3 +1,8 @@
+//go:build !windows
+
+// The end-to-end recorder test drives the fake "screen" from the non-Windows
+// stub (capture_other.go); on Windows the real GDI capture has no test hook.
+// CI covers the real exe with a smoke test instead.
 package main
 
 import (
