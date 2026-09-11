@@ -125,9 +125,11 @@ animated GIF by default (MP4 too if ffmpeg is installed). Full usage and
 flags: [`screen-recorder/README.md`](../screen-recorder/README.md).
 
 - Size: 2,183,168 bytes (~2.1 MB)
-- SHA-256: `8c759c77b23d30bb013d6a1a6fc23361cdcab2e341d15b0db1d3e4b81d3ffa0e`
+- SHA-256: `c57e46bb749ba0f61f6df8bae753d61fc9e6b8ce09fdafc145cc764b18d4cc49`
 - Format: PE32+ executable for MS Windows, x86-64 (verified: `MZ`/`PE` header, machine `0x8664`)
-- Built with: Go 1.27 (`GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w"`)
+- Built with: Go (stable) on the native `windows-latest` CI runner via
+  `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w"`;
+  cross-compiles byte-compatibly (same 2,183,168-byte size) from Linux with the same command
 - Source: [`screen-recorder/`](../screen-recorder/) — cross-compiles from any OS; tests run on any OS
 - CI: `.github/workflows/windows-exe.yml` rebuilds it on a native
   `windows-latest` runner on every change to `screen-recorder/**` and
