@@ -118,17 +118,20 @@ The dedicated private signing material is excluded from Git. Restore `Blockhold-
 
 ## Windows: ScreenRecorder.exe (screen recorder)
 
-**`ScreenRecorder-v1.0.1.exe`** is the current Windows screen-recording
+**`ScreenRecorder-v1.0.2.exe`** is the current Windows screen-recording
 utility — a single ~2 MB portable executable, no installer and no runtime
 dependencies, themed with a **black & gold minimal console UI** (gold
 accents, pulsing REC dot; set `NO_COLOR=1` for plain output). Press `F9` to
 start/stop recording, `ESC` to quit; writes an animated GIF by default (MP4
-too if ffmpeg is installed). Full usage and flags:
+too if ffmpeg is installed). v1.0.2 stops dropping hotkey presses (keys are
+sampled on their own 5 ms goroutine, clear of the capture loop) and adds
+`-keytest` for diagnosing a hotkey that never fires. Full usage and flags:
 [`screen-recorder/README.md`](../screen-recorder/README.md).
 
 | File | SHA-256 | Status |
 |---|---|---|
-| `ScreenRecorder-v1.0.1.exe` | `b858c98820558f0d6c7e7d3d43692b1aa99a6a0a23fd38044360ed1c48c60979` | **current** — black & gold minimal console theme |
+| `ScreenRecorder-v1.0.2.exe` | `83483840c68c4fc268bbb6482e713c6d84dd3daeaec268d1f5653eead950d181` | **current** — hotkey presses no longer lost to slow frames; `-keytest`, `-pause` |
+| `ScreenRecorder-v1.0.1.exe` | `b858c98820558f0d6c7e7d3d43692b1aa99a6a0a23fd38044360ed1c48c60979` | superseded — black & gold minimal console theme |
 | `ScreenRecorder-v1.0.0.exe` | `c57e46bb749ba0f61f6df8bae753d61fc9e6b8ce09fdafc145cc764b18d4cc49` | superseded — initial release, plain console output |
 
 - Size: ~2.1 MB · Format: PE32+ executable for MS Windows, x86-64 (verified: `MZ`/`PE` header, machine `0x8664`)
