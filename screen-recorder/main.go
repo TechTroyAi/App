@@ -6,9 +6,12 @@
 // supported when ffmpeg is on PATH: raw frames are piped straight into x264.
 //
 // Keys: the hotkey (default F9) starts and stops a recording, ESC quits.
+// They are sampled on a goroutine of their own, well away from the capture
+// loop, so no keypress can be lost to a slow frame.
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
@@ -21,7 +24,7 @@ import (
 	"time"
 )
 
-const version = "1.0.1"
+const version = "1.0.2"
 
 // vkEscape is the Win32 virtual-key code for ESC.
 const vkEscape = 0x1B
@@ -33,16 +36,19 @@ func main() {
 	}
 
 	var (
-		fpsFlag    = flag.Int("fps", 10, "capture frames per second (1-30)")
-		scaleFlag  = flag.Float64("scale", 0, "output scale factor (0 = auto: cap the width at 1920)")
-		formatFlag = flag.String("format", "gif", `output format: "gif" or "mp4" (mp4 needs ffmpeg on PATH)`)
-		outFlag    = flag.String("out", "", "output file path (default: screen_<timestamp>.<ext> in the working directory)")
-		monitorArg = flag.String("monitor", "all", `"all" displays or "primary" only`)
-		hotkeyArg  = flag.String("hotkey", "F9", "start/stop key: F1..F12 or a hex virtual-key code such as 0x78")
-		cursorFlag = flag.Bool("cursor", true, "include the mouse cursor in the capture")
+		fpsFlag     = flag.Int("fps", 10, "capture frames per second (1-30)")
+		scaleFlag   = flag.Float64("scale", 0, "output scale factor (0 = auto: cap the width at 1920)")
+		formatFlag  = flag.String("format", "gif", `output format: "gif" or "mp4" (mp4 needs ffmpeg on PATH)`)
+		outFlag     = flag.String("out", "", "output file path (default: screen_<timestamp>.<ext> in the working directory)")
+		monitorArg  = flag.String("monitor", "all", `"all" displays or "primary" only`)
+		hotkeyArg   = flag.String("hotkey", "F9", "start/stop key: F1..F12 or a hex virtual-key code such as 0x78")
+		cursorFlag  = flag.Bool("cursor", true, "include the mouse cursor in the capture")
+		keytestFlag = flag.Bool("keytest", false, "print every key Windows receives, then exit (diagnose a hotkey that does nothing)")
+		pauseFlag   = flag.Bool("pause", true, "wait for Enter before closing the window after an error")
 	)
 	flag.Usage = usage
 	flag.Parse()
+	pauseOnExit = *pauseFlag && runtime.GOOS == "windows"
 
 	if *fpsFlag < 1 || *fpsFlag > 30 {
 		fatalf("-fps must be between 1 and 30")
@@ -58,9 +64,17 @@ func main() {
 	if err != nil {
 		fatalf("%v", err)
 	}
+	if hotkey == vkEscape {
+		fatalf("-hotkey cannot be ESC — that key quits the app")
+	}
 	allMonitors := !strings.EqualFold(*monitorArg, "primary")
 
 	setColorEnabled(enableVT() && os.Getenv("NO_COLOR") == "")
+
+	if *keytestFlag {
+		runKeyTest(hotkey)
+		return
+	}
 
 	scr, err := newScreenCapture(allMonitors, *cursorFlag)
 	if err != nil {
@@ -113,28 +127,33 @@ func main() {
 	}
 	fmt.Println()
 	fmt.Printf("  %s%s\n", dim("ready — press "), gold(hotName))
+	if runtime.GOOS == "windows" {
+		fmt.Printf("  %s\n", dim("key doing nothing? run: ScreenRecorder.exe -keytest"))
+	}
 
 	var rec recorder
 	recPath := ""
 	var frames int
-	var started, nextFrame time.Time
+	var started time.Time
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	hotPrev, escPrev := false, false
+	// Keys are read on their own goroutine. Reading them from this loop
+	// instead would tie the sampling rate to how long a frame takes to
+	// capture and encode, and a press landing inside a slow frame would be
+	// invisible: GetAsyncKeyState reports a level, not a queued event.
+	keys := startKeyPoller(keyPollInterval, keyDown, hotkey, vkEscape)
+	defer keys.stop()
+
+	// A ticker, not a hand-rolled deadline: when a frame runs long the
+	// missed ticks collapse into one instead of burst-catching-up.
 	frameDur := time.Second / time.Duration(*fpsFlag)
-	poll := frameDur / 2
-	if poll < 8*time.Millisecond {
-		poll = 8 * time.Millisecond
-	} else if poll > 50*time.Millisecond {
-		poll = 50 * time.Millisecond
-	}
+	frameTick := time.NewTicker(frameDur)
+	defer frameTick.Stop()
 
 running:
 	for {
-		time.Sleep(poll)
-
 		select {
 		case <-interrupt:
 			if rec != nil {
@@ -142,62 +161,56 @@ running:
 			}
 			fmt.Println("\nInterrupted.")
 			return
-		default:
-		}
 
-		hot := keyDown(hotkey)
-		esc := keyDown(vkEscape)
-		hotEdge := hot && !hotPrev
-		escEdge := esc && !escPrev
-		hotPrev, escPrev = hot, esc
+		case ev := <-keys.events:
+			switch ev.vk {
+			case vkEscape:
+				if rec != nil {
+					finishRecording(rec, recPath, frames)
+				}
+				break running
 
-		if escEdge {
-			if rec != nil {
-				finishRecording(rec, recPath, frames)
+			case hotkey:
+				if rec == nil {
+					path := fixedOut
+					if path == "" {
+						path = filepath.Join(outDir, fmt.Sprintf("screen_%s.%s",
+							time.Now().Format("20060102_150405"), format))
+					}
+					r, err := startRecorder(format, path, *fpsFlag, dstW, dstH, scr)
+					if err != nil {
+						// Keep running: a window that vanishes hides the
+						// reason, and the user can just try again.
+						fmt.Printf("\n  %s %s: %v\n", red("!"), gold("could not start"), err)
+						fmt.Printf("  %s\n", dim("nothing recorded — press "+hotName+" again, or ESC to quit"))
+						continue
+					}
+					rec, recPath, frames = r, path, 0
+					started = time.Now()
+					fmt.Printf("\n  %s %s %s%s\n",
+						pulseDot(0), gold("REC"), dim("→ "), bright(recPath))
+				} else {
+					finishRecording(rec, recPath, frames)
+					rec = nil
+					fmt.Printf("\nWaiting for %s to record again (ESC quits)...\n", hotName)
+				}
 			}
-			break running
-		}
 
-		if hotEdge {
+		case <-frameTick.C:
 			if rec == nil {
-				path := fixedOut
-				if path == "" {
-					path = filepath.Join(outDir, fmt.Sprintf("screen_%s.%s",
-						time.Now().Format("20060102_150405"), format))
-				}
-				r, err := startRecorder(format, path, *fpsFlag, dstW, dstH, scr)
-				if err != nil {
-					fatalf("%v", err)
-				}
-				rec, recPath, frames = r, path, 0
-				started, nextFrame = time.Now(), time.Now()
-				fmt.Printf("\n  %s %s %s%s\n",
-					pulseDot(0), gold("REC"), dim("→ "), bright(recPath))
-			} else {
-				finishRecording(rec, recPath, frames)
-				rec = nil
-				fmt.Printf("\nWaiting for %s to record again (ESC quits)...\n", strings.ToUpper(*hotkeyArg))
+				continue
 			}
-			continue
+			if err := rec.frame(scr); err != nil {
+				broken, path := rec, recPath
+				rec = nil
+				broken.close()
+				fmt.Printf("\n  %s %s: %v\n", red("!"), bright(path), err)
+				fmt.Printf("  %s\n", dim("recording stopped — press "+hotName+" to start a new one"))
+				continue
+			}
+			frames++
+			printStatus(rec, frames, started)
 		}
-
-		if rec == nil {
-			continue
-		}
-		now := time.Now()
-		if now.Before(nextFrame) {
-			continue
-		}
-		if err := rec.frame(scr); err != nil {
-			rec.close()
-			fatalf("recording failed: %v", err)
-		}
-		frames++
-		nextFrame = now.Add(frameDur)
-		if time.Until(nextFrame) < -2*frameDur {
-			nextFrame = time.Now() // fell badly behind; don't burst-catch-up
-		}
-		printStatus(rec, frames, started)
 	}
 
 	fmt.Println("\n  " + dim("bye"))
@@ -313,8 +326,24 @@ func clamp(v, lo, hi int) int {
 	return v
 }
 
+// pauseOnExit keeps the console window open after a failure. A double-clicked
+// exe closes the instant the process exits, which would take the error
+// message with it — the single worst way for this app to fail, since the
+// user is left staring at a window that flashed and vanished.
+var pauseOnExit = runtime.GOOS == "windows"
+
+func pauseBeforeExit() {
+	if !pauseOnExit {
+		return
+	}
+	fmt.Print("\nPress Enter to close this window...")
+	bufio.NewReader(os.Stdin).ReadString('\n')
+	fmt.Println()
+}
+
 func fatalf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "\nerror: "+format+"\n", args...)
+	pauseBeforeExit()
 	os.Exit(1)
 }
 
@@ -338,5 +367,6 @@ Examples:
   ScreenRecorder.exe -fps 15 -format mp4 -out demo.mp4
   ScreenRecorder.exe -monitor primary -scale 0.5
   ScreenRecorder.exe -hotkey F8 -out C:\Users\me\Desktop\capture.gif
+  ScreenRecorder.exe -keytest     (F9 does nothing? see what your key sends)
 `)
 }

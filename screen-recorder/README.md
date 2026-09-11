@@ -7,13 +7,13 @@ to quit. The console UI uses a **black & gold minimal theme**: gold accents
 on the terminal's own dark background, a thin rule under the banner, and a
 softly pulsing gold ● while recording.
 
-The deliverable lives at [`artifacts/ScreenRecorder-v1.0.1.exe`](../artifacts/ScreenRecorder-v1.0.1.exe)
+The deliverable lives at [`artifacts/ScreenRecorder-v1.0.2.exe`](../artifacts/ScreenRecorder-v1.0.2.exe)
 (see `artifacts/README.md` for its SHA-256), and `.github/workflows/windows-exe.yml`
 rebuilds it on a native Windows runner on every change to this folder.
 
 ## Quick start
 
-1. Download `artifacts/ScreenRecorder-v1.0.0.exe` and put it anywhere (Desktop is fine).
+1. Download `artifacts/ScreenRecorder-v1.0.2.exe` and put it anywhere (Desktop is fine).
 2. Double-click it. A console window opens showing the capture region and keys.
 3. Press **F9** — recording starts immediately. Press **F9** again to stop and save.
 4. Press **ESC** to quit.
@@ -42,6 +42,8 @@ console. Colors turn off automatically on consoles without VT support
 | `-monitor all\|primary` | `all` | Record every display as one big frame, or only the primary one. |
 | `-hotkey KEY` | `F9` | Start/stop key: `F1`..`F12` or a hex virtual-key code like `0x78`. |
 | `-cursor true\|false` | `true` | Include the mouse cursor (with its true hotspot) in the capture. |
+| `-keytest` | `false` | Print every key Windows receives, then exit. Use this when the hotkey seems dead. |
+| `-pause true\|false` | `true` | Wait for Enter before closing the window after an error, so the message stays readable. |
 | `-h` | | Show help. |
 
 Examples:
@@ -51,14 +53,20 @@ ScreenRecorder.exe
 ScreenRecorder.exe -fps 15 -format mp4 -out demo.mp4
 ScreenRecorder.exe -monitor primary -scale 0.5
 ScreenRecorder.exe -hotkey F8 -out C:\Users\me\Desktop\capture.gif
+ScreenRecorder.exe -keytest
 ```
 
 ## How it works (why it's tiny)
 
 - **Capture** is plain Win32 GDI: `BitBlt` of the (virtual) screen into a
   32-bpp top-down DIB section, cursor composited on top via `GetCursorInfo` +
-  `DrawIconEx`. Hotkeys are polled with `GetAsyncKeyState`. No cgo, no
-  external DLLs.
+  `DrawIconEx`. No cgo, no external DLLs.
+- **Keys** are read with `GetAsyncKeyState` on a goroutine of their own,
+  every 5 ms, and handed to the main loop as events. `GetAsyncKeyState`
+  reports a level rather than a queued press, so a press only registers if a
+  sample lands while the key is down — which means the sampling must be both
+  fast and independent of how long a frame takes to encode. Sharing the
+  capture loop for both made short taps vanish mid-recording.
 - **GIF output is streamed**: frames are median-cut-quantized to a fixed
   256-color palette and LZW-encoded straight to disk as they are captured
   (`compress/lzw`, the same encoder `image/gif` uses). RAM stays flat no
@@ -92,6 +100,12 @@ go test ./...
 
 ## Troubleshooting
 
+- **F9 does nothing at all** — the keypress is not reaching Windows as F9.
+  Run `ScreenRecorder.exe -keytest` and press F9: if nothing prints, the
+  function row is bound to media keys (very common on laptops — hold **Fn**,
+  or toggle Fn-lock) or another app has claimed it. If a *different* key name
+  prints, point the recorder at a key that works: `-hotkey F8`, or any hex
+  virtual-key code such as `-hotkey 0x78`.
 - **SmartScreen / antivirus warning** — expected for unsigned exes. *More
   info → Run anyway*. Verify the SHA-256 in `artifacts/README.md`.
 - **Black or frozen frames** — Windows blocks GDI capture of the *secure
