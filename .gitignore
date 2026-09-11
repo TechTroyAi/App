@@ -61,3 +61,5 @@ app/src/main/assets/ide/**/*.br
 !artifacts/ScreenRecorder-v1.0.0.exe
 !artifacts/ScreenRecorder-v1.0.1.exe
 !artifacts/ScreenRecorder-v1.0.2.exe
+!artifacts/Aureus-v1.1.0.exe
+.signing/aureus-codesign.key

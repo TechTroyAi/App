@@ -1,19 +1,19 @@
-# ScreenRecorder.exe — tiny dependency-free screen recorder for Windows
+# Aureus.exe — tiny dependency-free screen recorder for Windows
 
-`ScreenRecorder.exe` records your Windows screen to an **animated GIF** or an
+`Aureus.exe` records your Windows screen to an **animated GIF** or an
 **MP4 video**. It is a single ~2 MB executable with **zero dependencies** —
 no installer, no runtime, no DLLs to ship. Press **F9** to start/stop, **ESC**
 to quit. The console UI uses a **black & gold minimal theme**: gold accents
 on the terminal's own dark background, a thin rule under the banner, and a
 softly pulsing gold ● while recording.
 
-The deliverable lives at [`artifacts/ScreenRecorder-v1.0.2.exe`](../artifacts/ScreenRecorder-v1.0.2.exe)
+The deliverable lives at [`artifacts/Aureus-v1.1.0.exe`](../artifacts/Aureus-v1.1.0.exe)
 (see `artifacts/README.md` for its SHA-256), and `.github/workflows/windows-exe.yml`
 rebuilds it on a native Windows runner on every change to this folder.
 
 ## Quick start
 
-1. Download `artifacts/ScreenRecorder-v1.0.2.exe` and put it anywhere (Desktop is fine).
+1. Download `artifacts/Aureus-v1.1.0.exe` and put it anywhere (Desktop is fine).
 2. Double-click it. A console window opens showing the capture region and keys.
 3. Press **F9** — recording starts immediately. Press **F9** again to stop and save.
 4. Press **ESC** to quit.
@@ -24,7 +24,7 @@ unsigned — click **More info → Run anyway**.
 
 ## Console theme
 
-The interface is themed black & gold: `◆ SCREENRECORDER` banner in gold
+The interface is themed black & gold: `◆ AUREUS` banner in gold
 (ANSI 256-color 220) with dim gray rules and labels, a pulsing gold/amber ●
 next to `REC` while recording, and red `!` reserved for errors. The
 terminal's own background is left untouched, so it adapts to any dark
@@ -49,11 +49,11 @@ console. Colors turn off automatically on consoles without VT support
 Examples:
 
 ```bat
-ScreenRecorder.exe
-ScreenRecorder.exe -fps 15 -format mp4 -out demo.mp4
-ScreenRecorder.exe -monitor primary -scale 0.5
-ScreenRecorder.exe -hotkey F8 -out C:\Users\me\Desktop\capture.gif
-ScreenRecorder.exe -keytest
+Aureus.exe
+Aureus.exe -fps 15 -format mp4 -out demo.mp4
+Aureus.exe -monitor primary -scale 0.5
+Aureus.exe -hotkey F8 -out C:\Users\me\Desktop\capture.gif
+Aureus.exe -keytest
 ```
 
 ## How it works (why it's tiny)
@@ -74,18 +74,38 @@ ScreenRecorder.exe -keytest
 - **MP4 output** pipes raw frames into `ffmpeg` (`libx264`, `veryfast`,
   CRF 23), scaling done by ffmpeg.
 
+## Branding (icon, "Made by Troy" metadata, signing)
+
+- **Name:** the product is **Aureus** (black & gold, "made by Troy").
+- **Icon:** `artwork/aureus/aureus.ico` — a black rounded square with a gold
+  ring and a gold REC dot, matching the console's pulsing ●. It ships at
+  16–256 px so Explorer, the title bar and the taskbar all render cleanly.
+- **Version info:** the exe's Properties → Details tab shows
+  *Company* "Made by Troy", *Product* "Aureus", *Copyright* "© Troy /
+  TechTroyAi", plus a DPI-aware manifest. All of it comes from
+  `versioninfo.json` + the icon + `aureus.exe.manifest`, compiled into the
+  committed `resource.syso` that `go build` picks up automatically. To change
+  any of it, edit `versioninfo.json` (or swap the icon) and regenerate:
+  `goversioninfo -64 versioninfo.json`.
+- **Signing:** the exe is signed with a self-signed code-signing certificate
+  (`.signing/aureus-codesign.p12`, `CN=Aureus, O=Made by Troy`, SHA-256
+  `62:19:1b:dd:ad:b8:5a:90:a7:e7:23:56:51:c0:8c:16:ec:2a:0c:bd:1c:01:a5:b9:28:94:d4:9a:18:4b:cf:d2`).
+  This gives the file a stable named publisher but does **not** clear
+  SmartScreen — only a certificate chaining to a public CA does that.
+
 ## Building from source
 
 Source is in this folder (`main.go`, `capture_windows.go`, `gif.go`,
-`palette.go`, `ffmpeg.go`). Any machine with [Go](https://go.dev/dl) can build
-the Windows exe — no Windows required:
+`palette.go`, `ffmpeg.go`, plus the committed `resource.syso` for the icon and
+version info). Any machine with [Go](https://go.dev/dl) can build the Windows
+exe — no Windows required:
 
 ```sh
 # from Linux/macOS (cross-compile):
-./build.sh                      # -> ../artifacts/ScreenRecorder-v<version>.exe
+./build.sh                      # -> ../artifacts/Aureus-v<version>.exe
 
 # or manually:
-GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o ScreenRecorder.exe .
+GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o Aureus.exe .
 
 # on Windows:
 build.bat
@@ -101,7 +121,7 @@ go test ./...
 ## Troubleshooting
 
 - **F9 does nothing at all** — the keypress is not reaching Windows as F9.
-  Run `ScreenRecorder.exe -keytest` and press F9: if nothing prints, the
+  Run `Aureus.exe -keytest` and press F9: if nothing prints, the
   function row is bound to media keys (very common on laptops — hold **Fn**,
   or toggle Fn-lock) or another app has claimed it. If a *different* key name
   prints, point the recorder at a key that works: `-hotkey F8`, or any hex

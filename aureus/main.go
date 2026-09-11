@@ -1,4 +1,4 @@
-// ScreenRecorder is a tiny, dependency-free screen recorder for Windows.
+// Aureus is a tiny, dependency-free screen recorder for Windows, made by Troy.
 //
 // Capture uses plain Win32 GDI (BitBlt into a 32-bpp DIB section). The
 // default GIF output is streamed to disk one frame at a time, so RAM use
@@ -24,14 +24,14 @@ import (
 	"time"
 )
 
-const version = "1.0.2"
+const version = "1.1.0"
 
 // vkEscape is the Win32 virtual-key code for ESC.
 const vkEscape = 0x1B
 
 func main() {
 	if runtime.GOOS != "windows" {
-		fmt.Fprintln(os.Stderr, "ScreenRecorder.exe only runs on Windows.")
+		fmt.Fprintln(os.Stderr, "Aureus.exe only runs on Windows.")
 		os.Exit(1)
 	}
 
@@ -110,7 +110,7 @@ func main() {
 	hotName := keyName(*hotkeyArg)
 
 	fmt.Println()
-	fmt.Println("  " + gold("◆ SCREENRECORDER") + dim("  v"+version))
+	fmt.Println("  " + gold("◆ AUREUS") + dim("  v"+version))
 	fmt.Println("  " + rule(42))
 	info := func(label, value string) {
 		fmt.Printf("  %-9s %s\n", gold(label), value)
@@ -128,7 +128,7 @@ func main() {
 	fmt.Println()
 	fmt.Printf("  %s%s\n", dim("ready — press "), gold(hotName))
 	if runtime.GOOS == "windows" {
-		fmt.Printf("  %s\n", dim("key doing nothing? run: ScreenRecorder.exe -keytest"))
+		fmt.Printf("  %s\n", dim("key doing nothing? run: Aureus.exe -keytest"))
 	}
 
 	var rec recorder
@@ -348,11 +348,11 @@ func fatalf(format string, args ...any) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `ScreenRecorder %s - records the Windows screen to an animated GIF
+	fmt.Fprintf(os.Stderr, `Aureus %s - records the Windows screen to an animated GIF
 (no dependencies) or an MP4 (needs ffmpeg on PATH).
 
 Usage:
-  ScreenRecorder.exe [options]
+  Aureus.exe [options]
 
 Options:
 `, version)
@@ -363,10 +363,10 @@ Keys:
   ESC  quit
 
 Examples:
-  ScreenRecorder.exe
-  ScreenRecorder.exe -fps 15 -format mp4 -out demo.mp4
-  ScreenRecorder.exe -monitor primary -scale 0.5
-  ScreenRecorder.exe -hotkey F8 -out C:\Users\me\Desktop\capture.gif
-  ScreenRecorder.exe -keytest     (F9 does nothing? see what your key sends)
+  Aureus.exe
+  Aureus.exe -fps 15 -format mp4 -out demo.mp4
+  Aureus.exe -monitor primary -scale 0.5
+  Aureus.exe -hotkey F8 -out C:\Users\me\Desktop\capture.gif
+  Aureus.exe -keytest     (F9 does nothing? see what your key sends)
 `)
 }

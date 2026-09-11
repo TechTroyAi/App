@@ -1,0 +1,28 @@
+{
+  "FixedFileInfo": {
+    "FileVersion": { "Major": 1, "Minor": 1, "Patch": 0, "Build": 0 },
+    "ProductVersion": { "Major": 1, "Minor": 1, "Patch": 0, "Build": 0 },
+    "FileFlagsMask": "3f",
+    "FileFlags": "",
+    "FileOS": "040004",
+    "FileType": "01",
+    "FileSubType": "00"
+  },
+  "StringFileInfo": {
+    "Comments": "Made by Troy — black & gold screen recorder for Windows.",
+    "CompanyName": "Made by Troy",
+    "FileDescription": "Aureus screen recorder",
+    "FileVersion": "1.1.0.0",
+    "InternalName": "Aureus",
+    "LegalCopyright": "Copyright (c) Troy / TechTroyAi. Made by Troy.",
+    "LegalTrademarks": "Aureus is a Made by Troy product.",
+    "OriginalFilename": "Aureus.exe",
+    "PrivateBuild": "",
+    "ProductName": "Aureus",
+    "ProductVersion": "1.1.0.0",
+    "SpecialBuild": ""
+  },
+  "VarFileInfo": { "Translation": { "LangID": "0409", "CharsetID": "04B0" } },
+  "IconPath": "../artwork/aureus/aureus.ico",
+  "ManifestPath": "aureus.exe.manifest"
+}
