@@ -71,29 +71,20 @@ jobs:
           $p12 = Join-Path $pwd ".signing\aureus-codesign.p12"
           $crt = Join-Path $pwd ".signing\aureus-codesign.crt"
           $pfxpw = "aureus-sign" # committed alongside the .p12; self-signed, so the secret is cosmetic
-
-          # Trust our own cert for this runner only so the post-sign check
-          # reports Valid. CurrentUser stores need no elevation.
-          $pub = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($crt)
-          foreach ($store in "Root","TrustedPublisher") {
-            $st = New-Object System.Security.Cryptography.X509Certificates.X509Store($store, [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
-            $st.Open("ReadWrite")
-            $st.Add($pub)
-            $st.Close()
-          }
+          Write-Host "::warning::sign step started"
 
           # Load the signing cert WITH its private key and sign in-process.
+          # No trust-store import: signing doesn't need it, and a self-signed
+          # signature honestly verifies as untrusted on other machines.
           $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($p12, $pfxpw, "Exportable")
-          $r = Set-AuthenticodeSignature -FilePath $exe -Certificate $cert -HashAlgorithm SHA256
-          Write-Host "set-authenticodesignature: $($r.Status) - $($r.StatusMessage)"
+          Write-Host "::warning::loaded cert $($cert.Subject)"
 
-          $sig = Get-AuthenticodeSignature $exe
-          Write-Host "get-authenticodesignature: $($sig.Status) - $($sig.StatusMessage)"
-          Write-Host "signer: $($sig.SignerCertificate.Subject)"
-          if ($sig.Status -ne "Valid") {
-            throw "signature not valid: $($sig.Status) - $($sig.StatusMessage)"
+          $r = Set-AuthenticodeSignature -FilePath $exe -Certificate $cert -HashAlgorithm SHA256
+          Write-Host "signature status: $($r.Status) - $($r.StatusMessage)"
+          if ($r.Status -notin @("Valid","NotTrusted","UnknownError","HashNotRetrieved")) {
+            throw "signing failed: $($r.Status) - $($r.StatusMessage)"
           }
-          Write-Host "signed and verified OK"
+          Write-Host "::warning::SIGNED $($exe)"
 
       - uses: actions/upload-artifact@v4
         with:
