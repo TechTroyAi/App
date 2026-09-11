@@ -263,17 +263,19 @@ func keyDown(vk int) bool {
 	return r&0x8000 != 0
 }
 
-// enableVT turns on ANSI escape processing in the console (best effort, for
-// tidy status-line redraws; harmless if it fails).
-func enableVT() {
+// enableVT turns on ANSI escape processing in the console so the black &
+// gold theme renders; returns false on consoles without VT support (the app
+// then falls back to plain, colorless output).
+func enableVT() bool {
 	const stdOutputHandle = ^uintptr(10) // (DWORD)-11
 	h, _, _ := procGetStdHandle.Call(stdOutputHandle)
 	if h == 0 || h == ^uintptr(0) {
-		return
+		return false
 	}
 	var mode uint32
 	if r, _, _ := procGetConsoleMode.Call(h, uintptr(unsafe.Pointer(&mode))); r == 0 {
-		return
+		return false
 	}
-	procSetConsoleMode.Call(h, uintptr(mode)|enableVTProcessing)
+	r, _, _ := procSetConsoleMode.Call(h, uintptr(mode)|enableVTProcessing)
+	return r != 0
 }

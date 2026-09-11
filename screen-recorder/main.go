@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "1.0.0"
+const version = "1.0.1"
 
 // vkEscape is the Win32 virtual-key code for ESC.
 const vkEscape = 0x1B
@@ -60,7 +60,7 @@ func main() {
 	}
 	allMonitors := !strings.EqualFold(*monitorArg, "primary")
 
-	enableVT()
+	setColorEnabled(enableVT() && os.Getenv("NO_COLOR") == "")
 
 	scr, err := newScreenCapture(allMonitors, *cursorFlag)
 	if err != nil {
@@ -79,28 +79,40 @@ func main() {
 	dstH := clamp(int(float64(scr.height())*scale+0.5), 16, scr.height())
 	scr.setOutputSize(dstW, dstH)
 
-	monitorName := fmt.Sprintf("%dx%d at (%d,%d), all displays", scr.width(), scr.height(), scr.originX(), scr.originY())
-	if !allMonitors {
-		monitorName = fmt.Sprintf("%dx%d, primary display", scr.width(), scr.height())
-	}
-
-	fmt.Printf("ScreenRecorder %s  (https://github.com/TechTroyAi/App)\n", version)
-	fmt.Printf("  Capture : %s\n", monitorName)
-	fmt.Printf("  Output  : %dx%d @ %d fps, %s\n", dstW, dstH, *fpsFlag, strings.ToUpper(format))
-	if format == "mp4" {
-		if _, err := exec.LookPath("ffmpeg"); err != nil {
-			fmt.Println("  Note    : ffmpeg was not found on PATH; MP4 recording will fail")
-			fmt.Println("            until you install it (winget install Gyan.FFmpeg) and reopen this window")
-		}
-	}
-	fmt.Printf("  Keys    : %s starts/stops a recording, ESC quits\n", strings.ToUpper(*hotkeyArg))
-	fmt.Printf("\nWaiting for %s to start recording...\n", strings.ToUpper(*hotkeyArg))
-
 	fixedOut := *outFlag
 	outDir, err := os.Getwd()
 	if err != nil {
 		outDir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	}
+
+	srcDesc := fmt.Sprintf("%d×%d all displays", scr.width(), scr.height())
+	if !allMonitors {
+		srcDesc = fmt.Sprintf("%d×%d primary display", scr.width(), scr.height())
+	}
+	outName := "screen_<timestamp>." + format + " in this folder"
+	if fixedOut != "" {
+		outName = fixedOut
+	}
+	hotName := keyName(*hotkeyArg)
+
+	fmt.Println()
+	fmt.Println("  " + gold("◆ SCREENRECORDER") + dim("  v"+version))
+	fmt.Println("  " + rule(42))
+	info := func(label, value string) {
+		fmt.Printf("  %-9s %s\n", gold(label), value)
+	}
+	info("capture", fmt.Sprintf("%s → %s @ %d fps · %s",
+		srcDesc, fmt.Sprintf("%d×%d", dstW, dstH), *fpsFlag, strings.ToUpper(format)))
+	info("output", outName)
+	info("keys", fmt.Sprintf("%s start/stop · %s quit", gold(hotName), gold("ESC")))
+	if format == "mp4" {
+		if _, err := exec.LookPath("ffmpeg"); err != nil {
+			info("note", amber("ffmpeg not on PATH — MP4 recording will fail"))
+			info("", dim("fix: winget install Gyan.FFmpeg, then reopen this window"))
+		}
+	}
+	fmt.Println()
+	fmt.Printf("  %s%s\n", dim("ready — press "), gold(hotName))
 
 	var rec recorder
 	recPath := ""
@@ -159,7 +171,8 @@ running:
 				}
 				rec, recPath, frames = r, path, 0
 				started, nextFrame = time.Now(), time.Now()
-				fmt.Printf("\nRecording -> %s\n", recPath)
+				fmt.Printf("\n  %s %s %s%s\n",
+					pulseDot(0), gold("REC"), dim("→ "), bright(recPath))
 			} else {
 				finishRecording(rec, recPath, frames)
 				rec = nil
@@ -187,7 +200,17 @@ running:
 		printStatus(rec, frames, started)
 	}
 
-	fmt.Println("\nBye!")
+	fmt.Println("\n  " + dim("bye"))
+}
+
+// keyName normalizes the hotkey for display: F-keys upper-case, hex codes
+// shown as typed.
+func keyName(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(strings.ToUpper(s), "F") {
+		return strings.ToUpper(s)
+	}
+	return s
 }
 
 // recorder consumes captured frames and writes the output file.
@@ -210,26 +233,34 @@ func startRecorder(format, path string, fps, dstW, dstH int, scr *screenCapture)
 }
 
 func finishRecording(rec recorder, path string, frames int) {
-	fmt.Println()
+	fmt.Print("\r" + strings.Repeat(" ", 76) + "\r")
 	err := rec.close()
 	if err != nil {
-		fmt.Printf("ERROR saving %s: %v\n", path, err)
+		fmt.Printf("  %s %s: %v\n", red("!"), bright(path), err)
 		return
 	}
 	size := uint64(0)
 	if st, err := os.Stat(path); err == nil {
 		size = uint64(st.Size())
 	}
-	fmt.Printf("Saved %s  (%d frames, %s)\n", path, frames, humanSize(size))
+	fmt.Printf("  %s %s %s\n",
+		gold("●"), bright(path),
+		dim(fmt.Sprintf("saved · %d frames · %s", frames, humanSize(size))))
 }
 
 func printStatus(rec recorder, frames int, started time.Time) {
+	d := time.Since(started)
 	extra := ""
 	if n := skippedFrames(); n > 0 {
-		extra = fmt.Sprintf("  (%d frames skipped)", n)
+		extra = dim(fmt.Sprintf(" · %d skipped", n))
 	}
-	fmt.Printf("\r  REC %-8s  frame %-6d %10s written%s   ",
-		time.Since(started).Round(time.Second), frames, humanSize(rec.bytesWritten()), extra)
+	fmt.Printf("\r  %s %s %s %s %s%s   ",
+		pulseDot(frames),
+		gold("REC"),
+		bright(fmt.Sprintf("%02d:%02d", int(d.Minutes()), int(d.Seconds())%60)),
+		dim("·"),
+		dim(fmt.Sprintf("%d frames · %s", frames, humanSize(rec.bytesWritten()))),
+		extra)
 }
 
 // parseVK converts "F1".."F12" or "0x.." to a Win32 virtual-key code.

@@ -3,9 +3,11 @@
 `ScreenRecorder.exe` records your Windows screen to an **animated GIF** or an
 **MP4 video**. It is a single ~2 MB executable with **zero dependencies** —
 no installer, no runtime, no DLLs to ship. Press **F9** to start/stop, **ESC**
-to quit.
+to quit. The console UI uses a **black & gold minimal theme**: gold accents
+on the terminal's own dark background, a thin rule under the banner, and a
+softly pulsing gold ● while recording.
 
-The deliverable lives at [`artifacts/ScreenRecorder-v1.0.0.exe`](../artifacts/ScreenRecorder-v1.0.0.exe)
+The deliverable lives at [`artifacts/ScreenRecorder-v1.0.1.exe`](../artifacts/ScreenRecorder-v1.0.1.exe)
 (see `artifacts/README.md` for its SHA-256), and `.github/workflows/windows-exe.yml`
 rebuilds it on a native Windows runner on every change to this folder.
 
@@ -19,6 +21,15 @@ rebuilds it on a native Windows runner on every change to this folder.
 The output file `screen_YYYYMMDD_HHMMSS.gif` is written to the folder the
 console is in. Windows may show a *SmartScreen* warning because the exe is
 unsigned — click **More info → Run anyway**.
+
+## Console theme
+
+The interface is themed black & gold: `◆ SCREENRECORDER` banner in gold
+(ANSI 256-color 220) with dim gray rules and labels, a pulsing gold/amber ●
+next to `REC` while recording, and red `!` reserved for errors. The
+terminal's own background is left untouched, so it adapts to any dark
+console. Colors turn off automatically on consoles without VT support
+(pre-Windows 10) or when the standard `NO_COLOR` environment variable is set.
 
 ## Options
 

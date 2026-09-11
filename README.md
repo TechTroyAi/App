@@ -23,8 +23,9 @@ this key into CI secrets so v1.3.8 can be an in-place update.
 # ScreenRecorder.exe — screen recorder for Windows
 
 A tiny (~2 MB), dependency-free Windows utility that records the screen to an
-animated **GIF** (or **MP4** with ffmpeg): **F9** starts/stops, **ESC** quits.
-The installable exe is [artifacts/ScreenRecorder-v1.0.0.exe](artifacts/ScreenRecorder-v1.0.0.exe)
+animated **GIF** (or **MP4** with ffmpeg): **F9** starts/stops, **ESC** quits,
+with a black & gold minimal console theme. The installable exe is
+[artifacts/ScreenRecorder-v1.0.1.exe](artifacts/ScreenRecorder-v1.0.1.exe)
 (SHA-256 in [artifacts/README.md](artifacts/README.md)); usage, flags and build
 instructions are in [screen-recorder/README.md](screen-recorder/README.md).
 

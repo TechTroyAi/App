@@ -38,10 +38,12 @@ func (c *screenCapture) grabRGBA() *image.RGBA {
 	}
 	return c.rgba
 }
-func (c *screenCapture) close()                   {}
+func (c *screenCapture) close() {}
 
 func keyDown(vk int) bool { return false }
 
-func enableVT() {}
+// enableVT returns true on non-Windows test/dev environments so the theme
+// helpers produce their escape codes in checks.
+func enableVT() bool { return true }
 
 func skippedFrames() int { return 0 }
