@@ -1,13 +1,13 @@
 // Aureus is a tiny, dependency-free screen recorder for Windows, made by Troy.
 //
-// Capture uses plain Win32 GDI (BitBlt into a 32-bpp DIB section). The
-// default GIF output is streamed to disk one frame at a time, so RAM use
-// stays flat no matter how long the recording runs. MP4 output is also
-// supported when ffmpeg is on PATH: raw frames are piped straight into x264.
+// Capture uses plain Win32 GDI (BitBlt into a 32-bpp DIB section). The default
+// GIF output is streamed to disk one frame at a time, so RAM stays flat no
+// matter how long the recording runs. MP4 output is also supported when ffmpeg
+// is on PATH.
 //
-// Keys: the hotkey (default F9) starts and stops a recording, ESC quits.
-// They are sampled on a goroutine of their own, well away from the capture
-// loop, so no keypress can be lost to a slow frame.
+// Control comes from three places that all drive the same engine: the console
+// hotkey (default F9), and the black & gold browser "studio" served on
+// localhost (-web), which also lists recordings and trims them. ESC quits.
 package main
 
 import (
@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-const version = "1.1.0"
+const version = "1.2.0"
 
 // vkEscape is the Win32 virtual-key code for ESC.
 const vkEscape = 0x1B
@@ -39,12 +39,17 @@ func main() {
 		fpsFlag     = flag.Int("fps", 10, "capture frames per second (1-30)")
 		scaleFlag   = flag.Float64("scale", 0, "output scale factor (0 = auto: cap the width at 1920)")
 		formatFlag  = flag.String("format", "gif", `output format: "gif" or "mp4" (mp4 needs ffmpeg on PATH)`)
-		outFlag     = flag.String("out", "", "output file path (default: screen_<timestamp>.<ext> in the working directory)")
+		outFlag     = flag.String("out", "", "exact output file path (overrides -outdir)")
+		outDirFlag  = flag.String("outdir", "", "folder to save recordings in (default: your Videos folder)")
 		monitorArg  = flag.String("monitor", "all", `"all" displays or "primary" only`)
 		hotkeyArg   = flag.String("hotkey", "F9", "start/stop key: F1..F12 or a hex virtual-key code such as 0x78")
 		cursorFlag  = flag.Bool("cursor", true, "include the mouse cursor in the capture")
 		keytestFlag = flag.Bool("keytest", false, "print every key Windows receives, then exit (diagnose a hotkey that does nothing)")
 		pauseFlag   = flag.Bool("pause", true, "wait for Enter before closing the window after an error")
+		webFlag     = flag.Bool("web", true, "open the black & gold browser studio")
+		trimFlag    = flag.String("trim", "", "trim an existing recording and exit (.gif or .mp4)")
+		trimStart   = flag.String("start", "0", "trim start, seconds or a duration like 2.5s")
+		trimEnd     = flag.String("end", "", "trim end, blank = to the end")
 	)
 	flag.Usage = usage
 	flag.Parse()
@@ -76,6 +81,24 @@ func main() {
 		return
 	}
 
+	// Trim mode needs no capture, so it works anywhere.
+	if *trimFlag != "" {
+		start, errS := parseClipTime(*trimStart)
+		if errS != nil {
+			fatalf("%v", errS)
+		}
+		end, errE := parseClipTime(*trimEnd)
+		if errE != nil {
+			fatalf("%v", errE)
+		}
+		out, terr := trimFile(*trimFlag, *outFlag, start, end)
+		if terr != nil {
+			fatalf("%v", terr)
+		}
+		fmt.Printf("  %s %s\n", gold("●"), bright(out))
+		return
+	}
+
 	scr, err := newScreenCapture(allMonitors, *cursorFlag)
 	if err != nil {
 		fatalf("%v", err)
@@ -94,16 +117,16 @@ func main() {
 	scr.setOutputSize(dstW, dstH)
 
 	fixedOut := *outFlag
-	outDir, err := os.Getwd()
+	recDir, err := recordDir(*outDirFlag)
 	if err != nil {
-		outDir, _ = filepath.Abs(filepath.Dir(os.Args[0]))
+		fatalf("%v", err)
 	}
 
 	srcDesc := fmt.Sprintf("%d×%d all displays", scr.width(), scr.height())
 	if !allMonitors {
 		srcDesc = fmt.Sprintf("%d×%d primary display", scr.width(), scr.height())
 	}
-	outName := "screen_<timestamp>." + format + " in this folder"
+	outName := fmt.Sprintf("screen_<timestamp>.%s in %s", format, recDir)
 	if fixedOut != "" {
 		outName = fixedOut
 	}
@@ -131,89 +154,124 @@ func main() {
 		fmt.Printf("  %s\n", dim("key doing nothing? run: Aureus.exe -keytest"))
 	}
 
-	var rec recorder
-	recPath := ""
-	var frames int
-	var started time.Time
+	eng := newEngine(scr, format, *fpsFlag, dstW, dstH, recDir, fixedOut)
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	// Keys are read on their own goroutine. Reading them from this loop
-	// instead would tie the sampling rate to how long a frame takes to
-	// capture and encode, and a press landing inside a slow frame would be
-	// invisible: GetAsyncKeyState reports a level, not a queued event.
+	// Keys are read on their own goroutine; the engine runs the frame pump on
+	// another. Input only flips a switch, so capture and control never starve
+	// each other and no keypress is lost to a slow frame.
 	keys := startKeyPoller(keyPollInterval, keyDown, hotkey, vkEscape)
 	defer keys.stop()
 
-	// A ticker, not a hand-rolled deadline: when a frame runs long the
-	// missed ticks collapse into one instead of burst-catching-up.
-	frameDur := time.Second / time.Duration(*fpsFlag)
-	frameTick := time.NewTicker(frameDur)
-	defer frameTick.Stop()
+	if *webFlag {
+		if url, werr := serveWeb(eng); werr == nil {
+			info("studio", bright(url))
+			fmt.Printf("  %s\n", dim("opening the studio in your browser…"))
+			openBrowser(url)
+		}
+	}
+
+	statTick := time.NewTicker(200 * time.Millisecond)
+	defer statTick.Stop()
 
 running:
 	for {
 		select {
 		case <-interrupt:
-			if rec != nil {
-				finishRecording(rec, recPath, frames)
-			}
+			finishEngine(eng)
 			fmt.Println("\nInterrupted.")
 			return
 
 		case ev := <-keys.events:
 			switch ev.vk {
 			case vkEscape:
-				if rec != nil {
-					finishRecording(rec, recPath, frames)
-				}
+				finishEngine(eng)
 				break running
 
 			case hotkey:
-				if rec == nil {
-					path := fixedOut
-					if path == "" {
-						path = filepath.Join(outDir, fmt.Sprintf("screen_%s.%s",
-							time.Now().Format("20060102_150405"), format))
-					}
-					r, err := startRecorder(format, path, *fpsFlag, dstW, dstH, scr)
-					if err != nil {
-						// Keep running: a window that vanishes hides the
-						// reason, and the user can just try again.
-						fmt.Printf("\n  %s %s: %v\n", red("!"), gold("could not start"), err)
-						fmt.Printf("  %s\n", dim("nothing recorded — press "+hotName+" again, or ESC to quit"))
-						continue
-					}
-					rec, recPath, frames = r, path, 0
-					started = time.Now()
-					fmt.Printf("\n  %s %s %s%s\n",
-						pulseDot(0), gold("REC"), dim("→ "), bright(recPath))
-				} else {
-					finishRecording(rec, recPath, frames)
-					rec = nil
+				if eng.status().Recording {
+					finishEngine(eng)
 					fmt.Printf("\nWaiting for %s to record again (ESC quits)...\n", hotName)
+				} else {
+					p, serr := eng.start()
+					if serr != nil {
+						fmt.Printf("\n  %s %s: %v\n", red("!"), gold("could not start"), serr)
+						fmt.Printf("  %s\n", dim("nothing recorded — press "+hotName+" again, or ESC to quit"))
+					} else {
+						fmt.Printf("\n  %s %s %s%s\n",
+							pulseDot(0), gold("REC"), dim("→ "), bright(p))
+					}
 				}
 			}
 
-		case <-frameTick.C:
-			if rec == nil {
-				continue
+		case <-statTick.C:
+			if s := eng.status(); s.Recording {
+				printStatusLine(s)
 			}
-			if err := rec.frame(scr); err != nil {
-				broken, path := rec, recPath
-				rec = nil
-				broken.close()
-				fmt.Printf("\n  %s %s: %v\n", red("!"), bright(path), err)
-				fmt.Printf("  %s\n", dim("recording stopped — press "+hotName+" to start a new one"))
-				continue
-			}
-			frames++
-			printStatus(rec, frames, started)
 		}
 	}
 
 	fmt.Println("\n  " + dim("bye"))
+}
+
+// finishEngine stops any in-flight recording and prints the saved line.
+func finishEngine(e *engine) {
+	p, f, err := e.stop()
+	if p == "" {
+		return
+	}
+	fmt.Print("\r" + strings.Repeat(" ", 76) + "\r")
+	if err != nil {
+		fmt.Printf("  %s %s: %v\n", red("!"), bright(p), err)
+		return
+	}
+	size := uint64(0)
+	if st, serr := os.Stat(p); serr == nil {
+		size = uint64(st.Size())
+	}
+	fmt.Printf("  %s %s %s\n",
+		gold("●"), bright(p),
+		dim(fmt.Sprintf("saved · %d frames · %s", f, humanSize(size))))
+}
+
+// printStatusLine redraws the live REC line in the console.
+func printStatusLine(s status) {
+	extra := ""
+	if n := skippedFrames(); n > 0 {
+		extra = dim(fmt.Sprintf(" · %d skipped", n))
+	}
+	fmt.Printf("\r  %s %s %s %s %s%s   ",
+		pulseDot(s.Frames),
+		gold("REC"),
+		bright(fmt.Sprintf("%02d:%02d", int(s.Seconds)/60, int(s.Seconds)%60)),
+		dim("·"),
+		dim(fmt.Sprintf("%d frames · %s", s.Frames, humanSize(s.Bytes))),
+		extra)
+}
+
+// recordDir picks the folder recordings are saved to.
+//
+//   - an explicit -outdir wins and is created if missing; failing to create it
+//     is an error, because silently recording somewhere else would lose clips.
+//   - otherwise the OS Videos folder (%USERPROFILE%\Videos) is used and
+//     created, which is where people expect recordings to land.
+//   - if that can't be created, fall back to the current directory.
+func recordDir(explicit string) (string, error) {
+	if explicit != "" {
+		if err := os.MkdirAll(explicit, 0o755); err != nil {
+			return "", fmt.Errorf("cannot create -outdir %q: %w", explicit, err)
+		}
+		return explicit, nil
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		d := filepath.Join(home, "Videos")
+		if os.MkdirAll(d, 0o755) == nil {
+			return d, nil
+		}
+	}
+	return os.Getwd()
 }
 
 // keyName normalizes the hotkey for display: F-keys upper-case, hex codes
@@ -243,37 +301,6 @@ func startRecorder(format, path string, fps, dstW, dstH int, scr *screenCapture)
 		return newFFmpegRecorder(path, fps, dstW, dstH, scr.width(), scr.height())
 	}
 	return nil, fmt.Errorf("unknown format %q", format)
-}
-
-func finishRecording(rec recorder, path string, frames int) {
-	fmt.Print("\r" + strings.Repeat(" ", 76) + "\r")
-	err := rec.close()
-	if err != nil {
-		fmt.Printf("  %s %s: %v\n", red("!"), bright(path), err)
-		return
-	}
-	size := uint64(0)
-	if st, err := os.Stat(path); err == nil {
-		size = uint64(st.Size())
-	}
-	fmt.Printf("  %s %s %s\n",
-		gold("●"), bright(path),
-		dim(fmt.Sprintf("saved · %d frames · %s", frames, humanSize(size))))
-}
-
-func printStatus(rec recorder, frames int, started time.Time) {
-	d := time.Since(started)
-	extra := ""
-	if n := skippedFrames(); n > 0 {
-		extra = dim(fmt.Sprintf(" · %d skipped", n))
-	}
-	fmt.Printf("\r  %s %s %s %s %s%s   ",
-		pulseDot(frames),
-		gold("REC"),
-		bright(fmt.Sprintf("%02d:%02d", int(d.Minutes()), int(d.Seconds())%60)),
-		dim("·"),
-		dim(fmt.Sprintf("%d frames · %s", frames, humanSize(rec.bytesWritten()))),
-		extra)
 }
 
 // parseVK converts "F1".."F12" or "0x.." to a Win32 virtual-key code.
@@ -349,7 +376,8 @@ func fatalf(format string, args ...any) {
 
 func usage() {
 	fmt.Fprintf(os.Stderr, `Aureus %s - records the Windows screen to an animated GIF
-(no dependencies) or an MP4 (needs ffmpeg on PATH).
+(no dependencies) or an MP4 (needs ffmpeg on PATH), with a black & gold
+browser studio for recording, browsing and trimming clips.
 
 Usage:
   Aureus.exe [options]
@@ -363,10 +391,10 @@ Keys:
   ESC  quit
 
 Examples:
-  Aureus.exe
-  Aureus.exe -fps 15 -format mp4 -out demo.mp4
-  Aureus.exe -monitor primary -scale 0.5
-  Aureus.exe -hotkey F8 -out C:\Users\me\Desktop\capture.gif
+  Aureus.exe                                  (studio opens; F9 to record)
+  Aureus.exe -outdir D:\Clips                 (choose where recordings go)
+  Aureus.exe -trim rec.gif -start 2 -end 5    (keep seconds 2-5 of a clip)
+  Aureus.exe -format mp4 -out demo.mp4
   Aureus.exe -keytest     (F9 does nothing? see what your key sends)
 `)
 }
