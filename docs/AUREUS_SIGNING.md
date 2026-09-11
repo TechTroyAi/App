@@ -2,7 +2,7 @@
 
 The Windows `Aureus.exe` is signed by CI (`.github/workflows/windows-exe.yml`)
 with a **self-signed** code-signing certificate stored at
-`.signing/aureus-codesign.p12` (empty password). This follows the same
+`.signing/aureus-codesign.p12` (password: `aureus-sign`, also referenced in the workflow). This follows the same
 "commit the signing material" convention the repo already uses for the APK
 key (see `SIGNING.md`).
 
@@ -30,7 +30,7 @@ key (see `SIGNING.md`).
    `-subj "/CN=Aureus/OU=Aureus Release/O=Made by Troy/L=Davao City/ST=Davao Region/C=PH" \`
    `-addext "keyUsage=digitalSignature" -addext "extendedKeyUsage=codeSigning" -addext "basicConstraints=CA:FALSE"`
 2. `openssl pkcs12 -export -out .signing/aureus-codesign.p12 \`
-   `-inkey .signing/aureus-codesign.key -in .signing/aureus-codesign.crt -passout pass:`
+   `-inkey .signing/aureus-codesign.key -in .signing/aureus-codesign.crt -passout pass:aureus-sign`
 3. Commit the new `.p12` and update the fingerprints recorded here and in
    `artifacts/README.md`.
 

@@ -67,10 +67,12 @@ jobs:
         run: |
           $exe = (Get-ChildItem artifacts\Aureus-*.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
           $p12 = Join-Path $pwd ".signing\aureus-codesign.p12"
+          $crt = Join-Path $pwd ".signing\aureus-codesign.crt"
+          $pfxpw = "aureus-sign" # committed alongside the .p12; self-signed, so the secret is cosmetic
 
           # Trust our own cert for this runner only, so `signtool verify /pa`
           # can validate the chain. CurrentUser stores need no elevation.
-          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($p12, "")
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($crt)
           foreach ($store in "Root","TrustedPublisher") {
             $st = New-Object System.Security.Cryptography.X509Certificates.X509Store($store, [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
             $st.Open("ReadWrite")
@@ -80,12 +82,13 @@ jobs:
 
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
                        Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $signtool) { throw "signtool.exe not found on the runner" }
           Write-Host "signtool: $signtool"
 
-          & $signtool sign /f $p12 /p "" /fd sha256 /d "Aureus screen recorder" /du "https://github.com/TechTroyAi/App" $exe
-          if ($LASTEXITCODE -ne 0) { throw "signtool sign failed" }
+          & $signtool sign /f $p12 /p $pfxpw /fd sha256 /d "Aureus screen recorder" /du "https://github.com/TechTroyAi/App" $exe
+          if ($LASTEXITCODE -ne 0) { throw "signtool sign failed (exit $LASTEXITCODE)" }
           & $signtool verify /pa /v $exe
-          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed" }
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed (exit $LASTEXITCODE)" }
           Write-Host "signed and verified OK"
 
       - uses: actions/upload-artifact@v4
