@@ -115,3 +115,22 @@ The dedicated private signing material is excluded from Git. Restore `Blockhold-
 ## First playable archive
 
 `Blockhold-Defense-v0.1-debug.apk` is retained as the original five-wave vertical slice under the old prototype package `ai.techtroy.app`. It installs independently from Blockhold Defense.
+
+## Windows: ScreenRecorder.exe (screen recorder)
+
+**`ScreenRecorder-v1.0.0.exe`** is the requested Windows screen-recording
+utility — a single ~2 MB portable executable, no installer and no runtime
+dependencies. Press `F9` to start/stop recording, `ESC` to quit; writes an
+animated GIF by default (MP4 too if ffmpeg is installed). Full usage and
+flags: [`screen-recorder/README.md`](../screen-recorder/README.md).
+
+- Size: 2,183,168 bytes (~2.1 MB)
+- SHA-256: `8c759c77b23d30bb013d6a1a6fc23361cdcab2e341d15b0db1d3e4b81d3ffa0e`
+- Format: PE32+ executable for MS Windows, x86-64 (verified: `MZ`/`PE` header, machine `0x8664`)
+- Built with: Go 1.27 (`GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w"`)
+- Source: [`screen-recorder/`](../screen-recorder/) — cross-compiles from any OS; tests run on any OS
+- CI: `.github/workflows/windows-exe.yml` rebuilds it on a native
+  `windows-latest` runner on every change to `screen-recorder/**` and
+  re-commits the fresh binary here
+- Note: unsigned, so Windows SmartScreen shows "More info → Run anyway" on
+  first launch

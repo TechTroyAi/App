@@ -18,6 +18,23 @@ Export your projects first (uninstalling erases them), then uninstall and instal
 refuses to silently mint a new key, and for the `make-signing-key.sh --export` path that gets
 this key into CI secrets so v1.3.8 can be an in-place update.
 
+---
+
+# ScreenRecorder.exe — screen recorder for Windows
+
+A tiny (~2 MB), dependency-free Windows utility that records the screen to an
+animated **GIF** (or **MP4** with ffmpeg): **F9** starts/stops, **ESC** quits.
+The installable exe is [artifacts/ScreenRecorder-v1.0.0.exe](artifacts/ScreenRecorder-v1.0.0.exe)
+(SHA-256 in [artifacts/README.md](artifacts/README.md)); usage, flags and build
+instructions are in [screen-recorder/README.md](screen-recorder/README.md).
+
+For the AI agents building Windows executables, [AI-AGENT-EXE-GUIDE.md](AI-AGENT-EXE-GUIDE.md)
+is a playbook covering cross-compilation vs. Windows-only packaging (Go,
+Rust, MinGW, .NET, PyInstaller, Electron), the GitHub Actions `windows-latest`
+pattern, code signing, and a common-errors table.
+
+---
+
 The Blockhold documentation below is historical, not the current Jadex build status.
 
 ---
