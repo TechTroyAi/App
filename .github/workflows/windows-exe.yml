@@ -59,9 +59,16 @@ jobs:
           git add artifacts/ScreenRecorder-*.exe
           if git diff --cached --quiet; then
             echo "exe unchanged; nothing to commit"
+          elif [[ "$GITHUB_REF" != refs/heads/* ]]; then
+            # A tag push: the release job publishes the exe instead, and there
+            # is no branch here to push a commit back to.
+            echo "not a branch; keeping the rebuilt exe as a workflow artifact only"
           else
             git commit -m "CI: rebuild ScreenRecorder exe [skip ci]"
-            git push
+            # actions/checkout creates the local branch with `checkout -B`, which
+            # sets no upstream, so a bare `git push` fails with "no upstream
+            # branch". Name the destination explicitly.
+            git push origin "HEAD:$GITHUB_REF"
           fi
 
   release:
