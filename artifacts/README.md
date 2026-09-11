@@ -131,7 +131,7 @@ too if ffmpeg is installed). Full usage and flags:
 
 | File | SHA-256 | Status |
 |---|---|---|
-| `Aureus-v1.1.0.exe` | *(recorded by CI after the signed build)* | **current** — renamed from ScreenRecorder; icon + "Made by Troy" metadata; self-signed |
+| `Aureus-v1.1.0.exe` | `299a88a9374395ea458df39a0e7cb34f1985728f6c2176e5bf4f297f4561ab12` | **current** — renamed from ScreenRecorder; icon + "Made by Troy" metadata; self-signed |
 | `ScreenRecorder-v1.0.2.exe` | `83483840c68c4fc268bbb6482e713c6d84dd3daeaec268d1f5653eead950d181` | superseded — hotkey presses no longer lost to slow frames; `-keytest`, `-pause` |
 | `ScreenRecorder-v1.0.1.exe` | `b858c98820558f0d6c7e7d3d43692b1aa99a6a0a23fd38044360ed1c48c60979` | superseded — black & gold minimal console theme |
 | `ScreenRecorder-v1.0.0.exe` | `c57e46bb749ba0f61f6df8bae753d61fc9e6b8ce09fdafc145cc764b18d4cc49` | superseded — initial release, plain console output |
