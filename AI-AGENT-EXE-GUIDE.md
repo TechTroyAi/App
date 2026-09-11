@@ -224,8 +224,8 @@ gh run download <run-id> -n MyApp-exe -D dist/
 ```
 
 This repo uses exactly this pattern: `.github/workflows/windows-exe.yml`
-builds `ScreenRecorder.exe` on `windows-latest` and commits it to
-`artifacts/` on every change to `screen-recorder/**` — proof that the
+builds `Aureus.exe` on `windows-latest` and commits it to
+`artifacts/` on every change to `aureus/**` — proof that the
 committed exe really is what the source produces.
 
 ### Repo conventions for built binaries (used here)

@@ -1,13 +1,19 @@
-# Builds ScreenRecorder.exe on a native Windows runner on every change to the
-# recorder source, uploads it as a workflow artifact, and commits the fresh
-# binary back to artifacts/ so the repo never drifts from source. Attaching
-# to GitHub Releases happens when a v* tag is pushed.
+# Builds Aureus.exe on a native Windows runner on every change to the app
+# source, embeds the icon + "Made by Troy" version info from the committed
+# resource.syso, signs it with the committed self-signed certificate, uploads
+# it as a workflow artifact, and commits the fresh binary back to artifacts/
+# so the repo never drifts from source. Attaching to GitHub Releases happens
+# when a v* tag is pushed.
+#
+# NOTE on the signature: the certificate is self-signed, so it gives the exe a
+# stable, named publisher in its properties but does NOT clear SmartScreen.
+# Only a certificate chaining to a trusted public CA does that.
 name: windows-exe
 
 on:
   push:
     paths:
-      - "screen-recorder/**"
+      - "aureus/**"
       - ".github/workflows/windows-exe.yml"
   workflow_dispatch:
 
@@ -28,40 +34,87 @@ jobs:
         with:
           go-version: "stable"
 
-      - name: Build exe (native Windows runner)
-        run: bash screen-recorder/build.sh
+      - name: Build exe (native Windows runner, icon + version info from resource.syso)
+        run: bash aureus/build.sh
 
       - name: Run unit tests
         run: go test ./...
-        working-directory: screen-recorder
+        working-directory: aureus
 
       - name: Smoke test the exe
         run: |
-          exe=$(ls -t artifacts/ScreenRecorder-*.exe | head -1)
+          exe=$(ls -t artifacts/Aureus-*.exe | head -1)
           echo "smoke testing $exe"
-          if "$exe" -h 2>&1 | grep -q ScreenRecorder; then
+          if "$exe" -h 2>&1 | grep -q Aureus; then
             echo "smoke test OK: $exe prints usage"
           else
             echo "exe did not print usage" >&2
             exit 1
           fi
 
+      - name: Check icon and version info are embedded
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem artifacts\Aureus-*.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+          $vi = (Get-Item $exe).VersionInfo
+          $vi | Format-List ProductName, FileDescription, CompanyName, LegalCopyright, FileVersion | Out-String | Write-Host
+          if (-not ($vi.CompanyName -like "*Troy*")) { throw "CompanyName is '$($vi.CompanyName)' - expected it to contain 'Troy'" }
+          if (-not ($vi.ProductName -like "*Aureus*")) { throw "ProductName is '$($vi.ProductName)' - expected 'Aureus'" }
+          Write-Host "version info embedded OK (Made by Troy)"
+
+      - name: Sign the exe with the self-signed certificate
+        # PowerShell-native Authenticode signing: no external signtool, no
+        # interactive prompt, so it cannot stall on a headless runner.
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem artifacts\Aureus-*.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+          $p12 = Join-Path $pwd ".signing\aureus-codesign.p12"
+          $crt = Join-Path $pwd ".signing\aureus-codesign.crt"
+          $pfxpw = "aureus-sign" # committed alongside the .p12; self-signed, so the secret is cosmetic
+          Write-Host "::warning::sign step started"
+
+          # Load the signing cert WITH its private key and sign in-process.
+          # No trust-store import: signing doesn't need it, and a self-signed
+          # signature honestly verifies as untrusted on other machines.
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($p12, $pfxpw, "Exportable")
+          Write-Host "::warning::loaded cert $($cert.Subject)"
+
+          $r = Set-AuthenticodeSignature -FilePath $exe -Certificate $cert -HashAlgorithm SHA256
+          Write-Host "signature status: $($r.Status) - $($r.StatusMessage)"
+          if ($r.Status -notin @("Valid","NotTrusted","UnknownError","HashNotRetrieved")) {
+            throw "signing failed: $($r.Status) - $($r.StatusMessage)"
+          }
+          Write-Host "::warning::SIGNED $($exe)"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: ScreenRecorder-exe
-          path: artifacts/ScreenRecorder-*.exe
+          name: Aureus-exe
+          path: artifacts/Aureus-*.exe
           if-no-files-found: error
 
       - name: Commit rebuilt exe back to the branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add artifacts/ScreenRecorder-*.exe
+          # .gitignore ignores *.exe and un-ignores each shipped version by
+          # name, so a version bump without a matching negation makes git add
+          # fail here. Say so instead of exiting 1 with no explanation.
+          if ! git add artifacts/Aureus-*.exe; then
+            echo "::error::git add failed. The new exe is matched by the '*.exe' rule in .gitignore - add a '!artifacts/Aureus-v<version>.exe' negation for it."
+            exit 1
+          fi
           if git diff --cached --quiet; then
             echo "exe unchanged; nothing to commit"
+          elif [[ "$GITHUB_REF" != refs/heads/* ]]; then
+            # A tag push: the release job publishes the exe instead, and there
+            # is no branch here to push a commit back to.
+            echo "not a branch; keeping the rebuilt exe as a workflow artifact only"
           else
-            git commit -m "CI: rebuild ScreenRecorder exe [skip ci]"
-            git push
+            git commit -m "CI: rebuild Aureus exe [skip ci]"
+            # actions/checkout creates the local branch with `checkout -B`, which
+            # sets no upstream, so a bare `git push` fails with "no upstream
+            # branch". Name the destination explicitly.
+            git push origin "HEAD:$GITHUB_REF"
           fi
 
   release:
@@ -71,9 +124,9 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: ScreenRecorder-exe
+          name: Aureus-exe
           path: dist
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/ScreenRecorder-*.exe
+          files: dist/Aureus-*.exe
           generate_release_notes: true
