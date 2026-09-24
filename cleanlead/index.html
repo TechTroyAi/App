@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CleanLead — Cleaning Duty Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Mobile menu toggle -->
+  <button id="menu-toggle" class="menu-toggle" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
+
+  <!-- Sidebar -->
+  <nav id="sidebar" class="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <span class="brand-icon" aria-hidden="true">&#9679;</span>
+      <span class="brand-text">CleanLead</span>
+    </div>
+    <ul class="nav-list" role="list">
+      <li><button class="nav-item active" data-screen="dashboard" aria-current="page"><span class="nav-icon" aria-hidden="true">&#9632;</span> Dashboard</button></li>
+      <li><button class="nav-item" data-screen="sessions"><span class="nav-icon" aria-hidden="true">&#9776;</span> Sessions</button></li>
+      <li><button class="nav-item" data-screen="tasks"><span class="nav-icon" aria-hidden="true">&#9745;</span> Tasks</button></li>
+      <li><button class="nav-item" data-screen="team"><span class="nav-icon" aria-hidden="true">&#9673;</span> Team</button></li>
+      <li><button class="nav-item" data-screen="reports"><span class="nav-icon" aria-hidden="true">&#9783;</span> Reports</button></li>
+      <li><button class="nav-item" data-screen="settings"><span class="nav-icon" aria-hidden="true">&#9881;</span> Settings</button></li>
+    </ul>
+    <div class="sidebar-footer">
+      <button id="btn-reset-data" class="btn btn-outline btn-sm btn-full" aria-label="Reset sample data">Reset Sample Data</button>
+    </div>
+  </nav>
+
+  <!-- Main content area -->
+  <div class="main-wrapper">
+    <!-- Top bar -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <h1 id="top-bar-title" class="top-bar-title">Dashboard</h1>
+        <span id="top-bar-subtitle" class="top-bar-subtitle"></span>
+      </div>
+      <div class="top-bar-right">
+        <span id="top-bar-date" class="top-bar-date"></span>
+        <div class="profile-chip" aria-label="User profile">
+          <span class="profile-avatar" aria-hidden="true">L</span>
+          <span class="profile-name">Leader</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content panels -->
+    <main class="content">
+
+      <!-- DASHBOARD -->
+      <section id="screen-dashboard" class="screen active" aria-label="Dashboard">
+        <div class="dashboard-greeting" id="dash-greeting"></div>
+        <div class="summary-cards" id="dash-summary-cards"></div>
+        <div class="dash-progress-section">
+          <h2 class="section-title">Overall Cleaning Progress</h2>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="dash-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+          </div>
+          <span class="progress-label" id="dash-progress-label">0%</span>
+        </div>
+        <div class="dash-quick-actions">
+          <h2 class="section-title">Quick Actions</h2>
+          <div class="quick-action-grid">
+            <button class="btn btn-primary" id="btn-create-session-dash">Create Session</button>
+            <button class="btn btn-outline" id="btn-add-task-dash">Add Task</button>
+            <button class="btn btn-outline" id="btn-mark-attendance-dash">Mark Attendance</button>
+          </div>
+        </div>
+        <div class="dash-recent-activity">
+          <h2 class="section-title">Current Session Tasks</h2>
+          <div id="dash-task-board-mini" class="task-board-mini"></div>
+        </div>
+      </section>
+
+      <!-- SESSIONS -->
+      <section id="screen-sessions" class="screen" aria-label="Sessions">
+        <div class="screen-header">
+          <h2 class="section-title">Cleaning Sessions</h2>
+          <button class="btn btn-primary" id="btn-create-session">+ New Session</button>
+        </div>
+        <div id="sessions-list" class="sessions-list"></div>
+      </section>
+
+      <!-- TASKS -->
+      <section id="screen-tasks" class="screen" aria-label="Tasks">
+        <div class="screen-header">
+          <h2 class="section-title">Task Board</h2>
+          <div class="task-header-actions">
+            <select id="task-session-select" class="select-input" aria-label="Select session for tasks"></select>
+            <button class="btn btn-primary" id="btn-add-task">+ Add Task</button>
+          </div>
+        </div>
+        <div class="task-filters">
+          <label class="filter-label">Filter by zone:
+            <select id="task-zone-filter" class="select-input" aria-label="Filter by zone"><option value="all">All Zones</option></select>
+          </label>
+          <label class="filter-label">Filter by member:
+            <select id="task-member-filter" class="select-input" aria-label="Filter by member"><option value="all">All Members</option></select>
+          </label>
+        </div>
+        <div class="task-board" id="task-board">
+          <div class="task-column" data-status="Not started">
+            <div class="column-header"><span class="status-dot status-not-started" aria-hidden="true"></span> Not Started <span class="column-count" id="count-not-started">0</span></div>
+            <div class="column-cards" id="col-not-started"></div>
+          </div>
+          <div class="task-column" data-status="In progress">
+            <div class="column-header"><span class="status-dot status-in-progress" aria-hidden="true"></span> In Progress <span class="column-count" id="count-in-progress">0</span></div>
+            <div class="column-cards" id="col-in-progress"></div>
+          </div>
+          <div class="task-column" data-status="Completed">
+            <div class="column-header"><span class="status-dot status-completed" aria-hidden="true"></span> Completed <span class="column-count" id="count-completed">0</span></div>
+            <div class="column-cards" id="col-completed"></div>
+          </div>
+          <div class="task-column" data-status="Needs review">
+            <div class="column-header"><span class="status-dot status-needs-review" aria-hidden="true"></span> Needs Review <span class="column-count" id="count-needs-review">0</span></div>
+            <div class="column-cards" id="col-needs-review"></div>
+          </div>
+        </div>
+        <!-- Other statuses section -->
+        <div class="other-statuses" id="other-statuses"></div>
+      </section>
+
+      <!-- TEAM -->
+      <section id="screen-team" class="screen" aria-label="Team">
+        <div class="screen-header">
+          <h2 class="section-title">Team Members</h2>
+          <button class="btn btn-primary" id="btn-add-member">+ Add Member</button>
+        </div>
+        <div class="team-tabs">
+          <button class="tab-btn active" data-tab="team-roster">Roster</button>
+          <button class="tab-btn" data-tab="team-attendance">Attendance</button>
+          <button class="tab-btn" data-tab="team-corrections">Correction Requests</button>
+        </div>
+        <div id="team-roster" class="tab-panel active">
+          <div id="team-list" class="team-list"></div>
+        </div>
+        <div id="team-attendance" class="tab-panel">
+          <div class="attendance-header">
+            <select id="attendance-session-select" class="select-input" aria-label="Select session for attendance"></select>
+          </div>
+          <div id="attendance-list" class="attendance-list"></div>
+        </div>
+        <div id="team-corrections" class="tab-panel">
+          <div id="corrections-list" class="corrections-list"></div>
+        </div>
+      </section>
+
+      <!-- REPORTS -->
+      <section id="screen-reports" class="screen" aria-label="Reports">
+        <div class="screen-header">
+          <h2 class="section-title">Reports &amp; History</h2>
+          <div class="report-actions">
+            <button class="btn btn-outline" id="btn-export-csv">Export CSV</button>
+          </div>
+        </div>
+        <div class="report-tabs">
+          <button class="tab-btn active" data-tab="report-summary">Session Summary</button>
+          <button class="tab-btn" data-tab="report-history">Session History</button>
+        </div>
+        <div id="report-summary" class="tab-panel active">
+          <div class="report-session-select">
+            <label>Select session:
+              <select id="report-session-select" class="select-input" aria-label="Select session for report"></select>
+            </label>
+          </div>
+          <div id="report-summary-content" class="report-summary-content"></div>
+        </div>
+        <div id="report-history" class="tab-panel">
+          <div id="report-history-content" class="report-history-content"></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="screen-settings" class="screen" aria-label="Settings">
+        <h2 class="section-title">Settings</h2>
+        <div class="settings-panel">
+          <div class="setting-group">
+            <h3>Data Management</h3>
+            <p class="setting-desc">Reset all data and reload with sample content. This cannot be undone.</p>
+            <button class="btn btn-warning" id="btn-reset-data-settings">Reset All Data</button>
+          </div>
+          <div class="setting-group">
+            <h3>About CleanLead</h3>
+            <p class="setting-desc">CleanLead helps team leaders organize and track cleaning duties with fairness and clarity. Built with plain HTML, CSS, and JavaScript. Data is stored locally in your browser.</p>
+          </div>
+          <div class="setting-group">
+            <h3>Keyboard Shortcuts</h3>
+            <div class="shortcuts-list">
+              <div class="shortcut-row"><kbd>1</kbd>-<kbd>6</kbd> <span>Navigate screens</span></div>
+              <div class="shortcut-row"><kbd>N</kbd> <span>New session / task</span></div>
+              <div class="shortcut-row"><kbd>Esc</kbd> <span>Close modal</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal overlay -->
+  <div id="modal-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h2 id="modal-title" class="modal-title"></h2>
+        <button class="modal-close" id="modal-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>

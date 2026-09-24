@@ -56,6 +56,10 @@ app/src/main/assets/ide/**/*.br
 # Generated APK signing sidecars
 *.apk.idsig
 
+# CleanLead Android APK milestones
+!cleanlead-android/artifacts/CleanLead-v1.0.0-installable.apk
+!cleanlead-android/docs/cleanlead-cert.pem
+
 # Windows exes are generated artifacts; keep only the requested installable milestone.
 *.exe
 !artifacts/ScreenRecorder-v1.0.0.exe
