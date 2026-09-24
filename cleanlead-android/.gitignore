@@ -1,0 +1,21 @@
+# Signing material (NEVER commit private keys)
+.signing/cleanlead-release.p12
+.signing/release.properties
+
+# Build output
+/build/
+/app/build/
+/tmp/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# APKs (keep only milestones)
+*.apk
+!artifacts/CleanLead-v1.0.0-installable.apk
+*.idsig
