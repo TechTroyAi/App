@@ -3,7 +3,9 @@
 **New in this repo:** [clockcanvas/](clockcanvas/README.md) is a complete, separate native Android
 (Kotlin) app — design a clock (10 styles, fonts, colours, gradient/photo/video-poster background,
 border, responsive layout), then use the same design as a home-screen **widget**, a full-screen
-**screensaver clock with video behind it**, or a **live wallpaper**. No accounts, no network, no
+**screensaver clock with video behind it**, or a **live wallpaper** — or turned into a **media
+wall** that shows only your photos and videos, stepping through a reel on a schedule every
+surface agrees on. No accounts, no network, no
 AndroidX dependency on the verified build path.
 
 Installable, signed APK: [clockcanvas/artifacts/ClockCanvas-v1.0.0-installable.apk](clockcanvas/artifacts/ClockCanvas-v1.0.0-installable.apk)

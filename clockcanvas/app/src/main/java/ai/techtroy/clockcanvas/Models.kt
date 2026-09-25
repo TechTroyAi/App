@@ -162,6 +162,16 @@ data class ClockDesign(
     val tapAction: Int = TAP_FULLSCREEN,
     /** Wallpapers use a lighter render so the whole screen stays cheap. */
     val wallpaperUseClockOnly: Boolean = false,
+    /**
+     * Media wall: the photo or video *is* the display, so no clock layer is drawn.
+     * Used by the widget (a photo frame cell), full screen (a slideshow screensaver)
+     * and the wallpaper.
+     */
+    val mediaOnly: Boolean = false,
+    /** Ordered content URIs for [mediaOnly]; the first is also [mediaUri]. */
+    val mediaReel: List<String> = emptyList(),
+    /** Seconds between reel steps; 0 keeps a single item on screen. */
+    val rotateSecs: Int = 0,
 ) {
     fun copyWith(transform: (Builder) -> Unit): ClockDesign {
         val b = Builder(this)
@@ -219,6 +229,9 @@ data class ClockDesign(
         var analogNumerals: Boolean = source?.analogNumerals ?: false
         var tapAction: Int = source?.tapAction ?: TAP_FULLSCREEN
         var wallpaperUseClockOnly: Boolean = source?.wallpaperUseClockOnly ?: false
+        var mediaOnly: Boolean = source?.mediaOnly ?: false
+        var mediaReel: List<String> = source?.mediaReel ?: emptyList()
+        var rotateSecs: Int = source?.rotateSecs ?: 0
 
         fun build() = ClockDesign(
             id = id, name = name, style = style, content = content,
@@ -240,6 +253,7 @@ data class ClockDesign(
             cornerRadius = cornerRadius, padding = padding, customText = customText,
             showSeconds = showSeconds, analogNumerals = analogNumerals,
             tapAction = tapAction, wallpaperUseClockOnly = wallpaperUseClockOnly,
+            mediaOnly = mediaOnly, mediaReel = mediaReel, rotateSecs = rotateSecs,
         )
     }
 

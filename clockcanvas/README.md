@@ -20,6 +20,7 @@ no accounts, no network, no ads, nothing leaves the device.
 | **Clock styles** | digital · time only · time+date · time+date+day · analog (ticks, optional numerals) · minimal · large-number · split (hour/minute) · vertical (one digit per line) · custom text |
 | **Appearance** | font (5 families, variable weights), text scale, weight, letter spacing, line height, alignment, time/date colour, clock opacity, shadow, glow, outline (colour + thickness) |
 | **Backgrounds** | solid · 2-stop gradient (linear/radial/sweep, rotatable) · your photo (blur + darken + crop aware) · video poster frame · transparent |
+| **Media wall** | a design that shows *only* your photos/videos — no clock on top — stepping through a reel you add in the Background tab |
 | **Border** | colour, thickness, corner radius, inner padding |
 | **Layout** | gravity (9 positions), orientation (side-by-side vs stacked), padding, tap action (full-screen / editor / nothing) |
 | **Responsive** | every design re-derives font size, date visibility, padding and border weight from the *actual* cell size (small / medium / large / wide / tall / huge) |
@@ -30,6 +31,13 @@ no accounts, no network, no ads, nothing leaves the device.
 
 Editor tabs: `Design · Text · Background · Border · Layout · Preview · Widgets`
 (the Widgets tab lists your installed widgets and binds this design to any of them).
+
+**Media wall** = `Background → Media wall` → "Show the media only", then *Add photo* /
+*Add video* to build a reel and *Rotate the reel* to pick 30 s / 1 min / 5 min / 15 min. The
+same design works as a widget, in full screen and as a live wallpaper, and because the reel
+position is derived from the time of day rather than stored, all three show the same item at
+the same moment. Full screen adds Previous / Next; the wallpaper sleeps exactly until the
+next boundary. See `docs/CLOCKCANVAS_DESIGN.md` §2 for why it is built that way.
 
 ## Building it
 
@@ -75,10 +83,17 @@ update an installed ClockCanvas.
 Current release certificate (record so CI can prove it restored *this* key):
 
 ```
-SHA-256  eb1a34a3fe6ce1f9ea4dece1d1e0fed192b9a823e1cb7a69a13b51f44b28a951
+SHA-256  edef1c4ea317447a4a6e36553e5629c26393e70638ca71284370a5ceec52541a
 Subject  CN=ClockCanvas, OU=Clock Widgets, O=TechTroyAi, L=Cagayan de Oro, ST=Northern Mindanao, C=PH
 Key      RSA 4096 · v2 + v3 enabled, v1 disabled (minSdk 26 makes JAR signing redundant)
 ```
+
+> **Key history.** The certificate above replaced `eb1a34a3…28a951` on 2026-09-25, when the
+> sandbox that held `clockcanvas/.signing/` was recycled and the keystore — deliberately not
+> in git — went with it. The milestone APK had not been published as a release yet, so no
+> installed ClockCanvas is stranded on the old identity; from this APK forward, `edef1c4e…52541a`
+> is the one to keep and back up. Any build signed with the earlier key must be uninstalled
+> before this one installs.
 
 To install the *shipped* APK you do not need the key; to build updates that replace it you
 do. In CI the key comes from the `CLOCKCANVAS_KEYSTORE_BASE64` / `CLOCKCANVAS_STORE_PASSWORD`

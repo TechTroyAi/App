@@ -301,7 +301,48 @@ open class EditorActivity : ClockActivity(), EditorHost {
         refresh()
     }
 
+    /**
+     * True while the next picker result belongs to the media reel rather than
+     * replacing the design's single background image. One picker, two meanings:
+     * `BackgroundPicker` owns the request codes, so a second instance would race
+     * with the first over `onActivityResult`.
+     */
+    private var pendingReel = false
+
+    override fun beginReelPick(video: Boolean) {
+        pendingReel = true
+        if (video) picker.pickVideo() else picker.pickImage()
+    }
+
+    override fun reelRemoveAt(index: Int) {
+        binding.structural { holder ->
+            val next = holder.mediaReel.toMutableList()
+            if (index in next.indices) next.removeAt(index)
+            holder.mediaReel = next
+        }
+    }
+
+    override fun clearReel() {
+        binding.structural { it.mediaReel = emptyList() }
+    }
+
     private fun onMediaPicked(uri: String, isVideo: Boolean) {
+        if (pendingReel) {
+            pendingReel = false
+            binding.structural { holder ->
+                val next = holder.mediaReel.toMutableList()
+                if (!next.contains(uri)) next.add(uri)
+                holder.mediaReel = next
+                // A design with no primary media yet gets the first reel item, so the
+                // widget and the media wall never disagree about what to show.
+                if (holder.mediaUri == null) {
+                    holder.mediaUri = uri
+                    holder.mediaIsVideo = isVideo
+                }
+            }
+            media.addRecent(uri, isVideo)
+            return
+        }
         binding.structural {
             it.mediaUri = uri
             it.mediaIsVideo = isVideo
@@ -319,14 +360,17 @@ open class EditorActivity : ClockActivity(), EditorHost {
     override val editorContext: Context get() = this
 
     override fun pickImage() {
+        pendingReel = false
         picker.pickImage()
     }
 
     override fun pickVideo() {
+        pendingReel = false
         picker.pickVideo()
     }
 
     override fun takePhoto() {
+        pendingReel = false
         picker.takePhoto()
     }
 

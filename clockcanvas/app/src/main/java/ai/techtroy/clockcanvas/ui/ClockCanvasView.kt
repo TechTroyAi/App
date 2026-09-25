@@ -105,11 +105,14 @@ class ClockCanvasView(context: Context) : View(context) {
         if (transparentBackground) {
             // A VideoView / image surface sits underneath: only the clock, an optional
             // dim and the frame are drawn by us so nothing opaque hides the video.
-            if (design.backgroundDarkness > 0.001f) {
+            if (design.backgroundDarkness > 0.001f && !design.mediaOnly) {
                 overlayPaint.color = ((255 * design.backgroundDarkness).toInt().coerceIn(0, 255) shl 24)
                 canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), overlayPaint)
             }
-            renderer.drawClock(canvas, design, bucket, w, h)
+            // Media wall: the layer underneath *is* the content, so this view keeps to
+            // the frame. Painting a second, smaller copy of the same photo here would
+            // only blur the one the activity decoded at screen size.
+            if (!design.mediaOnly) renderer.drawClock(canvas, design, bucket, w, h)
             renderer.drawBorder(canvas, design, w, h)
             return
         }

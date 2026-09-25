@@ -69,6 +69,9 @@ object DesignCodec {
         o.put("analogNumerals", d.analogNumerals)
         o.put("tapAction", d.tapAction)
         o.put("wallpaperClockOnly", d.wallpaperUseClockOnly)
+        if (d.mediaOnly) o.put("mediaOnly", true)
+        if (d.mediaReel.isNotEmpty()) o.put("reel", ai.techtroy.clockcanvas.media.MediaReel.join(d.mediaReel))
+        if (d.rotateSecs > 0) o.put("rotateSecs", d.rotateSecs)
         return o
     }
 
@@ -127,6 +130,9 @@ object DesignCodec {
         b.analogNumerals = o.bool("analogNumerals", false)
         b.tapAction = o.int("tapAction", ClockDesign.TAP_FULLSCREEN).let { if (it in 0..2) it else ClockDesign.TAP_FULLSCREEN }
         b.wallpaperUseClockOnly = o.bool("wallpaperClockOnly", false)
+        b.mediaOnly = o.bool("mediaOnly", false)
+        b.mediaReel = ai.techtroy.clockcanvas.media.MediaReel.split(o.strOrNull("reel"))
+        b.rotateSecs = o.int("rotateSecs", 0).coerceIn(0, 3600)
         return b.build()
     }
 

@@ -503,6 +503,74 @@ object EditorSections {
         }
         container.addView(mediaCard, Ui.cardParams(context))
 
+        // ---- media wall: show only the picture, no clock --------------------------
+        val wallCard = sectionCard(
+            context,
+            context.getString(R.string.bg_media_wall),
+            context.getString(R.string.bg_media_wall_hint),
+        )
+        Ui.add(
+            wallCard,
+            Ui.toggle(
+                context,
+                context.getString(R.string.bg_media_wall_toggle),
+                null,
+                binding.design.mediaOnly,
+            ) { value -> binding.structural { it.mediaOnly = value } },
+            10f,
+        )
+        val reel = binding.design.mediaReel
+        Ui.add(wallCard, Ui.caption(context, context.getString(R.string.bg_reel_count, reel.size)), 10f)
+        for ((index, uri) in reel.withIndex()) {
+            if (index >= 8) break
+            val row = Ui.columnRow(context)
+            Ui.addFilled(
+                row,
+                Ui.text(context, (index + 1).toString() + " · " + labelFor(uri), 12.5f, Ui.color(context, R.color.text_secondary)),
+                0f,
+            )
+            row.addView(
+                Ui.chip(context, context.getString(R.string.bg_reel_remove), false) { host.reelRemoveAt(index) },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { leftMargin = Ui.dp(context, 8f) },
+            )
+            Ui.add(wallCard, row, 6f)
+        }
+        if (reel.size > 8) {
+            Ui.add(wallCard, Ui.caption(context, context.getString(R.string.bg_reel_more, reel.size - 8)), 4f)
+        }
+        val reelButtons = Ui.columnRow(context)
+        Ui.addFilled(reelButtons, Ui.ghostButton(context, context.getString(R.string.bg_reel_add_photo)) { host.beginReelPick(false) }, 0f)
+        Ui.addFilled(reelButtons, Ui.ghostButton(context, context.getString(R.string.bg_reel_add_video)) { host.beginReelPick(true) }, 0f)
+        Ui.add(wallCard, reelButtons, 10f)
+        if (reel.isNotEmpty()) {
+            Ui.add(wallCard, Ui.ghostButton(context, context.getString(R.string.bg_reel_clear)) { host.clearReel() }, 6f)
+        }
+        Ui.add(wallCard, Ui.caption(context, context.getString(R.string.bg_media_wall_widget_note)), 8f)
+        container.addView(wallCard, Ui.cardParams(context))
+
+        val rotation = listOf(
+            context.getString(R.string.rotate_off) to 0,
+            context.getString(R.string.rotate_30s) to 30,
+            context.getString(R.string.rotate_1m) to 60,
+            context.getString(R.string.rotate_5m) to 300,
+            context.getString(R.string.rotate_15m) to 900,
+        )
+        container.addView(
+            segmented(
+                context = context,
+                title = context.getString(R.string.bg_rotate),
+                options = rotation.map { it.first },
+                selectedIndex = { rotation.indexOfFirst { it.second == binding.design.rotateSecs }.coerceAtLeast(0) },
+                hint = context.getString(R.string.bg_rotate_hint),
+            ) { index ->
+                binding.update { it.rotateSecs = rotation[index].second }
+            },
+            Ui.cardParams(context),
+        )
+
         if (currentKind == BackgroundKind.VIDEO_THUMBNAIL) {
             container.addView(
                 Ui.card(context).apply {
@@ -805,6 +873,15 @@ interface EditorHost {
     fun clearMedia()
     fun setMedia(uri: String, isVideo: Boolean)
     fun loadPosterInto(view: ImageView)
+
+    /** Starts a pick whose result is *appended* to the design's media reel. */
+    fun beginReelPick(video: Boolean)
+
+    /** Removes one reel entry (the primary background media is left alone). */
+    fun reelRemoveAt(index: Int)
+
+    /** Drops the whole reel. */
+    fun clearReel()
     fun renderPreview(bucket: WidgetBucket): android.graphics.Bitmap?
     fun installedWidgets(): List<String>
     fun applyToAll()

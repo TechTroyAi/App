@@ -106,6 +106,106 @@ class FullscreenClockActivity : ClockActivity() {
         setContentView(root)
     }
 
+
+    // ---- media wall ---------------------------------------------------------------
+
+    private var reelStep = -1
+    private var reelOverride = -1
+    private val decodeExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val reelTick = Runnable {
+        // Re-derive from the clock rather than incrementing a counter: that is what
+        // keeps this screen in step with the widget and the wallpaper.
+        reelOverride = -1
+        design?.let { applyMediaWall(it) }
+    }
+
+    private fun applyMediaWall(design: ClockDesign) {
+        val clock = clockView ?: return
+        val reel = ai.techtroy.clockcanvas.media.MediaReel.forDesign(this, design)
+        if (reel.isEmpty()) {
+            handler.removeCallbacks(reelTick)
+            stopVideo()
+            imageLayer?.setImageDrawable(null)
+            imageLayer?.visibility = View.GONE
+            clock.transparentBackground = false
+            clock.invalidate()
+            return
+        }
+        val step = reel.stepAt(design.rotateSecs)
+        val index = if (reelOverride >= 0) reelOverride else step
+        if (index == reelStep) {
+            clock.invalidate()
+            scheduleReel(design, reel, step)
+            return
+        }
+        reelStep = index
+        val item = reel.itemAt(index) ?: return
+        if (item.isVideo) {
+            startVideo(item.uri)
+            clock.transparentBackground = true
+            imageLayer?.setImageDrawable(null)
+        } else {
+            stopVideo()
+            // Transparent, on purpose: the activity decoded this frame at screen size and
+            // put it in `imageLayer`. Letting the clock view paint its own smaller copy of
+            // the same photo would only cover the sharp one.
+            clock.transparentBackground = true
+            imageLayer?.visibility = View.VISIBLE
+            showPhoto(item.uri)
+        }
+        clock.invalidate()
+        scheduleReel(design, reel, step)
+    }
+
+    /**
+     * Decodes one media-wall frame off the main thread: a 12 MP photo paged in by a tap
+     * is not free. `stepTag` is the reel position this call was made for, so a decode
+     * that finishes after the reel moved on is dropped instead of overwriting the
+     * current frame.
+     */
+    private fun showPhoto(uri: String, isVideo: Boolean = false, stepTag: Int = reelStep) {
+        val layer = imageLayer ?: return
+        layer.setImageResource(android.R.color.black)
+        val maxEdge = maxOf(resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
+        try {
+            decodeExecutor.execute {
+                val bitmap = ai.techtroy.clockcanvas.media.MediaReel.bitmapFor(
+                    this,
+                    ai.techtroy.clockcanvas.media.MediaReel.Item(uri, isVideo),
+                    maxEdge.coerceAtMost(ai.techtroy.clockcanvas.render.ClockRenderer.MAX_PX),
+                )
+                handler.post {
+                    if (bitmap == null) {
+                        toast(getString(R.string.bg_media_missing))
+                    } else if (stepTag >= 0 && stepTag != reelStep) {
+                        if (!bitmap.isRecycled) bitmap.recycle()
+                    } else {
+                        layer.setImageBitmap(bitmap)
+                        layer.visibility = View.VISIBLE
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+        }
+    }
+
+    private fun scheduleReel(design: ClockDesign, reel: ai.techtroy.clockcanvas.media.MediaReel, step: Int) {
+        handler.removeCallbacks(reelTick)
+        val wait = reel.msUntilNextStep(design.rotateSecs)
+        if (wait == Long.MAX_VALUE) return
+        handler.postDelayed(reelTick, (wait + 60L).coerceAtMost(120_000L))
+    }
+
+    /** Manual next/previous from the control bar; the schedule takes over at the next boundary. */
+    private fun stepReel(delta: Int) {
+        val design = this.design ?: return
+        val reel = ai.techtroy.clockcanvas.media.MediaReel.forDesign(this, design)
+        if (reel.isEmpty()) return
+        reelOverride = reel.stepAfter(if (reelStep >= 0) reelStep else reel.stepAt(design.rotateSecs), delta)
+        reelStep = -1
+        applyMediaWall(design)
+    }
+
     private fun buildControls(): LinearLayout {
         val bar = Ui.column(this)
         bar.setBackgroundColor(0xCC09070F.toInt())
@@ -130,6 +230,15 @@ class FullscreenClockActivity : ClockActivity() {
         )
         second.addView(Ui.chip(this, if (muted) "Sound off" else "Sound on", !muted) { toggleMute() })
         Ui.add(bar, second, 8f)
+        if (design?.mediaOnly == true) {
+            val third = Ui.columnRow(this)
+            third.addView(Ui.ghostButton(this, getString(R.string.media_wall_previous)) { stepReel(-1) },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            third.addView(Ui.ghostButton(this, getString(R.string.media_wall_next)) { stepReel(1) },
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(8f) })
+            Ui.add(bar, third, 8f)
+            Ui.add(bar, Ui.caption(this, getString(R.string.media_wall_hint)), 6f)
+        }
         return bar
     }
 
@@ -137,6 +246,13 @@ class FullscreenClockActivity : ClockActivity() {
         val design = this.design ?: return
         val clock = clockView ?: return
         clock.design = design
+        if (design.mediaOnly) {
+            // Media wall: the reel decides what is on screen, and the clock layer is
+            // intentionally absent, so this branch replaces the usual single-media path.
+            applyMediaWall(design)
+            return
+        }
+        handler.removeCallbacks(reelTick)
         val media = design.mediaUri
         val video = media != null && design.mediaIsVideo &&
             (design.backgroundKind == BackgroundKind.VIDEO_THUMBNAIL || design.backgroundKind == BackgroundKind.IMAGE)
@@ -177,7 +293,16 @@ class FullscreenClockActivity : ClockActivity() {
                 // Decoder failed (codec gone, file moved): fall back to the design's own background.
                 stopVideo()
                 video.visibility = View.GONE
-                clockView?.transparentBackground = false
+                val current = design
+                if (current != null && current.mediaOnly) {
+                    // Media wall has no background of its own to fall back to, but a clip we
+                    // cannot play still has a frame worth showing, and the reel keeps moving.
+                    val item = ai.techtroy.clockcanvas.media.MediaReel
+                        .forDesign(this, current).itemAt(if (reelStep >= 0) reelStep else 0)
+                    if (item != null) showPhoto(item.uri, isVideo = true)
+                } else {
+                    clockView?.transparentBackground = false
+                }
                 clockView?.invalidate()
                 true
             }
@@ -260,6 +385,9 @@ class FullscreenClockActivity : ClockActivity() {
         val next = (((if (current < 0) 0 else current) + step) % designs.size + designs.size) % designs.size
         design = designs[next]
         ai.techtroy.clockcanvas.data.AppPrefs.of(this).setLastDesign(designs[next].id)
+        // A different design may start on the same reel index; force a fresh frame.
+        reelStep = -1
+        reelOverride = -1
         applyDesign()
     }
 
@@ -268,11 +396,17 @@ class FullscreenClockActivity : ClockActivity() {
         keepScreenOn(true)
         setControls(true)
         handler.postDelayed(hideControls, 4500L)
+        // Coming back to the screen after a long time: re-derive the media wall from
+        // the clock instead of resuming where we left off.
+        reelStep = -1
+        reelOverride = -1
+        design?.let { applyDesign() }
         clockView?.invalidate()
     }
 
     override fun onPause() {
         handler.removeCallbacks(hideControls)
+        handler.removeCallbacks(reelTick)
         try {
             videoView?.pause()
         } catch (e: Throwable) {
@@ -282,6 +416,8 @@ class FullscreenClockActivity : ClockActivity() {
 
     override fun onDestroy() {
         stopVideo()
+        handler.removeCallbacks(reelTick)
+        decodeExecutor.shutdownNow()
         super.onDestroy()
     }
 

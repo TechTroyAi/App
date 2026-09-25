@@ -115,6 +115,44 @@ permissions, degrades to a poster frame if the clip becomes unreadable. v1 ships
 motion off by default and the cost stated in the toggle's own hint. (b) is the v2 path if
 demand is real; the call sites are already isolated in `ClockEngine.backgroundFor()`.
 
+### The media wall: showing only the picture, no clock
+
+One design flag, `mediaOnly`, changes what the renderer is asked to do: paint the media and
+skip `drawClock` entirely. It is not a separate "photo frame" component, because then the
+widget, the full-screen view, the wallpaper and the editor preview would each need their own
+notion of which photo is current — four implementations of one idea, drifting apart. Instead
+`ClockRenderer.drawDesign` owns both modes, so every surface agrees by construction.
+
+Two more fields carry it: `mediaReel`, an ordered list of URIs (stored one per line in the
+design JSON — a list of strings is all the ordering a slideshow needs), and `rotateSecs`,
+`0` meaning "stay put". `MediaReel.forDesign` builds the live list from them, dropping
+entries the app can no longer read, so a photo the user deleted is skipped rather than
+showing a hole; if *everything* is gone, the renderer paints `media_wall_empty_*` instead of
+a bare gradient that reads as a broken clock.
+
+**The current index is derived from `System.currentTimeMillis()`, never stored.** That is
+the whole trick: `stepAt(rotateSecs)` maps the time of day onto the list, so the widget's
+minute tick, the wallpaper engine, the full-screen activity and the editor preview all
+compute the same entry at the same moment without talking to each other, and a reboot needs
+no resynchronising. A persisted counter would have to be written from four places — and
+`cacheKey` had to learn about it: the reel step is now part of the render-cache key, or a
+rotating widget would happily serve the first frame it ever cached forever.
+
+Consequences worth stating plainly:
+
+- Home-screen widgets refresh on a minute cadence, so in a widget a 30 s interval
+  effectively becomes "about a minute". Full screen and the wallpaper honour short intervals
+  exactly (they schedule their own wake-up from `msUntilNextStep` instead of reusing the
+  minute boundary).
+- A video inside a reel is still a *still* in the widget — same rule as §2 above. In
+  full screen the media wall plays it, because there the surface is ours.
+- In media-only mode `backgroundDarkness` is ignored (dimming a photo you want to look at is
+  the opposite of the feature), the declared `backgroundKind` is overridden to the image
+  path when a frame resolved, and the border is kept, because "a framed photo" is what the
+  user is composing.
+- The wallpaper engine's `clockOnly` preference is deliberately not honoured in this mode:
+  with no clock to draw, honouring it would blank the screen.
+
 ## 3. Files
 
 ```
@@ -142,6 +180,8 @@ clockcanvas/
     media/MediaAccess.kt   Photo Picker intents, persistable grants, poster frames,
                            decode-with-sample-size, camera capture target
     media/MediaHandler.kt  design media resolution + recents + session (editor pick ≠ saved pick)
+    media/MediaReel.kt     the ordered photo/video stack for media-wall mode + the time-derived
+                           step maths (stepAt / msUntilNextStep) and the on-disk list format
     render/ClockRenderer.kt background/clock/border, bucket math, bitmap+image caches,
                            pixel budget, clearCaches()
     render/TextPainter.kt  fit-to-width multi-line blocks, letter spacing, outline, glow, shadow
@@ -270,7 +310,9 @@ widget update into an `OutOfMemoryError` — the failure mode in the QA list.
 | 12h / 24h | `ClockDesign.use24Hour` (null = follow system via `DateFormat.is24HourFormat`) + Settings override + `suppressLeadingZeroHour` |
 | multiple widgets, different configs | `appWidgetId`-keyed bindings (§4) |
 | restore after reboot | `onUpdate` re-binds from prefs; `MediaAccess.persist` grants survive reboot |
-| image + video-thumbnail selection | `BackgroundPicker` + `MediaAccess.posterFor`, `mediaIsVideo` carried in the design |
+| image + video-thumbnail selection | `BackgroundPicker` + `MediaAccess.posterFor`, `mediaIsVideo` carried in the design; a reel is picked through the *same* picker (`EditorActivity.pendingReel`) so request codes never race |
+| media wall stays in sync across surfaces | `MediaReel.stepAt` derives the index from the clock (no stored state); `CacheKey` includes the step; `ClockWallpaperService.mediaWallIntervalMs` wakes on the boundary instead of the minute |
+| media wall with a deleted / unreadable photo | `MediaReel.forDesign` filters on `MediaAccess.canRead`; empty reel → `media_wall_empty_*` painted by `ClockRenderer.drawMediaWallHint` |
 | memory with large images | `decodeScaled` sample-size maths, `imageCache`(6)/`bitmapCache`(10) with LRU recycle, `budgetSize` cap, `clearCaches()` on trim |
 | media deleted / moved | `MediaAccess.canRead` probe → `bg_media_missing` string, gradient fallback. `applyDirect` catches `OutOfMemoryError` and *skips* the update, so the launcher keeps showing the last bitmap it accepted (held in `heldBitmaps`, ≤12) rather than blanking to a broken image |
 

@@ -53,6 +53,13 @@ class ClockWallpaperService : WallpaperService() {
         private var frame: Bitmap? = null
         private var poster: Bitmap? = null
         private var retriever: MediaMetadataRetriever? = null
+        // Media-wall stepping: which reel entry the poster currently holds, and the
+        // worker that decodes the next one. A wallpaper surface has no second chance
+        // at a janky main thread, so decoding never happens in draw().
+        private var reelStep = -1
+        private var reelPending = false
+        private val reelThread = android.os.HandlerThread("ClockCanvasWall").apply { start() }
+        private val reelWorker = android.os.Handler(reelThread.looper)
         private var seekMs = 0L
         private var width = 0
         private var height = 0
@@ -107,8 +114,10 @@ class ClockWallpaperService : WallpaperService() {
 
         private fun stop() {
             handler.removeCallbacks(ticker)
+            reelWorker.removeCallbacksAndMessages(null)
             releaseMedia()
             recycleFrame()
+            reelThread.quitSafely()
         }
 
         private fun recycleFrame() {
@@ -134,6 +143,9 @@ class ClockWallpaperService : WallpaperService() {
          * only shortens that when seconds or video motion ask for it.
          */
         private fun intervalMs(design: ClockDesign): Long {
+            if (design.mediaOnly) {
+                return mediaWallIntervalMs(design)
+            }
             val animate = design.showSeconds && prefs.getBoolean(KEY_SECONDS, false)
             if (animate) return TICK_MS
             if (motionEnabled()) return MOTION_MS
@@ -144,8 +156,55 @@ class ClockWallpaperService : WallpaperService() {
 
         private fun motionEnabled(): Boolean = prefs.getBoolean(KEY_MOTION, false) && retriever != null
 
+        /**
+         * A media wall has no clock to keep in step, so the only reason to wake up is
+         * the next reel boundary. With one photo (or rotation off) we settle for a slow
+         * re-check so a media file the user deleted still gets noticed.
+         */
+        private fun mediaWallIntervalMs(design: ClockDesign): Long {
+            val extra = design.mediaReel.size + if (design.mediaUri != null && design.mediaReel.isEmpty()) 1 else 0
+            if (extra < 2 || design.rotateSecs <= 0) return STATIC_MS
+            val stepMs = design.rotateSecs * 1000L
+            val remaining = stepMs - (System.currentTimeMillis() % stepMs)
+            return (remaining + MINUTE_PAD_MS).coerceAtMost(60_000L).coerceAtLeast(500L)
+        }
+
+        /**
+         * The poster for a media wall. The reel index for this instant is asked for
+         * here; when it has moved we kick off a decode and keep serving the previous
+         * frame until the new one lands, so the wallpaper never blanks between items.
+         */
+        private fun reelFrame(design: ClockDesign): Bitmap? {
+            val reel = ai.techtroy.clockcanvas.media.MediaReel.forDesign(app, design)
+            if (reel.isEmpty()) return null
+            val step = reel.stepAt(design.rotateSecs)
+            if (step != reelStep || poster == null) {
+                reelStep = step
+                val item = reel.itemAt(step)
+                if (item != null && !reelPending) {
+                    reelPending = true
+                    reelWorker.post {
+                        val bitmap = ai.techtroy.clockcanvas.media.MediaReel.bitmapFor(app, item, MAX_EDGE)
+                        handler.post {
+                            reelPending = false
+                            val previous = poster
+                            if (bitmap != null) {
+                                poster = bitmap
+                                if (previous != null && previous !== bitmap && !previous.isRecycled) {
+                                    previous.recycle()
+                                }
+                            }
+                            if (visible) draw()
+                        }
+                    }
+                }
+            }
+            return poster
+        }
+
         /** One stepped frame of the clip, else the still we fell back to. */
         private fun backgroundFor(design: ClockDesign): Bitmap? {
+            if (design.mediaOnly) return reelFrame(design)
             val local = retriever
             if (local != null && motionEnabled()) {
                 seekMs += FRAME_STEP_MS
@@ -194,7 +253,10 @@ class ClockWallpaperService : WallpaperService() {
                     (w / app.resources.displayMetrics.density).toInt(),
                     (h / app.resources.displayMetrics.density).toInt()
                 )
-                val clockOnly = prefs.getBoolean(KEY_CLOCK_ONLY, false)
+                // "clock only over the wallpaper" cannot apply to a media wall: the
+                // picture is the whole point of that mode, and the renderer already
+                // omits the clock layer for it.
+                val clockOnly = prefs.getBoolean(KEY_CLOCK_ONLY, false) && !design.mediaOnly
                 ClockRenderer.of(app).drawDesign(
                     canvas = local,
                     widthPx = offscreen.width,
@@ -295,6 +357,8 @@ class ClockWallpaperService : WallpaperService() {
         /** Retry delay while there is no design to read (first run, store error). */
         private const val IDLE_MS = 5_000L
         private const val MOTION_MS = 1000L
+        /** How often a completely still media wall re-reads its files. */
+        private const val STATIC_MS = 60_000L
         /** Pad after the :00 boundary so the new minute is already rendered. */
         private const val MINUTE_PAD_MS = 400L
         private val BG_FALLBACK = Color.parseColor("#09070F")

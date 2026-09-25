@@ -62,6 +62,30 @@
     <string name="bg_video_widget_note">A home-screen widget cannot play video. The widget shows a frame from the clip; the full-screen clock and the live wallpaper play it.</string>
     <string name="bg_media_missing">The photo or video is no longer readable (it may have been deleted or moved). The clock still shows with the design\u2019s colours.</string>
 
+    <!-- Media wall: the picture is the content, the clock steps aside -->
+    <string name="bg_media_wall">Media wall</string>
+    <string name="bg_media_wall_hint">Show only your photos and videos - no clock on top. Add a stack, and the widget, full-screen view and wallpaper step through it together.</string>
+    <string name="bg_media_wall_toggle">Show the media only (hide the clock)</string>
+    <string name="bg_reel_count">%1$d item(s) in this reel</string>
+    <string name="bg_reel_more">and %1$d more</string>
+    <string name="bg_reel_remove">Remove</string>
+    <string name="bg_reel_add_photo">Add photo</string>
+    <string name="bg_reel_add_video">Add video</string>
+    <string name="bg_reel_clear">Clear the reel</string>
+    <string name="bg_media_wall_widget_note">On the home screen the reel changes once a minute with the widget refresh. Full screen and the live wallpaper follow faster intervals exactly, and videos there show their first frame in the widget.</string>
+    <string name="bg_rotate">Rotate the reel</string>
+    <string name="bg_rotate_hint">Position is derived from the time of day, so every surface shows the same item at the same moment - and a reboot needs no resynchronising.</string>
+    <string name="rotate_off">Off</string>
+    <string name="rotate_30s">30 s</string>
+    <string name="rotate_1m">1 min</string>
+    <string name="rotate_5m">5 min</string>
+    <string name="rotate_15m">15 min</string>
+    <string name="media_wall_empty_title">Nothing to show</string>
+    <string name="media_wall_empty_detail">Add a photo or video in Background \u2192 Media wall. Deleted or moved files are skipped automatically.</string>
+    <string name="media_wall_next">Next</string>
+    <string name="media_wall_previous">Previous</string>
+    <string name="media_wall_hint">Tap the buttons to page through the reel; it also advances on its own.</string>
+
     <!-- Widget config -->
     <string name="config_intro">This widget now has its own design. Changing it here only affects widget #%1$d.</string>
     <string name="config_done">Done</string>

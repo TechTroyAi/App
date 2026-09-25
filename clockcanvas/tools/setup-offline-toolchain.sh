@@ -86,23 +86,31 @@ fetch_blob "$TOOLS/apksigner.jar" screetsec/TheFatRat \
   335cc2cb9acb3244c0ac79979cb77053304d3658
 
 # A framework resource table for aapt2 link: the modern aapt2 cannot read the
-# compile stub's arsc, so link against apktool's framework 1.apk instead. It only
-# needs to resolve @android:... references.
+# compile stub's arsc (its entry offsets overlap), so link against the framework
+# apk apktool carries inside its own jar instead. That table only has to resolve
+# `@android:...` references, and it is offline-available, which is what matters:
+# no release/codeload download works in this sandbox, and the api.github.com
+# blob budget is far too small to share with the other five fetches.
 if [ ! -s "$TOOLS/1.apk" ]; then
-  say "extracting aapt2 + framework from apktool"
+  say "extracting the framework table from apktool.jar"
   fetch_blob "$TOOLS/apktool.jar" screetsec/TheFatRat \
     53d723d86f2a1f58fc63d7d918a50ce7e22a08ce
-  ( cd "$TOOLS" && "$JAVA_BIN" -jar apktool.jar if 4.1.1.4 >/dev/null 2>&1 || true )
-  for candidate in "$HOME/.local/share/apktool/framework/1.apk" "$HOME/.apktool/framework/1.apk"; do
-    if [ -f "$candidate" ]; then cp "$candidate" "$TOOLS/1.apk"; break; fi
-  done
-  if [ ! -s "$TOOLS/1.apk" ]; then
-    # Last resort: ask the framework installer to fetch it, then re-check.
-    ( cd "$TOOLS" && "$JAVA_BIN" -jar apktool.jar if >/dev/null 2>&1 || true )
-    for candidate in "$HOME/.local/share/apktool/framework/1.apk" "$HOME/.apktool/framework/1.apk"; do
-      if [ -f "$candidate" ]; then cp "$candidate" "$TOOLS/1.apk"; break; fi
-    done
-  fi
+  python3 - "$TOOLS" <<'PYFRAME' || true
+import sys, zipfile, os
+tools = sys.argv[1]
+jar = os.path.join(tools, "apktool.jar")
+target = os.path.join(tools, "1.apk")
+try:
+    with zipfile.ZipFile(jar) as z:
+        data = z.read("brut/androlib/android-framework.jar")
+    if len(data) < 1_000_000:
+        raise SystemExit("framework table looks truncated")
+    with open(target, "wb") as out:
+        out.write(data)
+    print("  extracted 1.apk (%d bytes)" % len(data))
+except Exception as exc:
+    print("  WARN  could not extract the framework table: %s" % exc)
+PYFRAME
 fi
 [ -s "$TOOLS/1.apk" ] && say "framework table: $(wc -c < "$TOOLS/1.apk") bytes" || say "WARNING: no framework 1.apk - aapt2 link will need -I android.jar fallback"
 

@@ -77,9 +77,18 @@ class ClockRenderer private constructor(context: Context) {
      * bitmaps are checked for `isRecycled`, so a hash collision at worst costs a
      * repaint - no cheaper key is worth the risk of showing the wrong clock.
      */
-    private fun cacheKey(design: ClockDesign, widthPx: Int, heightPx: Int): String =
-        (design.hashCode().toString(36) + "/" + design.mediaUri.hashCode().toString(36)) +
-            "@" + widthPx + "x" + heightPx
+    private fun cacheKey(design: ClockDesign, widthPx: Int, heightPx: Int): String {
+        // The reel index is part of the pixels, so it has to be part of the key -
+        // otherwise a rotating media wall serves the frame it cached first.
+        val step = if (design.mediaOnly && design.rotateSecs > 0) {
+            "/" + ai.techtroy.clockcanvas.media.MediaReel.forDesign(appContext, design)
+                .stepAt(design.rotateSecs).toString(36)
+        } else {
+            ""
+        }
+        return (design.hashCode().toString(36) + "/" + design.mediaUri.hashCode().toString(36)) +
+            step + "@" + widthPx + "x" + heightPx
+    }
 
     fun renderPx(design: ClockDesign, widthPx: Int, heightPx: Int): Bitmap {
         val key = cacheKey(design, widthPx, heightPx)
@@ -134,9 +143,45 @@ class ClockRenderer private constructor(context: Context) {
     ) {
         val w = max(1, widthPx)
         val h = max(1, heightPx)
-        if (!skipBackground) drawBackground(canvas, design, w, h, mediaOverride)
-        drawClock(canvas, design, bucket, w, h)
+        val wall = design.mediaOnly
+        val media = mediaOverride ?: if (wall) reelBitmap(design) else null
+        val drewMedia = if (!skipBackground) drawBackground(canvas, design, w, h, media) else false
+        if (wall) {
+            // Media wall: the picture is the content. No clock, and if there is
+            // nothing to show we say so on the canvas instead of painting a bare
+            // gradient that looks like a broken clock.
+            if (!drewMedia && !skipBackground) drawMediaWallHint(canvas, design, w, h)
+        } else {
+            drawClock(canvas, design, bucket, w, h)
+        }
         drawBorder(canvas, design, w, h)
+    }
+
+    /** The reel entry for this instant, decoded and cached. */
+    private fun reelBitmap(design: ClockDesign): Bitmap? {
+        val reel = ai.techtroy.clockcanvas.media.MediaReel.forDesign(appContext, design)
+        if (reel.isEmpty()) return null
+        val index = reel.stepAt(design.rotateSecs)
+        val item = reel.itemAt(index) ?: return null
+        val key = "reel:" + item.uri + ":" + index + ":" + (if (item.isVideo) "v" else "i")
+        imageCache.get(key)?.let { if (!it.isRecycled) return it }
+        val maxEdge = (WIDGET_MAX_PX.toFloat() * 1.2f).toInt()
+        val bitmap = ai.techtroy.clockcanvas.media.MediaReel.bitmapFor(appContext, item, maxEdge) ?: return null
+        imageCache.put(key, bitmap)
+        return bitmap
+    }
+
+    private fun drawMediaWallHint(canvas: Canvas, design: ClockDesign, w: Int, h: Int) {
+        val size = max(11f * density, min(w, h) * 0.055f)
+        val paint = subPaint(design.copyWith { it.dateFontId = null }, size)
+        paint.color = design.dateColor
+        paint.alpha = 200
+        val lines = listOf(
+            appContext.getString(ai.techtroy.clockcanvas.R.string.media_wall_empty_title),
+            appContext.getString(ai.techtroy.clockcanvas.R.string.media_wall_empty_detail),
+        )
+        val block = TextPainter.fitting(lines, size, w * 0.86f, paint, 1.3f, ClockDesign.TEXT_ALIGN_CENTER, 0f, size * 0.5f)
+        drawTextBlock(canvas, design, block, (w - block.measuredMaxWidth()) / 2f, (h - block.heightPx()) / 2f)
     }
 
     /** Just the border ring: lets a surface-backed video keep its own pixels. */
@@ -160,7 +205,8 @@ class ClockRenderer private constructor(context: Context) {
         canvas.restore()
     }
 
-    private fun drawBackground(canvas: Canvas, design: ClockDesign, w: Int, h: Int, mediaOverride: Bitmap?) {
+    /** @return true when a photo or video frame was painted (the media wall needs to know). */
+    private fun drawBackground(canvas: Canvas, design: ClockDesign, w: Int, h: Int, mediaOverride: Bitmap?): Boolean {
         canvas.save()
         val radius = dp(design.cornerRadius)
         if (radius > 0.5f) {
@@ -170,7 +216,18 @@ class ClockRenderer private constructor(context: Context) {
         }
         val bg = Paint(Paint.FILTER_BITMAP_FLAG)
         bg.style = Paint.Style.FILL
-        when (design.backgroundKind) {
+        // In media-wall mode a resolved picture *is* the background, whatever the
+        // design's declared kind says - otherwise a reel would need its own kind.
+        val kind = when {
+            mediaOverride == null -> design.backgroundKind
+            // A media wall asked for the picture, so it gets the picture even where a
+            // clock design would have used the launcher's own background.
+            design.mediaOnly -> BackgroundKind.IMAGE
+            design.backgroundKind == BackgroundKind.TRANSPARENT -> BackgroundKind.TRANSPARENT
+            else -> design.backgroundKind
+        }
+        var drewMedia = false
+        when (kind) {
             BackgroundKind.TRANSPARENT -> Unit
             BackgroundKind.SOLID -> {
                 bg.color = design.backgroundColor
@@ -184,6 +241,7 @@ class ClockRenderer private constructor(context: Context) {
             else -> {
                 val image = mediaOverride ?: loadImage(design)
                 if (image != null && !image.isRecycled) {
+                    drewMedia = true
                     var toDraw = image
                     val blurPx = dp(design.backgroundBlur)
                     if (blurPx > 0.6f) {
@@ -215,7 +273,8 @@ class ClockRenderer private constructor(context: Context) {
                     canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bg)
                     bg.shader = null
                 }
-                val darkness = design.backgroundDarkness
+                // The media wall shows the picture as it is: no dimming layer.
+                val darkness = if (design.mediaOnly) 0f else design.backgroundDarkness
                 if (darkness > 0.001f) {
                     bg.color = BitmapUtils.withAlpha(0xFF000000.toInt(), (255 * darkness).toInt())
                     canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), bg)
@@ -223,6 +282,7 @@ class ClockRenderer private constructor(context: Context) {
             }
         }
         canvas.restore()
+        return drewMedia
     }
 
     // ---- sizing --------------------------------------------------------
@@ -309,6 +369,7 @@ class ClockRenderer private constructor(context: Context) {
     }
 
     private fun loadImage(design: ClockDesign): Bitmap? {
+        if (design.mediaOnly) reelBitmap(design)?.let { return it }
         val uri = design.mediaUri ?: return null
         val key = uri + ":" + (if (design.mediaIsVideo) "v" else "i")
         imageCache.get(key)?.let { if (!it.isRecycled) return it }
