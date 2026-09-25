@@ -64,3 +64,9 @@ app/src/main/assets/ide/**/*.br
 !artifacts/Aureus-v1.1.0.exe
 !artifacts/Aureus-v1.2.0.exe
 .signing/aureus-codesign.key
+
+# ClockCanvas ships one installable milestone APK; scratch/signature placeholders stay out.
+!clockcanvas/artifacts/ClockCanvas-v1.0.0-installable.apk
+!clockcanvas/artifacts/*.sha256
+!clockcanvas/artifacts/*.txt
+*.idsig

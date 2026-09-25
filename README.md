@@ -1,3 +1,28 @@
+# ClockCanvas — a clock you design, then wear on your home screen
+
+**New in this repo:** [clockcanvas/](clockcanvas/README.md) is a complete, separate native Android
+(Kotlin) app — design a clock (10 styles, fonts, colours, gradient/photo/video-poster background,
+border, responsive layout), then use the same design as a home-screen **widget**, a full-screen
+**screensaver clock with video behind it**, or a **live wallpaper** — or turned into a **media
+wall** that shows only your photos and videos, stepping through a reel on a schedule every
+surface agrees on. No accounts, no network, no
+AndroidX dependency on the verified build path.
+
+Installable, signed APK — download it here (one click):
+**[ClockCanvas-v1.0.0-installable.apk](https://github.com/TechTroyAi/App/raw/arena/01a0d62d-app/clockcanvas/artifacts/ClockCanvas-v1.0.0-installable.apk)**
+· [release notes](https://github.com/TechTroyAi/App/releases/tag/v1.0.0-clockcanvas)
+· in-repo copy: [clockcanvas/artifacts/](clockcanvas/artifacts/)
+(Android 8.0+; SHA-256 and verification list in [clockcanvas/artifacts/README.md](clockcanvas/artifacts/README.md)).
+Architecture, the widget/full-screen/wallpaper split and where per-widget config is stored:
+[docs/CLOCKCANVAS_DESIGN.md](docs/CLOCKCANVAS_DESIGN.md). It builds two ways — Android Studio
+(`clockcanvas/` is its own Gradle root, wrapper included) or this repo's offline toolchain:
+
+```bash
+cd clockcanvas && bash tools/setup-offline-toolchain.sh && python3 tools/build-offline-apk.py
+```
+
+---
+
 # Jadex Android build — v1.3.7
 
 The current app is Jadex, a Kotlin Android host with a bundled Python IDE.
