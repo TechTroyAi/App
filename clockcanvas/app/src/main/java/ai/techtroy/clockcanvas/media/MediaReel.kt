@@ -11,8 +11,10 @@ import android.graphics.Bitmap
  * A design always has one *primary* media URI (`mediaUri`) - that is the background
  * the widget paints behind the clock. A **reel** is the longer list used by the media
  * wall (`mediaOnly`), where the picture is the point and the clock steps aside. The
- * first reel entry doubles as the primary, so a design can never be in two minds
- * about what to show when the reel is paused.
+ * two stay coherent in one direction only: the reel is consulted first, and the
+ * primary media is appended as a fallback when the reel is empty (or when the user
+ * picks their first item, which fills both). So a design cannot be in two minds about
+ * what to show, and a paused single-item reel is simply the primary image.
  *
  * The current index is *derived from the clock*, not stored:
  * `stepAt` maps wall-clock time onto the list. That is deliberate - a persisted
