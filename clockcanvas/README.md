@@ -42,7 +42,7 @@ cd clockcanvas
 ./gradlew :app:assembleDebug        # or assembleRelease (needs .signing/, see below)
 ```
 
-**Offline (`kotlinc`, no SDK, no Maven) — the path this app was written and verified with:**
+**Offline (`kotlinc`, no SDK, no Maven) — the path this app was written and first verified with:**
 
 ```bash
 bash tools/setup-offline-toolchain.sh   # venv + jdk4py + aapt2 + kotlinc + android.jar/dx/apksigner
@@ -81,9 +81,10 @@ Key      RSA 4096 · v2 + v3 enabled, v1 disabled (minSdk 26 makes JAR signing r
 ```
 
 To install the *shipped* APK you do not need the key; to build updates that replace it you
-do. In CI the key comes from `CLOCKCANVAS_KEYSTORE_BASE64` / `CLOCKCANVAS_STORE_PASSWORD`
-(see `.github/workflows/android.yml`, job `clockcanvas`); without them the job builds and
-uploads an APK signed with a fresh key and warns.
+do. In CI the key comes from the `CLOCKCANVAS_KEYSTORE_BASE64` / `CLOCKCANVAS_STORE_PASSWORD`
+secrets; without them the Gradle job still builds and uploads, just unsigned
+(`-PskipSigning=true`) with a workflow warning, and the offline builder refuses to run at all
+until you explicitly allow it to mint a new identity.
 
 ## Fonts and licences
 
@@ -118,7 +119,7 @@ the files are the upstream `google/fonts` copies (`tools/fetch_clockcanvas_fonts
 
 ```
 clockcanvas/
-  settings.gradle.kts · gradle.properties · build.gradle.kts   Gradle roots (offlineOnly switch)
+  settings.gradle.kts · gradle.properties · build.gradle.kts   Gradle roots (`-Pclockcanvas.offlineOnly` skips the Compose layer)
   app/build.gradle.kts                                          AGP 8.7, Kotlin 2.0.21, Compose optional
   app/src/main/AndroidManifest.xml                              7 activities, 2 services, 1 receiver, 1 provider
   app/src/main/java/ai/techtroy/clockcanvas/                    33 Kotlin files (see design doc for the map)

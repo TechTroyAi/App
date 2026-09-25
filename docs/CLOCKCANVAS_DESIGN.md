@@ -67,7 +67,8 @@ Deliberate choices:
   AndroidX artifact set the verified build path cannot fetch. `VideoView` covers the one
   requirement (loop a clip behind a clock, full-screen, with an error path that degrades to a
   poster frame). Swapping to Media3 is a single-file change: `FullscreenClockActivity` owns
-  all playback; `build.gradle.kts` already has a `buildFeatures.offlineOnly` switch to gate it.
+  all playback, and `app/build.gradle.kts` gates the player-free build behind
+  `-Pclockcanvas.offlineOnly=true` so the Compose/AndroidX dependency block is skipped there.
 - **Compose is one optional screen, not the app.** `ui/compose/PreviewActivity.kt` is the
   responsive size-comparison screen. The Gradle build compiles it when the Compose plugin is
   applied; the offline builder excludes the package *and* strips its `<activity>` from the
@@ -118,7 +119,8 @@ demand is real; the call sites are already isolated in `ClockEngine.backgroundFo
 
 ```
 clockcanvas/
-  settings.gradle.kts · build.gradle.kts · gradle.properties      Gradle roots, pluginManagement, -PofflineOnly
+  settings.gradle.kts · build.gradle.kts · gradle.properties      Gradle roots, pluginManagement,
+                                                                  -Pclockcanvas.offlineOnly
   app/build.gradle.kts                              AGP 8.7.3 · Kotlin 2.0.21 · minSdk 26 / target 35 ·
                                                     R8 off (see app/proguard-rules.pro) · release signingConfig from .signing/
   app/src/main/AndroidManifest.xml                  no storage permission; CAMERA optional;
@@ -272,7 +274,24 @@ widget update into an `OutOfMemoryError` — the failure mode in the QA list.
 | memory with large images | `decodeScaled` sample-size maths, `imageCache`(6)/`bitmapCache`(10) with LRU recycle, `budgetSize` cap, `clearCaches()` on trim |
 | media deleted / moved | `MediaAccess.canRead` probe → `bg_media_missing` string, gradient fallback. `applyDirect` catches `OutOfMemoryError` and *skips* the update, so the launcher keeps showing the last bitmap it accepted (held in `heldBitmaps`, ≤12) rather than blanking to a broken image |
 
-## 8. V2 candidates (deliberately not in v1)
+## 8. What is actually verified
+
+- **Offline toolchain, here:** `tools/build-offline-apk.py` — 33 sources compile, dexes, aligns
+  and sign (v2+v3), then re-open their own output and check it (see `artifacts/README.md` for
+  the list). `scripts/verify-apk.py` at the repository root adds the part that matters most for
+  a hand-rolled pipeline: on the current APK it resolved **all 1,719 referenced types** against
+  the 1,301 bundled classes, which is exactly the check that catches "compiled fine, crashes on
+  first launch with `NoClassDefFoundError`".
+- **Gradle, on CI:** `.github/workflows/android.yml` job *ClockCanvas* — `:app:assembleDebug`
+  and `:app:assembleRelease` both succeed with AGP 8.7.3 / Kotlin 2.0.21 / the Compose plugin,
+  so the optional `ui/compose/PreviewActivity.kt` is genuinely compiled somewhere, and
+  `resourceConfigurations`, the `offlineOnly` switch and the signing config all resolve.
+- **Not verified anywhere:** on-device behaviour. There is no emulator or physical device in
+  this environment, so §7 maps each QA item to the code that handles it; it is not a test
+  result. The widget/launcher and wallpaper interactions in particular are the kind of thing
+  that only shows its truth on a real home screen, and OEM launchers differ.
+
+## 9. V2 candidates (deliberately not in v1)
 
 - GLES/MediaCodec frame pipeline for the wallpaper (§2), or a `WallpaperStyle` pre-baked
   sprite-sheet mode for short loops.
