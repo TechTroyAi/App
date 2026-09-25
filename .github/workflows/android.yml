@@ -88,13 +88,14 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
 
-  # ClockCanvas is a second, self-contained Gradle project in this repo. Its
-  # release build is verified with the repository's *offline* toolchain
-  # (aapt2 + kotlinc + dx + apksigner, no Android SDK, no Maven), which is the
-  # same path the app was developed with, so CI proves the committed APK is
-  # reproducible rather than just that Gradle started.
+  # ClockCanvas is a second, self-contained Gradle project in this repo (its own
+  # settings.gradle.kts and wrapper, and it needs AndroidX while the sibling
+  # Blockhold/Jadex app still builds without it - so it is built from its own dir).
+  # On a runner with normal network access this uses the ordinary Android path:
+  # the preinstalled SDK plus Maven, which also type-checks the optional Compose
+  # preview screen that the sandbox build in tools/ deliberately skips.
   clockcanvas:
-    name: ClockCanvas (offline toolchain)
+    name: ClockCanvas
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -102,13 +103,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-java@v4
         with:
-          python-version: '3.11'
+          distribution: temurin
+          java-version: '17'
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Read versionName from app/build.gradle.kts
+        id: version
+        run: echo "name=$(sed -n 's/^[[:space:]]*versionName = \"\([^\"]*\)\".*/\1/p' app/build.gradle.kts | head -1)" >> "$GITHUB_OUTPUT"
 
       - name: Restore release signing key
         id: signing
@@ -125,28 +129,45 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No CLOCKCANVAS_KEYSTORE_BASE64/CLOCKCANVAS_STORE_PASSWORD secrets;" \
-                 "this job will mint a throwaway key, so the APK cannot update an installed ClockCanvas."
+            echo "::warning::No CLOCKCANVAS_KEYSTORE_BASE64/CLOCKCANVAS_STORE_PASSWORD secrets," \
+                 "so the release APK is built unsigned (-PskipSigning) and cannot update an install."
           fi
 
-      - name: Provision aapt2, kotlinc, android.jar, dx, apksigner
-        run: bash tools/setup-offline-toolchain.sh
+      # Debug first: it is always signed with the debug key, so a failure here is a
+      # real build break, not a signing-secret problem, and the APK is installable
+      # for testing straight away.
+      - name: Assemble debug
+        run: ./gradlew --no-daemon :app:assembleDebug
 
-      - name: Build, sign and verify the release APK
-        env:
-          CLOCKCANVAS_ALLOW_NEW_KEY: ${{ steps.signing.outputs.configured == 'true' && '' || '1' }}
-        run: python3 tools/build-offline-apk.py
+      - name: Assemble release
+        run: |
+          if [ "${{ steps.signing.outputs.configured }}" = "true" ]; then
+            ./gradlew --no-daemon :app:assembleRelease
+          else
+            ./gradlew --no-daemon :app:assembleRelease -PskipSigning=true
+          fi
 
-      # An APK only updates an installed ClockCanvas if it carries the same signing
-      # certificate, so check that against the recorded milestone before uploading.
-      # Only enforced when a real key was restored: without the secrets this job
-      # deliberately mints a throwaway identity to prove the build signs at all.
-      - name: Check the signing certificate
+      # Release signing is v2+v3 only (enableV1Signing = false, which is correct at
+      # minSdk 26), so `keytool -printcert -jarfile` cannot read it - that tool only
+      # understands JAR/v1. apksigner from the runner's SDK is the right reader.
+      - name: Check the release signing certificate
         if: steps.signing.outputs.configured == 'true'
-        run: python3 tools/verify-release-cert.py artifacts/ClockCanvas-v1.0.0-installable.apk
+        run: |
+          set -euo pipefail
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          signer=$(ls "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/build-tools/*/apksigner 2>/dev/null | sort | tail -1)
+          test -n "$signer" || { echo "apksigner not found on the runner"; exit 1; }
+          expected=$(tr -d ' \n' < artifacts/ClockCanvas-release.cert | tr 'A-F' 'a-f')
+          actual=$("$signer" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr 'A-F' 'a-f')
+          echo "expected $expected"
+          echo "actual   $actual"
+          # A different key means the artifact cannot replace an installed ClockCanvas.
+          test "$expected" = "$actual"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ClockCanvas-release
-          path: clockcanvas/artifacts/*.apk
+          name: ClockCanvas-v${{ steps.version.outputs.name }}-release
+          path: |
+            clockcanvas/app/build/outputs/apk/release/*.apk
+            clockcanvas/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error

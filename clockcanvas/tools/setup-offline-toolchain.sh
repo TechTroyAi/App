@@ -56,8 +56,23 @@ fetch_blob() { # fetch_blob <out-file> <repo> <blob-sha>
   local out="$1" repo="$2" sha="$3"
   if [ -s "$out" ]; then return 0; fi
   say "fetch $(basename "$out") from $repo"
-  curl -fsS -H "Accept: application/vnd.github.v3.raw" -o "$out" \
-    "https://api.github.com/repos/$repo/git/blobs/$sha" || { echo "fetch failed: $out"; exit 1; }
+  # The blob endpoint answers with the raw bytes given the right Accept header.
+  # CI runners share an egress IP, so the unauthenticated 60 req/h limit is a real
+  # constraint: send GITHUB_TOKEN when the workflow provides one, and retry once
+  # after a pause before giving up.
+  local auth=()
+  if [ -n "${GITHUB_TOKEN:-}" ]; then auth=(-H "Authorization: Bearer $GITHUB_TOKEN"); fi
+  for attempt in 1 2; do
+    if curl -fsS "${auth[@]}" -H "Accept: application/vnd.github.v3.raw" -o "$out" \
+        "https://api.github.com/repos/$repo/git/blobs/$sha"; then
+      return 0
+    fi
+    rm -f "$out"
+    [ "$attempt" = 1 ] && { say "retrying $out after a pause"; sleep 10; }
+  done
+  echo "fetch failed: $out"
+  echo "        (if this is CI, expose GITHUB_TOKEN to the step that runs this script)"
+  exit 1
 }
 
 # android.jar API-35 compile stub (Sable/android-platforms is the mirror this repo
