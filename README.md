@@ -8,7 +8,10 @@ wall** that shows only your photos and videos, stepping through a reel on a sche
 surface agrees on. No accounts, no network, no
 AndroidX dependency on the verified build path.
 
-Installable, signed APK: [clockcanvas/artifacts/ClockCanvas-v1.0.0-installable.apk](clockcanvas/artifacts/ClockCanvas-v1.0.0-installable.apk)
+Installable, signed APK — download it here (one click):
+**[ClockCanvas-v1.0.0-installable.apk](https://github.com/TechTroyAi/App/raw/arena/01a0d62d-app/clockcanvas/artifacts/ClockCanvas-v1.0.0-installable.apk)**
+· [release notes](https://github.com/TechTroyAi/App/releases/tag/v1.0.0-clockcanvas)
+· in-repo copy: [clockcanvas/artifacts/](clockcanvas/artifacts/)
 (Android 8.0+; SHA-256 and verification list in [clockcanvas/artifacts/README.md](clockcanvas/artifacts/README.md)).
 Architecture, the widget/full-screen/wallpaper split and where per-widget config is stored:
 [docs/CLOCKCANVAS_DESIGN.md](docs/CLOCKCANVAS_DESIGN.md). It builds two ways — Android Studio

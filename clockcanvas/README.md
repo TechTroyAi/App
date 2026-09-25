@@ -8,8 +8,11 @@ no accounts, no network, no ads, nothing leaves the device.
 - **Package:** `ai.techtroy.clockcanvas` · **versionName** 1.0.0 (versionCode 1)
 - **Requires:** Android 8.0 / API 26+ (see [Why API 26](#why-api-26))
 - **Installable APK:** [artifacts/ClockCanvas-v1.0.0-installable.apk](artifacts/ClockCanvas-v1.0.0-installable.apk)
-  (3,973,929 bytes, v2+v3 signed — SHA-256 in
+  (4,004,698 bytes, v2+v3 signed — SHA-256 in
   [artifacts/ClockCanvas-v1.0.0-installable.apk.sha256](artifacts/ClockCanvas-v1.0.0-installable.apk.sha256))
+- **Published release:** [v1.0.0-clockcanvas](https://github.com/TechTroyAi/App/releases/tag/v1.0.0-clockcanvas)
+  (notes, install steps and the byte-stable payload hashes; the binary itself is served from
+  the repo, because release-asset upload is blocked from the build sandbox)
 - **Design document** (architecture, surfaces, file map, storage, refresh, QA list):
   [../docs/CLOCKCANVAS_DESIGN.md](../docs/CLOCKCANVAS_DESIGN.md)
 
