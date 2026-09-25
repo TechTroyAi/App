@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  Clock designs and widget bindings are local, disposable and contain user photos
+  as content:// URIs, so nothing is synced. Backup is allowed for the whole
+  no_backup-excluded data set; a fresh device simply starts with the sample presets.
+-->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true" />
+    <device-transfer />
+</data-extraction-rules>

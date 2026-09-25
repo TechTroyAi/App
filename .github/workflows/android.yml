@@ -87,3 +87,63 @@ jobs:
           name: Jadex-v${{ steps.version.outputs.name }}-release
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
+
+  # ClockCanvas is a second, self-contained Gradle project in this repo. Its
+  # release build is verified with the repository's *offline* toolchain
+  # (aapt2 + kotlinc + dx + apksigner, no Android SDK, no Maven), which is the
+  # same path the app was developed with, so CI proves the committed APK is
+  # reproducible rather than just that Gradle started.
+  clockcanvas:
+    name: ClockCanvas (offline toolchain)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clockcanvas
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore release signing key
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CLOCKCANVAS_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.CLOCKCANVAS_STORE_PASSWORD }}
+        run: |
+          mkdir -p .signing
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > .signing/clockcanvas-release.p12
+            printf 'storePassword=%s\nkeyAlias=clockcanvas\nkeyPassword=%s\n' \
+              "$STORE_PASSWORD" "$STORE_PASSWORD" > .signing/release.properties
+            chmod 600 .signing/clockcanvas-release.p12 .signing/release.properties
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No CLOCKCANVAS_KEYSTORE_BASE64/CLOCKCANVAS_STORE_PASSWORD secrets;" \
+                 "this job will mint a throwaway key, so the APK cannot update an installed ClockCanvas."
+          fi
+
+      - name: Provision aapt2, kotlinc, android.jar, dx, apksigner
+        run: bash tools/setup-offline-toolchain.sh
+
+      - name: Build, sign and verify the release APK
+        env:
+          CLOCKCANVAS_ALLOW_NEW_KEY: ${{ steps.signing.outputs.configured == 'true' && '' || '1' }}
+        run: python3 tools/build-offline-apk.py
+
+      # An APK only updates an installed ClockCanvas if it carries the same signing
+      # certificate, so check that against the recorded milestone before uploading.
+      - name: Check the signing certificate
+        run: python3 tools/verify-release-cert.py artifacts/ClockCanvas-v1.0.0-installable.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClockCanvas-release
+          path: clockcanvas/artifacts/*.apk
+          if-no-files-found: error

@@ -1,0 +1,4 @@
+# Byte-stable payloads of the built APK (re-signing does not change these).
+ae7785646b34bc54b2e69492f3a0368ae46e4d4ae70f5606791edfbff3f36041  classes.dex
+98f77130d7f1d5d5d5939aa8797ef5e89fd83a409897712c98b8ab7f71e5049c  resources.arsc
+27d4fb95252b3c18fcd30d6884ad1cc3494c2f0745ad7b6e53cfddd1bcc6a925  AndroidManifest.xml

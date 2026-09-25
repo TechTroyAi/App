@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  ClockCanvas deliberately asks for almost nothing.
+
+  * No storage permissions: media is picked with the system Photo Picker
+    (ACTION_PICK_IMAGES on API 33+, GET_CONTENT below that) and read through
+    the returned content:// URI with a persistable read grant.
+  * CAMERA is optional (android:required="false") and only used if the user
+    chooses "Take photo" in the background picker.
+  * FOREGROUND_SERVICE is only needed for the opt-in "keep widgets exact"
+    toggle (a minute ticker while the app is alive on API 26+).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        tools:ignore="ForegroundServicesPolicy" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.faketouch"
+        android:required="false" />
+    <uses-feature
+        android:name="android.software.live_wallpaper"
+        android:required="false" />
+
+    <application
+        android:name=".ClockCanvasApp"
+        android:allowBackup="true"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ClockCanvas">
+
+        <activity
+            android:name=".ui.HomeActivity"
+            android:configChanges="keyboardHidden|screenSize|screenLayout|orientation"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.EditorActivity"
+            android:configChanges="keyboardHidden|screenSize|screenLayout"
+            android:exported="false"
+            android:label="@string/title_editor"
+            android:parentActivityName=".ui.HomeActivity"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ui.WidgetConfigActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/title_widget_config"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.FullscreenClockActivity"
+            android:configChanges="keyboardHidden|screenSize|screenLayout|orientation"
+            android:exported="false"
+            android:label="@string/title_fullscreen"
+            android:launchMode="singleTop" />
+
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:label="@string/title_settings"
+            android:parentActivityName=".ui.HomeActivity" />
+
+        <activity
+            android:name=".ui.WallpaperSetupActivity"
+            android:exported="false"
+            android:label="@string/title_wallpaper" />
+
+        <!-- Optional Compose layer: built by Gradle only. The offline builder
+             drops this declaration when the source file is not compiled, so a
+             `kotlinc`-only APK never advertises a component it cannot start. -->
+        <activity
+            android:name=".ui.compose.PreviewActivity"
+            android:exported="false"
+            android:label="@string/title_preview"
+            android:parentActivityName=".ui.EditorActivity" />
+
+        <service
+            android:name=".wallpaper.ClockWallpaperService"
+            android:exported="true"
+            android:label="@string/wallpaper_label"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/wallpaper" />
+        </service>
+
+        <service
+            android:name=".widget.WidgetTickerService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name=".widget.ClockCanvasWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_OPTIONS_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_clock" />
+        </receiver>
+
+        <!-- Tiny in-house FileProvider: the same contract as
+             androidx.core.content.FileProvider, minus the AndroidX dependency, so
+             the app also builds with a bare kotlinc + android.jar toolchain. -->
+        <provider
+            android:name=".io.LocalFileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>
