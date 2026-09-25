@@ -139,7 +139,10 @@ jobs:
 
       # An APK only updates an installed ClockCanvas if it carries the same signing
       # certificate, so check that against the recorded milestone before uploading.
+      # Only enforced when a real key was restored: without the secrets this job
+      # deliberately mints a throwaway identity to prove the build signs at all.
       - name: Check the signing certificate
+        if: steps.signing.outputs.configured == 'true'
         run: python3 tools/verify-release-cert.py artifacts/ClockCanvas-v1.0.0-installable.apk
 
       - uses: actions/upload-artifact@v4
