@@ -115,6 +115,36 @@ permissions, degrades to a poster frame if the clip becomes unreadable. v1 ships
 motion off by default and the cost stated in the toggle's own hint. (b) is the v2 path if
 demand is real; the call sites are already isolated in `ClockEngine.backgroundFor()`.
 
+### Picked media is *copied*, not borrowed
+
+A photo the user picks is imported into `files/clockcanvas/media/` before the design keeps a
+URI for it (`media/MediaVault.kt`). That is not tidiness, it is the only way a widget background
+can be trusted:
+
+- On Android 13+ the system Photo Picker returns a URI whose read grant lasts **for our process
+  only**. `takePersistableUriPermission` is refused, and a launcher that updated the widget an
+  hour later - after the system had killed us - would render a clock with no picture.
+- Below 13 the app uses `ACTION_OPEN_DOCUMENT`, which is the intent that *asks* for a
+  persistable grant (`FLAG_GRANT_PERSISTABLE_URI_PERMISSION`); `ACTION_GET_CONTENT`, the obvious
+  alternative, does not, and that difference is precisely "my photo worked and then it stopped".
+- Even a persisted grant dies when the user deletes or moves the original, or restores the app
+  on another device.
+
+So the pick is copied once, off the main thread, under a size cap (32 MB image / 128 MB clip -
+larger than any phone photo, and it refuses rather than filling the disk), and the design points
+at our own file. Camera captures are *moved* in from the cache directory the camera app wrote to,
+because the system is allowed to clear a cache. Consequences: designs never need a permission at
+read time, a wallpaper process can always open its own file, deleting the original in the gallery
+is now a non-event, and `prune` keeps the vault bounded (24 files, oldest-unreferenced first,
+never a file a design still names). The importer falls back to the source URI if a copy is
+impossible, and the picker says so out loud instead of pretending the pick succeeded.
+
+The colour picker (`ui/ColorPicker.kt`) got the same treatment as everything else here: it is
+drawn with `Canvas` gradients rather than an image or a library, so the offline build path compiles
+it. Hue/saturation/brightness is the state, R/G/B and hex are derived views of it, and typing wins
+over dragging - you cannot drag a slider onto `#7C3AED` exactly, and "make it exactly this hex" is
+why the number boxes exist.
+
 ### The media wall: showing only the picture, no clock
 
 One design flag, `mediaOnly`, changes what the renderer is asked to do: paint the media and
@@ -182,6 +212,7 @@ clockcanvas/
     media/MediaHandler.kt  design media resolution + recents + session (editor pick ≠ saved pick)
     media/MediaReel.kt     the ordered photo/video stack for media-wall mode + the time-derived
                            step maths (stepAt / msUntilNextStep) and the on-disk list format
+    media/MediaVault.kt    import-on-pick copies into files/clockcanvas/media, size caps, prune
     render/ClockRenderer.kt background/clock/border, bucket math, bitmap+image caches,
                            pixel budget, clearCaches()
     render/TextPainter.kt  fit-to-width multi-line blocks, letter spacing, outline, glow, shadow
@@ -199,6 +230,7 @@ clockcanvas/
     ui/EditorActivity.kt                tabbed editor + footer (save/revert/status), widget-config mode,
                                         back-with-unsaved confirm, EditorHost implementation
     ui/EditorSections.kt                the 6 tab bodies as functions of (EditorHost, container)
+    ui/ColorPicker.kt                   canvas spectrum + hue/alpha bars + RGB and hex entry
     ui/DesignBinding.kt                 dirty-tracking mutation of one design
     ui/WidgetConfigActivity.kt          the APPWIDGET_CONFIGURE entry point → EditorActivity in bind mode
     ui/BackgroundPicker.kt              pick photo/video/take photo round-trip, returns (uri, isVideo)
@@ -212,7 +244,7 @@ clockcanvas/
   app/src/main/res/
     values/colors.xml        the black/violet palette, one place
     values/dimens.xml        text sizes, corner radii, widget insets
-    values/strings.xml       115 strings (all UI text, incl. every caveat shown to the user)
+    values/strings.xml       143 strings (all UI text, incl. every caveat shown to the user)
     values/styles.xml        Theme.ClockCanvas, Theme.ClockCanvas.Fullscreen
     layout/widget_clock.xml  FrameLayout + ImageView (the whole widget)
     layout/widget_preview.xml previewLayout for the picker sheet
@@ -221,10 +253,12 @@ clockcanvas/
     xml/file_paths.xml       LocalFileProvider roots
     xml/data_extraction_rules.xml  cloud backup disabled without device encryption; nothing synced
     drawable/*.xml           cards, chips, buttons, seekbar, input, stat icon, wallpaper thumb
-    drawable-nodpi/ + mipmap-*/  adaptive + legacy launcher icons (AI-generated master in artwork/)
+    drawable-nodpi/ + mipmap-*/  adaptive + legacy launcher icons (master drawn by a script)
   tools/    setup-offline-toolchain.sh · build-offline-apk.py · fetch_clockcanvas_fonts.py ·
-            make_clockcanvas_icons.py
-  artwork/  clockcanvas-icon-source.png (1024²) · clockcanvas-store-icon-512.png
+            make_clockcanvas_master.py (the mark itself) → make_clockcanvas_icons.py (every
+            density + adaptive layers) → make_clockcanvas_icon_mockup.py (review sheet)
+  artwork/  clockcanvas-icon-source.png (1024², transparent) · clockcanvas-store-icon-512.png
+            · clockcanvas-icon-mockup.png (shapes, sizes, themed layer, home-screen context)
   artifacts/ ClockCanvas-v1.0.0-installable.apk (+ .sha256)
 ```
 
@@ -290,14 +324,25 @@ widget update into an `OutOfMemoryError` — the failure mode in the QA list.
   `contentDescription` carrying the state, so meaning is never colour-only and TalkBack
   announces it (`Ui.describeSelectable`, `Ui.chip`).
 - Touch targets ≥ 48 dp (`Ui.MIN_TOUCH`, `setMinimumHeight` on rows, 36 dp swatches inside
-  48 dp rows), sliders use `SeekBar` with the value in the label text, and hex entry is a real
-  `EditText` with `#AARRGGBB` documented in the dialog.
+  48 dp rows), sliders use `SeekBar` with the value in the label text. The colour dialog's spectrum
+  is 150 dp and its hue/alpha bars are 48 dp of hit area around a 26 dp bar, with
+  `contentDescription` on each; hex and R/G/B are real `EditText`s (0-255 or 6/8 digits) that
+  push values back into the sliders, and the chip beside every palette row reads out the current
+  colour as `#7C3AED` instead of repeating it in a caption line.
 - Body copy ≥ 12 sp, captions 12.5 sp, nothing at 10 sp; text on the clock is user-coloured
   against a user-chosen background; the opacity control spans 10–100 % and the renderer
   clamps an imported value to a 5 % floor, so a clock can go subtle but cannot be designed
   into literal invisibility.
 - No storage permission is requested anywhere; the only permission is optional `CAMERA`
-  (`required="false"`), used only if the user taps "Take photo".
+  (`required="false"`), used only if the user taps "Take photo". Reads happen through the picker
+  grant, and afterwards through the app's own imported copy (§2), so there is no permission to
+  revoke that can silently break a saved design.
+- Copy policy, since "clean" is mostly about what you *do not* put on screen: cards carry a title
+  and controls, not paragraphs. Explanations survive only where they stop a wrong expectation -
+  video in a widget, the 30 s/1 min widget cadence, the live-wallpaper hand-off, what "keep time
+  exact" costs. `bg_reel_count` appears only when the reel has items, the widget-cadence note only
+  when the interval is faster than a widget can follow, and `WallpaperSetupActivity`'s toggles pass
+  `hintRes = 0` for the ones whose label already says it.
 
 ## 7. QA checklist → where it is handled
 
@@ -309,10 +354,12 @@ widget update into an `OutOfMemoryError` — the failure mode in the QA list.
 | very long date text | `TextPainter.fitting` shrinks to `minSizePx`, then ellipsizes per line; `EEEE\nd MMMM` preset exists for narrow cells |
 | 12h / 24h | `ClockDesign.use24Hour` (null = follow system via `DateFormat.is24HourFormat`) + Settings override + `suppressLeadingZeroHour` |
 | multiple widgets, different configs | `appWidgetId`-keyed bindings (§4) |
-| restore after reboot | `onUpdate` re-binds from prefs; `MediaAccess.persist` grants survive reboot |
+| restore after reboot | `onUpdate` re-binds from prefs; media survives too because the design points at an imported copy in `files/clockcanvas/media` (`MediaVault`), and `MediaAccess.persist` adds a grant for the original when the picker allows one |
+| colour exactness | `ColorPicker`: spectrum + hue bars for feel, R/G/B and hex fields for precision (8-digit entry sets alpha, 6-digit means opaque), palette row chip reads back the resulting `#RRGGBB` |
 | image + video-thumbnail selection | `BackgroundPicker` + `MediaAccess.posterFor`, `mediaIsVideo` carried in the design; a reel is picked through the *same* picker (`EditorActivity.pendingReel`) so request codes never race |
 | media wall stays in sync across surfaces | `MediaReel.stepAt` derives the index from the clock (no stored state); `CacheKey` includes the step; `ClockWallpaperService.mediaWallIntervalMs` wakes on the boundary instead of the minute |
 | media wall with a deleted / unreadable photo | `MediaReel.forDesign` filters on `MediaAccess.canRead`; empty reel → `media_wall_empty_*` painted by `ClockRenderer.drawMediaWallHint` |
+| picked photo still shows after the process dies / a week later | copied at pick time (`MediaVault.import`) under 32 MB / 128 MB caps; `BackgroundPicker` reports a failed import instead of dropping the pick silently |
 | memory with large images | `decodeScaled` sample-size maths, `imageCache`(6)/`bitmapCache`(10) with LRU recycle, `budgetSize` cap, `clearCaches()` on trim |
 | media deleted / moved | `MediaAccess.canRead` probe → `bg_media_missing` string, gradient fallback. `applyDirect` catches `OutOfMemoryError` and *skips* the update, so the launcher keeps showing the last bitmap it accepted (held in `heldBitmaps`, ≤12) rather than blanking to a broken image |
 
@@ -321,7 +368,7 @@ widget update into an `OutOfMemoryError` — the failure mode in the QA list.
 - **Offline toolchain, here:** `tools/build-offline-apk.py` — 33 sources compile, dexes, aligns
   and sign (v2+v3), then re-open their own output and check it (see `artifacts/README.md` for
   the list). `scripts/verify-apk.py` at the repository root adds the part that matters most for
-  a hand-rolled pipeline: on the current APK it resolved **all 1,719 referenced types** against
+  a hand-rolled pipeline: on the current APK it resolved **all 1,769 referenced types** against
   the 1,301 bundled classes, which is exactly the check that catches "compiled fine, crashes on
   first launch with `NoClassDefFoundError`".
 - **Gradle, on CI:** `.github/workflows/android.yml` job *ClockCanvas* — `:app:assembleDebug`

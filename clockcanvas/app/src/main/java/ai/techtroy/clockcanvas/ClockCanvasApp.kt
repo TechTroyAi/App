@@ -38,7 +38,15 @@ class ClockCanvasApp : Application() {
         // Touch the store once so sample presets exist before the first widget render.
         DesignStore.of(this).all()
         registerTick()
-        MediaHandler.of(this).restorePending()
+        // Off the main thread: `restorePending` opens every remembered URI to see whether the
+        // grant still works and prunes the media vault. Twelve photo checks plus a directory
+        // listing is not nothing, and none of it is needed before the first frame.
+        val restore = Runnable { MediaHandler.of(this).restorePending() }
+        try {
+            WidgetThreads.ensure()?.post(restore) ?: restore.run()
+        } catch (e: Throwable) {
+            restore.run()
+        }
     }
 
     override fun onTerminate() {

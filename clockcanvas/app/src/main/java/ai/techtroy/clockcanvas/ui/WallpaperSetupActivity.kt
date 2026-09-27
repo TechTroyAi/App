@@ -68,7 +68,7 @@ class WallpaperSetupActivity : ClockActivity() {
         Ui.add(body, designPicker(), Ui.CARD_GAP)
         Ui.add(body, mediaCard(), Ui.CARD_GAP)
         Ui.add(body, toggleFor(
-            R.string.wallpaper_clock_only, R.string.wallpaper_clock_only_hint,
+            R.string.wallpaper_clock_only, 0,
             ClockWallpaperService.KEY_CLOCK_ONLY, clockOnly()
         ) { preview.transparentBackground = it }, Ui.CARD_GAP)
         Ui.add(body, toggleFor(
@@ -141,13 +141,19 @@ class WallpaperSetupActivity : ClockActivity() {
         return card
     }
 
+    /** `hintRes = 0` means "no hint line at all", which is the point on a screen of toggles. */
     private fun toggleFor(
         labelRes: Int,
-        hintRes: Int,
+        hintRes: Int = 0,
         key: String,
         initial: Boolean,
         after: (Boolean) -> Unit = {},
-    ): View = EditorSections.toggleCard(this, getString(labelRes), getString(hintRes), initial) { checked ->
+    ): View = EditorSections.toggleCard(
+        this,
+        getString(labelRes),
+        if (hintRes == 0) "" else getString(hintRes),
+        initial,
+    ) { checked ->
         put(key, checked)
         after(checked)
     }

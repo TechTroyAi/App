@@ -5,6 +5,7 @@ import ai.techtroy.clockcanvas.R
 import ai.techtroy.clockcanvas.data.AppPrefs
 import ai.techtroy.clockcanvas.data.DesignStore
 import ai.techtroy.clockcanvas.io.LocalFileProvider
+import ai.techtroy.clockcanvas.media.MediaVault
 import ai.techtroy.clockcanvas.widget.ClockWidgetUpdater
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
@@ -43,7 +44,6 @@ class SettingsActivity : ClockActivity() {
         val time = EditorSections.sectionCard(this, getString(R.string.settings_time), null)
         Ui.add(time, hourSelector(), 12f)
         Ui.add(time, dateSelector(), 12f)
-        Ui.add(time, Ui.caption(this, getString(R.string.settings_date_hint)), 8f)
         Ui.add(body, time, Ui.CARD_GAP)
 
         val widgets = EditorSections.sectionCard(this, getString(R.string.settings_widgets), getString(R.string.settings_precise_hint))
@@ -79,6 +79,7 @@ class SettingsActivity : ClockActivity() {
             Ui.ghostButton(this, getString(R.string.settings_reset)) { confirmReset() },
             8f
         )
+        Ui.add(data, mediaCard(), 4f)
         Ui.add(body, data, Ui.CARD_GAP)
 
         // ---- fonts and build -----------------------------------------------------
@@ -288,4 +289,42 @@ class SettingsActivity : ClockActivity() {
     } catch (e: Throwable) {
         "?"
     }
+    /**
+     * The vault row inside "Designs and privacy": because ClockCanvas copies picked media (see
+     * `MediaVault`), it owes the user a number and a way back. Both are cheap to compute - one
+     * directory listing of at most a couple of dozen files - and the clean-up only ever touches
+     * copies no saved design references, which is exactly what the prune rule guarantees.
+     */
+    private fun mediaCard(): View {
+        val files = MediaVault.unusedFiles(this, ai.techtroy.clockcanvas.media.MediaVault.referencedBy(DesignStore.of(this).all()))
+        val used = MediaVault.usedBytes(this)
+        val card = Ui.column(this)
+        Ui.add(card, Ui.body(this, if (used <= 0L) getString(R.string.settings_media_empty)
+        else getString(R.string.settings_media_value, humanBytes(used))), 6f)
+        if (files.isNotEmpty()) {
+            val freed = files.sumOf { it.length() }
+            val row = Ui.columnRow(this)
+            Ui.addFilled(row, Ui.text(this, humanBytes(freed) + " unused", 12.5f, Ui.color(this, R.color.text_muted)), 0f)
+            row.addView(
+                Ui.ghostButton(this, getString(R.string.settings_media_clean)) {
+                    files.forEach { it.delete() }
+                    toast(getString(R.string.settings_media_cleaned, humanBytes(freed)))
+                    refresh()
+                },
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT),
+            )
+            Ui.add(card, row, 0f)
+        }
+        return card
+    }
+
+    private fun humanBytes(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        val kb = bytes / 1024.0
+        if (kb < 1024) return String.format(java.util.Locale.US, "%.0f KB", kb)
+        val mb = kb / 1024.0
+        if (mb < 1024) return String.format(java.util.Locale.US, "%.1f MB", mb)
+        return String.format(java.util.Locale.US, "%.2f GB", mb / 1024.0)
+    }
+
 }

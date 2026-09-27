@@ -313,16 +313,22 @@ object Ui {
             dot.setOnClickListener { onPick(swatch) }
             row.addView(dot, params)
         }
-        val custom = chip(context, "custom…", false, onCustom)
+        val custom = chip(context, hexShort(selectedColor), false, onCustom)
         val customParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         customParams.leftMargin = dp(context, 8f)
         row.addView(custom, customParams)
         add(card, row, 8f)
-        add(card, text(context, "Current ${hexOf(selectedColor)} · alpha ${Color.alpha(selectedColor)}", 11.5f, color(context, R.color.text_muted)), 8f)
+        // No "current colour" line: the chip beside the swatches already reads "#7C3AED",
+        // and repeating it underneath is the kind of text that makes a panel feel busy.
         return card
     }
 
     fun hexOf(value: Int): String = String.format(java.util.Locale.US, "#%08X", value)
+
+    /** Six digits when the colour is opaque, eight when it is not: no "#FF" noise. */
+    fun hexShort(value: Int): String =
+        if (Color.alpha(value) == 255) String.format(java.util.Locale.US, "#%06X", value and 0xFFFFFF)
+        else String.format(java.util.Locale.US, "#%08X", value)
 
     /**
      * Parses "#rgb", "#aarrggbb", "#rrggbb" or a bare hex. Returns null when the

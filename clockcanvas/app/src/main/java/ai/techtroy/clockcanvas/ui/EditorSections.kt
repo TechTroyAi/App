@@ -120,41 +120,15 @@ object EditorSections {
         title: String,
         value: Int,
         allowTransparent: Boolean,
+        allowAlpha: Boolean = true,
         onColor: (Int) -> Unit,
     ): LinearLayout {
         val swatches = if (allowTransparent) intArrayOf(Ui.TRANSPARENT) + Ui.PALETTE else Ui.PALETTE
         return Ui.colorRow(context, title, value, swatches, onColor) {
-            promptColor(context, value) { picked -> onColor(picked) }
+            ColorPicker.show(context, title, value, allowAlpha) { picked -> onColor(picked) }
         }
     }
 
-    private fun promptColor(context: Context, current: Int, onPicked: (Int) -> Unit) {
-        val field = EditText(context)
-        field.setSingleLine(true)
-        field.setText(String.format(java.util.Locale.US, "#%08X", current))
-        field.setTextColor(Color.WHITE)
-        val wrapper = LinearLayout(context)
-        val pad = Ui.dp(context, 18f)
-        wrapper.setPadding(pad, pad, pad, 0)
-        wrapper.addView(field)
-        AlertDialog.Builder(context)
-            .setTitle("Colour (hex)")
-            .setMessage("8 digits = AARRGGBB, e.g. CC7C3AED")
-            .setView(wrapper)
-            .setPositiveButton(R.string.action_ok) { _, _ ->
-                val parsed = Ui.parseColor(field.text.toString())
-                if (parsed == null) {
-                    try {
-                        android.widget.Toast.makeText(context, "Not a colour code", android.widget.Toast.LENGTH_SHORT).show()
-                    } catch (e: Throwable) {
-                    }
-                } else {
-                    onPicked(parsed)
-                }
-            }
-            .setNegativeButton(R.string.action_cancel, null)
-            .show()
-    }
 
     fun textCard(
         context: Context,
@@ -186,7 +160,7 @@ object EditorSections {
                 title = "Clock style",
                 options = names,
                 selectedIndex = { ClockStyle.values().indexOf(binding.design.style) },
-                hint = "Analog and large-number designs rasterise the whole face; digital designs keep crisp text at any size.",
+                hint = null,
             ) { index ->
                 binding.structural { it.style = ClockStyle.values()[index] }
             },
@@ -198,7 +172,7 @@ object EditorSections {
                 title = "Information",
                 options = listOf("Time", "Time + date", "Time + day + date", "Time + day"),
                 selectedIndex = { ContentMode.values().indexOf(binding.design.content) },
-                hint = "Small cells always fall back to time only, whatever you choose here.",
+                hint = null,
             ) { index ->
                 binding.update { it.content = ContentMode.values()[index] }
             },
@@ -291,7 +265,6 @@ object EditorSections {
             chip.setTextColor(if (selected) Color.WHITE else Ui.color(context, R.color.text_secondary))
             Ui.add(fontCard, chip, if (fonts.indexOf(entry) == 0) 6f else 8f)
         }
-        Ui.add(fontCard, Ui.caption(context, fonts.joinToString(" · ") { it.note }), 10f)
         container.addView(fontCard, Ui.cardParams(context))
 
         container.addView(
@@ -300,7 +273,7 @@ object EditorSections {
                 title = "Weight",
                 options = FontRegistry.WEIGHTS.map { it.toString() },
                 selectedIndex = { FontRegistry.WEIGHTS.indexOf(binding.design.weight).coerceAtLeast(1) },
-                hint = "Applied through the variable-weight axis of the bundled fonts.",
+                hint = null,
             ) { index ->
                 binding.update { it.weight = FontRegistry.WEIGHTS[index] }
             },
@@ -336,13 +309,13 @@ object EditorSections {
             Ui.cardParams(context)
         )
         container.addView(
-            colorCard(context, "Time colour", binding.design.timeColor, false) { value ->
+            colorCard(context, "Time colour", binding.design.timeColor, false, allowAlpha = false) { value ->
                 binding.update { it.timeColor = value }
             },
             Ui.cardParams(context)
         )
         container.addView(
-            colorCard(context, "Date colour", binding.design.dateColor, false) { value ->
+            colorCard(context, "Date colour", binding.design.dateColor, false, allowAlpha = false) { value ->
                 binding.update { it.dateColor = value }
             },
             Ui.cardParams(context)
@@ -443,7 +416,7 @@ object EditorSections {
                 title = "Background",
                 options = kinds,
                 selectedIndex = { kinds.indexOf(kindLabel(currentKind)) },
-                hint = "Photo and video come from the system Photo Picker - no storage permission is requested.",
+                hint = null,
             ) { index ->
                 binding.structural { it.backgroundKind = kindFromLabel(kinds[index]) }
             },
@@ -469,7 +442,16 @@ object EditorSections {
         val mediaColumn = Ui.column(context)
         val uri = binding.design.mediaUri
         mediaColumn.addView(Ui.text(context, if (uri == null) "No media selected" else labelFor(uri), 13f, Ui.color(context, R.color.text_primary), true))
-        mediaColumn.addView(Ui.text(context, if (uri == null) "" else if (binding.design.mediaIsVideo) "Video · widget shows a frame" else "Photo", 12f, Ui.color(context, R.color.text_muted)))
+        if (uri != null) {
+            mediaColumn.addView(
+                Ui.text(
+                    context,
+                    if (binding.design.mediaIsVideo) "Video" else "Photo",
+                    12f,
+                    Ui.color(context, R.color.text_muted),
+                )
+            )
+        }
         mediaRow.addView(mediaColumn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
             leftMargin = Ui.dp(context, 12f)
         })
@@ -520,7 +502,9 @@ object EditorSections {
             10f,
         )
         val reel = binding.design.mediaReel
-        Ui.add(wallCard, Ui.caption(context, context.getString(R.string.bg_reel_count, reel.size)), 10f)
+        if (reel.isNotEmpty()) {
+            Ui.add(wallCard, Ui.caption(context, context.getString(R.string.bg_reel_count, reel.size)), 10f)
+        }
         for ((index, uri) in reel.withIndex()) {
             if (index >= 8) break
             val row = Ui.columnRow(context)
@@ -548,7 +532,10 @@ object EditorSections {
         if (reel.isNotEmpty()) {
             Ui.add(wallCard, Ui.ghostButton(context, context.getString(R.string.bg_reel_clear)) { host.clearReel() }, 6f)
         }
-        Ui.add(wallCard, Ui.caption(context, context.getString(R.string.bg_media_wall_widget_note)), 8f)
+        if (binding.design.rotateSecs in 1 until 60) {
+            // Only worth the line when the interval is faster than a widget can follow.
+            Ui.add(wallCard, Ui.caption(context, context.getString(R.string.bg_media_wall_widget_note)), 8f)
+        }
         container.addView(wallCard, Ui.cardParams(context))
 
         val rotation = listOf(
@@ -564,7 +551,7 @@ object EditorSections {
                 title = context.getString(R.string.bg_rotate),
                 options = rotation.map { it.first },
                 selectedIndex = { rotation.indexOfFirst { it.second == binding.design.rotateSecs }.coerceAtLeast(0) },
-                hint = context.getString(R.string.bg_rotate_hint),
+                hint = null,
             ) { index ->
                 binding.update { it.rotateSecs = rotation[index].second }
             },
@@ -696,19 +683,6 @@ object EditorSections {
             },
             Ui.cardParams(context)
         )
-        container.addView(
-            Ui.card(context).apply {
-                Ui.add(
-                    this,
-                    Ui.caption(
-                        context,
-                        "The border is drawn inside the widget bounds, so a rounded frame still fits a square cell. Corner radius clips the background photo too, which is what makes a widget look like a card rather than a rectangle of pixels."
-                    ),
-                    0f
-                )
-            },
-            Ui.cardParams(context)
-        )
     }
 
     // ---- Layout --------------------------------------------------------
@@ -717,7 +691,7 @@ object EditorSections {
         val context = host.editorContext
         val binding = host.binding
         val gravities = ClockGravity.values()
-        val gridCard = sectionCard(context, "Clock position", "Where the clock sits when the widget is bigger than the clock needs.")
+        val gridCard = sectionCard(context, "Clock position", null)
         for (row in 0 until 3) {
             val line = LinearLayout(context)
             line.orientation = LinearLayout.HORIZONTAL
@@ -741,7 +715,7 @@ object EditorSections {
                 title = "Stacking",
                 options = listOf("Side by side", "Stacked"),
                 selectedIndex = { if (binding.design.orientation == OrientationMode.VERTICAL) 1 else 0 },
-                hint = "Side by side puts the date under the time on a wide cell; stacked keeps a tall column.",
+                hint = null,
             ) { index ->
                 binding.update { it.orientation = if (index == 0) OrientationMode.HORIZONTAL else OrientationMode.VERTICAL }
             },

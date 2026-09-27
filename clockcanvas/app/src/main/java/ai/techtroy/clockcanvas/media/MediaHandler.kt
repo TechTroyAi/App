@@ -66,12 +66,23 @@ class MediaHandler private constructor(context: Context) {
 
     fun recentRows(): List<Recent> = decodeRecents(prefs.getString(KEY_RECENT, ""))
 
-    /** Verifies the grant still works; called on launch so dead URIs are dropped early. */
+    /**
+     * Verifies each remembered URI still opens, and tidies the vault. Called once at startup
+     * (`ClockCanvasApp`), which is also the cheapest moment to do it: the picker grants, if
+     * they survived, are fresh, and a copy that no design references any more cannot stay on
+     * disk just because the app was not running when the user deleted the design.
+     */
     fun restorePending() {
         val rows = recentRows().filter { MediaAccess.canRead(appContext, it.uri) }
         if (rows.size != recentRows().size) {
             prefs.edit().putString(KEY_RECENT, encodeRecents(rows)).apply()
         }
+        val keep = try {
+            MediaVault.referencedBy(ai.techtroy.clockcanvas.data.DesignStore.of(appContext).all())
+        } catch (e: Throwable) {
+            emptySet()
+        }
+        MediaVault.prune(appContext, keep)
     }
 
     fun resolve(uriString: String?): Bitmap? {

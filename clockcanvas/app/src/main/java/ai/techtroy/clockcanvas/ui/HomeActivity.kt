@@ -50,15 +50,11 @@ class HomeActivity : ClockActivity() {
         body.addView(designsSection())
         body.addView(routesSection())
         body.addView(installedWidgetsCard())
-        body.addView(Ui.card(this).apply {
-            Ui.add(this, Ui.caption(this@HomeActivity, getString(R.string.home_hint_add)), 0f)
-        }, Ui.cardParams(this))
     }
 
     private fun heroCard(): LinearLayout {
         val card = Ui.card(this, elevated = true)
         Ui.add(card, Ui.title(this, getString(R.string.app_tagline)), 0f)
-        Ui.add(card, Ui.caption(this, getString(R.string.home_create_hint)), 6f)
         val holder = ImageView(this)
         holder.scaleType = ImageView.ScaleType.FIT_XY
         val heroDesign = store.resolveOrFallback(AppPrefsHolder.last(this))
@@ -97,11 +93,11 @@ class HomeActivity : ClockActivity() {
 
     private fun routesSection(): LinearLayout {
         val card = Ui.card(this)
-        Ui.add(card, routeRow(R.string.home_fullscreen, R.string.home_fullscreen_hint) {
+        Ui.add(card, routeRow(R.string.home_fullscreen) {
             startActivity(Intent(this, FullscreenClockActivity::class.java))
         }, 0f)
         Ui.add(card, divider(), 12f)
-        Ui.add(card, routeRow(R.string.home_wallpaper, R.string.home_wallpaper_hint) {
+        Ui.add(card, routeRow(R.string.home_wallpaper) {
             startActivity(Intent(this, WallpaperSetupActivity::class.java))
         }, 4f)
         Ui.add(card, divider(), 12f)
@@ -118,11 +114,12 @@ class HomeActivity : ClockActivity() {
         return line
     }
 
-    private fun routeRow(titleRes: Int, hintRes: Int, onClick: () -> Unit): View {
+    private fun routeRow(titleRes: Int, hintRes: Int = 0, onClick: () -> Unit): View {
         val row = Ui.columnRow(this)
         val column = Ui.column(this)
         column.addView(Ui.text(this, getString(titleRes), 15f, color(R.color.text_primary), true))
-        column.addView(Ui.text(this, getString(hintRes), 12f, color(R.color.text_muted)))
+        // A route carries a hint only where the action is not obvious from its name.
+        if (hintRes != 0) column.addView(Ui.text(this, getString(hintRes), 12f, color(R.color.text_muted)))
         row.addView(column, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(Ui.text(this, "›", 22f, color(R.color.lavender_soft), true))
         row.isClickable = true

@@ -37,31 +37,42 @@ object MediaAccess {
     const val REQ_VIDEO = 4102
     const val REQ_CAMERA = 4103
 
+    /**
+     * Image pick. Android 13+ uses the system Photo Picker; below that it uses
+     * `ACTION_OPEN_DOCUMENT`, which is the intent that *asks* for a persistable grant
+     * (`ACTION_GET_CONTENT` does not, and a non-persistable grant is what made picked
+     * photos disappear). Either way the result is imported into
+     * [MediaVault], so nothing depends on the grant surviving.
+     */
     fun pickImages(): Intent {
         return if (Build.VERSION.SDK_INT >= 33) {
-            Intent(ACTION_PICK_IMAGES).apply {
-                putExtra(EXTRA_PICK_IMAGES_MAX, 1)
-            }
+            Intent(ACTION_PICK_IMAGES).apply { putExtra(EXTRA_PICK_IMAGES_MAX, 1) }
         } else {
-            Intent(Intent.ACTION_GET_CONTENT)
-                .setType("image/*")
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+            openDocument("image/*")
         }
     }
 
-    fun pickVideos(): Intent {
-        return if (Build.VERSION.SDK_INT >= 33) {
-            Intent(ACTION_PICK_IMAGES).apply {
-                putExtra(EXTRA_PICK_IMAGES_MAX, 1)
-                type = "video/*"
-            }
-        } else {
-            Intent(Intent.ACTION_GET_CONTENT)
-                .setType("video/*")
-                .addCategory(Intent.CATEGORY_OPENABLE)
-                .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-        }
+    /**
+     * Video pick. `ACTION_PICK_IMAGES` has no public MIME filter below API 34 and its
+     * behaviour for clips differs per OEM picker, so videos go through the document
+     * picker on every version: it can always read a clip, and it grants persistably.
+     */
+    fun pickVideos(): Intent = openDocument("video/*")
+
+    fun openDocument(mime: String): Intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        .setType(mime)
+        .addCategory(Intent.CATEGORY_OPENABLE)
+        .addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+        )
+
+    /** True when some activity can answer this intent (the Photo Picker can be disabled). */
+    fun canLaunch(context: Context, intent: Intent): Boolean = try {
+        context.packageManager.resolveActivity(intent, 0) != null
+    } catch (e: Throwable) {
+        false
     }
 
     /** Result of one successful pick. */

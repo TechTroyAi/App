@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 import sys
 
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 MODULE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # <repo>/clockcanvas
 SOURCE = os.path.join(MODULE, "artwork", "clockcanvas-icon-source.png")
@@ -69,13 +69,21 @@ def foreground(size: int, source: Image.Image, *, inset: float = 0.62) -> Image.
 
 
 def monochrome(size: int, source: Image.Image) -> Image.Image:
-    """Single-colour silhouette for Android 13 themed icons."""
-    art = square_crop(source).convert("L")
+    """Single-colour silhouette for Android 13 themed icons.
+
+    A themed icon is painted in one flat colour by the launcher, so what matters is *which
+    pixels the launcher should fill*: the bright marks - ring, hands, ticks - and not the dark
+    dial or the halo. Deriving the mask from brightness alone was wrong for a transparent
+    master (the empty corners are black, and inverting made them the glyph), so it is
+    brightness AND alpha: `min(luminance ramp, alpha)`.
+    """
+    art = square_crop(source)
     inner = int(size * 0.62)
-    art = art.resize((inner, inner), Image.LANCZOS)
-    # Invert so bright artwork becomes a filled white glyph on transparency.
-    art = ImageOps.invert(ImageOps.autocontrast(art))
-    mask = art.point(lambda p: 255 if p > 150 else (p * 2) if p > 90 else 0)
+    luminance = art.convert("L").resize((inner, inner), Image.LANCZOS)
+    mask = luminance.point(lambda p: 255 if p > 150 else (int(p * 1.4) if p > 80 else 0))
+    if art.mode == "RGBA":
+        alpha = art.split()[3].resize((inner, inner), Image.LANCZOS)
+        mask = ImageChops.darker(mask, alpha)
     layer = Image.new("L", (size, size), 0)
     layer.paste(mask, ((size - inner) // 2, (size - inner) // 2))
     out = Image.new("RGBA", (size, size), (0, 0, 0, 0))

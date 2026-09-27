@@ -109,9 +109,17 @@ class MediaReel private constructor(val items: List<Item>) {
         fun split(text: String?): List<String> =
             (text ?: "").split('\n').map { it.trim() }.filter { it.isNotEmpty() }
 
+        /**
+         * Heuristic by design: a reel stores plain URI strings, so there is no per-item flag
+         * to carry. `clip-` / `photo-` are the names [MediaVault] gives its own copies, which
+         * is exact for everything the user picks through the app; the suffixes cover a URI
+         * that was imported from a design file or an older build.
+         */
         fun looksLikeVideo(uri: String?): Boolean {
             val lower = (uri ?: "").lowercase()
-            return lower.endsWith(".mp4") || lower.endsWith(".mov") || lower.endsWith(".mkv") ||
+            if (lower.contains("/clip-")) return true
+            if (lower.contains("/photo-")) return false
+            return lower.endsWith(".mp4") || lower.endsWith(".avi") || lower.endsWith(".mov") || lower.endsWith(".mkv") ||
                 lower.endsWith(".webm") || lower.endsWith(".3gp") || lower.contains("/video") ||
                 lower.contains("videopicker") || lower.contains("videos/")
         }

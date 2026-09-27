@@ -8,7 +8,7 @@ no accounts, no network, no ads, nothing leaves the device.
 - **Package:** `ai.techtroy.clockcanvas` · **versionName** 1.0.0 (versionCode 1)
 - **Requires:** Android 8.0 / API 26+ (see [Why API 26](#why-api-26))
 - **Installable APK:** [artifacts/ClockCanvas-v1.0.0-installable.apk](artifacts/ClockCanvas-v1.0.0-installable.apk)
-  (4,004,698 bytes, v2+v3 signed — SHA-256 in
+  (3,942,350 bytes, v2+v3 signed — SHA-256 in
   [artifacts/ClockCanvas-v1.0.0-installable.apk.sha256](artifacts/ClockCanvas-v1.0.0-installable.apk.sha256))
 - **Published release:** [v1.0.0-clockcanvas](https://github.com/TechTroyAi/App/releases/tag/v1.0.0-clockcanvas)
   (notes, install steps and the byte-stable payload hashes; the binary itself is served from
@@ -22,7 +22,8 @@ no accounts, no network, no ads, nothing leaves the device.
 |---|---|
 | **Clock styles** | digital · time only · time+date · time+date+day · analog (ticks, optional numerals) · minimal · large-number · split (hour/minute) · vertical (one digit per line) · custom text |
 | **Appearance** | font (5 families, variable weights), text scale, weight, letter spacing, line height, alignment, time/date colour, clock opacity, shadow, glow, outline (colour + thickness) |
-| **Backgrounds** | solid · 2-stop gradient (linear/radial/sweep, rotatable) · your photo (blur + darken + crop aware) · video poster frame · transparent |
+| **Any colour** | every colour row opens a picker: the full saturation/brightness spectrum at your hue, a hue bar, an alpha bar, plus R·G·B boxes and a hex field (`#7C3AED` or `#CC7C3AED`) - drag for feel, type for exactness |
+| **Backgrounds** | solid · 2-stop gradient (linear/radial/sweep, rotatable) · your photo (blur + darken + crop aware) · video poster frame · transparent. Picked media is **copied into the app** (`files/clockcanvas/media`), because a picker URI stops working when the process dies — see the design doc §2 |
 | **Media wall** | a design that shows *only* your photos/videos — no clock on top — stepping through a reel you add in the Background tab |
 | **Border** | colour, thickness, corner radius, inner padding |
 | **Layout** | gravity (9 positions), orientation (side-by-side vs stacked), padding, tap action (full-screen / editor / nothing) |
@@ -86,12 +87,30 @@ update an installed ClockCanvas.
 Current release certificate (record so CI can prove it restored *this* key):
 
 ```
-SHA-256  edef1c4ea317447a4a6e36553e5629c26393e70638ca71284370a5ceec52541a
+SHA-256  051398aea53736d849e2e46674998b393d8a8b4a01a58d2cc59874b044c29f07
 Subject  CN=ClockCanvas, OU=Clock Widgets, O=TechTroyAi, L=Cagayan de Oro, ST=Northern Mindanao, C=PH
 Key      RSA 4096 · v2 + v3 enabled, v1 disabled (minSdk 26 makes JAR signing redundant)
 ```
 
-> **Key history.** The certificate above replaced `eb1a34a3…28a951` on 2026-09-25, when the
+> **Key history, and why it moved twice.** The certificate above replaced `eb1a34a3…28a951` and
+> then `edef1c4e…52541a`, both within a day, for one reason: `.signing/` is (correctly) not in
+> git, and the ephemeral sandbox that held each key was recycled between turns. Every published
+> ClockCanvas so far came from before the release existed, so nothing was stranded — but this is
+> the failure the builder guards against, so read the guard as working, not as decoration.
+> **The key on the machine that builds the release is the only copy**, so treat
+> `clockcanvas/.signing/` like a password: back it up, and if you use CI, put it there:
+>
+> ```bash
+> cd clockcanvas
+> base64 -w0 .signing/clockcanvas-release.p12 | gh secret set CLOCKCANVAS_KEYSTORE_BASE64
+> grep '^storePassword=' .signing/release.properties | cut -d= -f2- | gh secret set CLOCKCANVAS_STORE_PASSWORD
+> ```
+>
+> Those two names are what `.github/workflows/android.yml` already reads; with them set, CI signs
+> with *this* key and compares its fingerprint against `artifacts/ClockCanvas-release.cert`, so a
+> wrong key fails the build instead of shipping an un-updatable APK.
+>
+> The certificate above replaced `eb1a34a3…28a951` on 2026-09-25, when the
 > sandbox that held `clockcanvas/.signing/` was recycled and the keystore — deliberately not
 > in git — went with it. The milestone APK had not been published as a release yet, so no
 > installed ClockCanvas is stranded on the old identity; from this APK forward, `edef1c4e…52541a`
@@ -116,6 +135,11 @@ Nothing proprietary or unredistributable is bundled, and no font subset was inve
 the files are the upstream `google/fonts` copies (`tools/fetch_clockcanvas_fonts.py` re-fetches them).
 
 ## Honest limitations
+
+- **Imported media takes space, on purpose.** Each pick is copied into the app (32 MB per image,
+  128 MB per clip) so it cannot vanish; the vault keeps at most 24 files and prunes the oldest one
+  no design references, and Settings shows what it is holding. If you would rather not pay that,
+  use a solid colour or a gradient.
 
 - **Widgets cannot play video.** A `RemoteViews` payload has no decode surface, so a widget
   shows a frame from your clip; real playback is the full-screen clock, and the live
@@ -143,7 +167,7 @@ clockcanvas/
   app/src/main/java/ai/techtroy/clockcanvas/                    33 Kotlin files (see design doc for the map)
   app/src/main/res/{values,layout,xml,drawable*,mipmap*}        palette, widget layout, wallpapers xml, icons
   app/src/main/assets/{fonts,licenses}                          5 OFL fonts + texts
-  artwork/                                                       icon master + store render
-  tools/                                                         toolchain setup, offline builder, font/icon scripts
+  artwork/                                                       icon master, store render, review sheet
+  tools/                                                         toolchain setup, offline builder, font + icon scripts
   artifacts/                                                     signed APK + checksum
 ```
