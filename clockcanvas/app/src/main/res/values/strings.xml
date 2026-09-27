@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ClockCanvas</string>
+    <string name="app_tagline">Design a clock. Wear it on your home screen.</string>
+
+    <string name="title_editor">Clock editor</string>
+    <string name="title_widget_config">Configure widget</string>
+    <string name="title_fullscreen">Full-screen clock</string>
+    <string name="title_settings">Settings</string>
+    <string name="title_preview">Widget preview</string>
+    <string name="title_wallpaper">Live wallpaper</string>
+
+    <string name="widget_label">ClockCanvas clock</string>
+    <string name="widget_description">A clock you designed: colours, type, border, photo.</string>
+    <string name="wallpaper_label">ClockCanvas video clock</string>
+    <string name="wallpaper_description">Your clock over a photo or video.</string>
+
+    <string name="content_desc_create">Create a new clock design</string>
+    <string name="content_desc_back">Back</string>
+    <string name="content_desc_delete">Delete this design</string>
+    <string name="content_desc_duplicate">Duplicate this design</string>
+    <string name="content_desc_preview">Preview this design at several widget sizes</string>
+    <string name="content_desc_swatch">Color swatch</string>
+
+    <!-- Screens -->
+    <string name="home_create">Create clock</string>
+    <string name="home_designs">Your clock designs</string>
+    <string name="home_empty">No designs yet.</string>
+    <string name="home_widgets">Home-screen widgets</string>
+    <string name="home_fullscreen">Full-screen clock</string>
+    <string name="home_wallpaper">Live wallpaper</string>
+    <string name="home_settings">Settings</string>
+    <string name="home_hint_add">Long-press home → Widgets → ClockCanvas.</string>
+
+    <!-- Editor -->
+    <string name="tab_design">Design</string>
+    <string name="tab_text">Text</string>
+    <string name="tab_background">Background</string>
+    <string name="tab_border">Border</string>
+    <string name="tab_layout">Layout</string>
+    <string name="tab_preview">Preview</string>
+    <string name="tab_widgets">Widgets</string>
+    <string name="editor_saved">Design saved</string>
+    <string name="editor_unsaved">Unsaved changes</string>
+    <string name="editor_apply_widget">Apply to widget #%1$d</string>
+    <string name="editor_revert">Revert</string>
+    <string name="editor_save">Save design</string>
+    <string name="editor_customize_widget">Customise just this widget</string>
+    <string name="editor_customize_hint">Makes a copy only this widget changes.</string>
+
+    <!-- Background picker -->
+    <string name="bg_photo">Photo</string>
+    <string name="bg_video">Video</string>
+    <string name="bg_camera">Camera</string>
+    <string name="bg_clear">Remove</string>
+    <string name="bg_recent">Recent</string>
+    <string name="bg_none">No background (transparent)</string>
+    <string name="bg_video_widget_note">A widget shows a frame, not a playing video. Full screen plays it.</string>
+    <string name="bg_media_missing">Can\u2019t read that file \u2014 it may have moved.</string>
+    <string name="bg_pick_failed">Couldn\u2019t read that item. Try another one.</string>
+    <string name="bg_no_camera">No camera app available.</string>
+
+    <!-- Media wall: the picture is the content, the clock steps aside -->
+    <string name="bg_media_wall">Media wall</string>
+    <string name="bg_media_wall_hint">Your media fills the frame; the clock stays out of it.</string>
+    <string name="bg_media_wall_toggle">Media only \u2014 hide the clock</string>
+    <string name="bg_reel_count">%1$d in reel</string>
+    <string name="bg_reel_more">+%1$d more</string>
+    <string name="bg_reel_remove">Remove</string>
+    <string name="bg_reel_add_photo">Add photo</string>
+    <string name="bg_reel_add_video">Add video</string>
+    <string name="bg_reel_clear">Clear</string>
+    <string name="bg_media_wall_widget_note">A widget advances once a minute; full screen and wallpaper follow 30 s exactly.</string>
+    <string name="bg_rotate">Rotate</string>
+    <string name="bg_rotate_hint">Same item on every surface, derived from the time.</string>
+    <string name="rotate_off">Off</string>
+    <string name="rotate_30s">30 s</string>
+    <string name="rotate_1m">1 min</string>
+    <string name="rotate_5m">5 min</string>
+    <string name="rotate_15m">15 min</string>
+    <string name="media_wall_empty_title">Nothing to show</string>
+    <string name="media_wall_empty_detail">Add one in Background \u2192 Media wall.</string>
+    <string name="media_wall_next">Next</string>
+    <string name="media_wall_previous">Previous</string>
+    <string name="media_wall_hint">Or page by hand:</string>
+
+    <!-- Widget config -->
+    <string name="config_intro">Only widget #%1$d changes here.</string>
+    <string name="config_done">Done</string>
+    <string name="config_cancel">Cancel</string>
+    <string name="config_bound">Widget #%1$d now shows \u201c%2$s\u201d.</string>
+
+    <!-- Full screen -->
+    <string name="fullscreen_hint">Tap: controls \u00b7 Swipe: switch design</string>
+    <string name="fullscreen_edit">Edit design</string>
+    <string name="fullscreen_add_widget">Add widget</string>
+    <string name="fullscreen_set_wallpaper">Set wallpaper</string>
+    <string name="fullscreen_keep_awake">Keep screen awake</string>
+
+    <!-- Wallpaper -->
+    <string name="wallpaper_intro">Your clock full-bleed behind the home screen, over a photo or a stepped video.</string>
+    <string name="wallpaper_apply">Apply live wallpaper</string>
+    <string name="wallpicker_failed">This device does not expose the live-wallpaper picker. Use Settings → Wallpaper instead.</string>
+
+    <!-- Settings -->
+    <string name="settings_time">Time and date</string>
+    <string name="settings_hour">Clock format</string>
+    <string name="settings_dateformat">Date format</string>
+    <string name="settings_firstday">First day of week</string>
+    <string name="settings_widgets">Widgets and battery</string>
+    <string name="settings_precise">Keep time exact</string>
+    <string name="settings_precise_hint">A quiet notification keeps widgets on the minute. Off: up to 15 min late.</string>
+    <string name="settings_battery">Ignore battery optimisation</string>
+    <string name="settings_battery_hint">Keeps the minute tick alive in Doze.</string>
+    <string name="settings_data">Designs and privacy</string>
+    <string name="settings_export">Export designs</string>
+    <string name="settings_import">Import from clipboard</string>
+    <string name="settings_reset">Delete all designs</string>
+    <string name="settings_privacy">Stays on this device. Photo Picker only, no storage permission, nothing uploaded.</string>
+    <string name="settings_media">Stored media</string>
+    <string name="settings_media_value">This app keeps its own copy of what you pick, so a photo cannot disappear from a widget. %1$s used.</string>
+    <string name="settings_media_empty">Nothing stored yet - picks are copied here when you add them to a design.</string>
+    <string name="settings_media_clean">Remove unused</string>
+    <string name="settings_media_cleaned">%1$s freed</string>
+    <string name="settings_fonts">Bundled fonts</string>
+    <string name="settings_fonts_hint">Five families, all SIL Open Font License 1.1.</string>
+    <string name="settings_widgets_installed">%1$d widget(s) installed</string>
+
+    <string name="settings_hour_system">Follow system</string>
+    <string name="settings_hour_12">12-hour</string>
+    <string name="settings_hour_24">24-hour</string>
+    <string name="settings_about">About this install</string>
+    <string name="settings_licences">Font licences</string>
+    <string name="settings_reset_done">Designs deleted</string>
+    <string name="settings_imported">%1$d design(s) imported</string>
+    <string name="settings_import_failed">That clipboard text is not a ClockCanvas export</string>
+    <string name="settings_clipboard_empty">Copy a ClockCanvas export first</string>
+    <string name="settings_no_share_target">Saved to cache/exports/clockcanvas-designs.json</string>
+    <string name="settings_battery_unavailable">Battery optimisation controls need Android 6 or newer</string>
+    <string name="settings_battery_ignored">ClockCanvas is already allowed to run in the background</string>
+    <string name="settings_battery_manual">Open system settings and allow ClockCanvas to ignore battery optimisation</string>
+
+    <string name="wallpaper_design">Clock design</string>
+    <string name="wallpaper_media">Background</string>
+    <string name="wallpaper_clock_only">Clock only (transparent)</string>
+    <string name="wallpaper_seconds">Animate the seconds</string>
+    <string name="wallpaper_seconds_hint">Repaints every half-second; costs battery.</string>
+    <string name="wallpaper_motion">Move the video</string>
+    <string name="wallpaper_motion_hint">One frame per second. Full screen plays the real thing.</string>
+    <string name="wallpicker_hint">Tap Apply, then pick ClockCanvas in the wallpaper sheet.</string>
+    <string name="wallpaper_media_missing">Can\u2019t read that clip \u2014 using design colours.</string>
+    <string name="wallpaper_saved">Saved. Apply it in the wallpaper sheet.</string>
+    <string name="wallpaper_open_settings">Open wallpaper settings</string>
+
+    <string name="error_generic">Something went wrong; nothing was lost.</string>
+
+    <!-- Misc -->
+    <string name="notif_ticker_text">Keeping clock widgets on time.</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_duplicate">Duplicate</string>
+    <string name="action_share">Share</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="content_desc_hue">Hue</string>
+    <string name="content_desc_spectrum">Saturation and brightness</string>
+    <string name="content_desc_alpha">Alpha</string>
+    <string name="action_ok">OK</string>
+    <string name="confirm_delete">Delete \u201c%1$s\u201d? Its widgets fall back to the default.</string>
+    <string name="confirm_reset">Delete every design and unbind all widgets?</string>
+</resources>

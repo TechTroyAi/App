@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  The widget surface is intentionally a single ImageView: fonts, outline, glow,
+  shadow, blur, gradient, corner radius and border thickness cannot be expressed
+  with RemoteViews primitives, so the design is rasterised with Canvas at the
+  size the launcher gave us (see widget/ClockCanvasWidgetProvider.kt).
+  FrameLayout + ImageView are RemoteViews-safe on every launcher.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <ImageView
+        android:id="@+id/widget_image"
+        android:duplicateParentState="true"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:adjustViewBounds="false"
+        android:clickable="false"
+        android:contentDescription="@string/widget_description"
+        android:scaleType="fitXY" />
+</FrameLayout>
