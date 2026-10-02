@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#070A12" />
+  <title>NUMSTRIKE // Mental Math System</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app-shell">
+    <!-- TOP STATUS & SYSTEM BAR -->
+    <header class="top-bar">
+      <div class="brand-cluster" id="header-status-trigger" title="View Full Status Window">
+        <div class="rank-Orb" id="top-rank-letter">F</div>
+        <div class="brand-meta">
+          <div class="system-tag">
+            <span class="pulse-dot"></span>
+            <span id="top-rank-title">CALCULATOR BOUND</span>
+          </div>
+          <div class="xp-bar-wrap">
+            <div class="xp-bar-fill" id="top-xp-fill" style="width: 10%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="top-stats-cluster">
+        <div class="stat-pill cp-pill" title="Calculation Power (Score)">
+          <span class="stat-label">CP</span>
+          <span class="stat-val" id="top-cp-val">0</span>
+        </div>
+        <div class="stat-pill streak-pill" title="Daily / Session Streak">
+          <span class="stat-icon">🔥</span>
+          <span class="stat-val" id="top-streak-val">0</span>
+        </div>
+        <button class="icon-btn" id="btn-sound-toggle" aria-label="Toggle Sound" title="Toggle SFX">
+          🔊
+        </button>
+        <a class="apk-badge-btn" id="btn-download-apk" href="/artifacts/NumStrike-v1.0.0-installable.apk" download="NumStrike-v1.0.0-installable.apk" title="Download Android APK">
+          ⬇ APK
+        </a>
+      </div>
+    </header>
+
+    <!-- MAIN VIEWPORT -->
+    <main class="viewport" id="main-viewport">
+
+      <!-- ==========================================
+           VIEW 1: ARENA LAUNCHPAD (HOME)
+           ========================================== -->
+      <section class="screen active" id="screen-home">
+        <!-- SOLO LEVELING STYLE STATUS CARD -->
+        <div class="status-hero-card">
+          <div class="status-hero-top">
+            <div>
+              <div class="eyebrow-label">PLAYER STATUS WINDOW // LVL <span id="hero-level-num">1</span></div>
+              <h1 class="hero-title" id="hero-rank-name">Rank F: Calculator Bound</h1>
+              <p class="hero-subtitle" id="hero-next-rank-hint">Earn 250 CP to ascend to Rank E: Number Initiate</p>
+            </div>
+            <div class="rank-emblem-large" id="hero-rank-badge">F</div>
+          </div>
+
+          <div class="hero-xp-progress">
+            <div class="hero-xp-labels">
+              <span>STATUS EXP</span>
+              <span id="hero-xp-text">0 / 250 CP</span>
+            </div>
+            <div class="hero-xp-track">
+              <div class="hero-xp-bar" id="hero-xp-bar" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="status-attributes-grid">
+            <div class="attr-box">
+              <span class="attr-code">SPD</span>
+              <span class="attr-num" id="stat-spd">--</span>
+              <span class="attr-sub">Avg Speed</span>
+            </div>
+            <div class="attr-box">
+              <span class="attr-code">ACC</span>
+              <span class="attr-num" id="stat-acc">100%</span>
+              <span class="attr-sub">Accuracy</span>
+            </div>
+            <div class="attr-box">
+              <span class="attr-code">CMB</span>
+              <span class="attr-num" id="stat-best-combo">0x</span>
+              <span class="attr-sub">Best Combo</span>
+            </div>
+            <div class="attr-box">
+              <span class="attr-code">7×8</span>
+              <span class="attr-num" id="stat-boss-mastery">0/36</span>
+              <span class="attr-sub">Boss Tables</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PENALTY & INPUT SETTINGS STRIP -->
+        <div class="config-strip">
+          <div class="config-group">
+            <span class="config-label">INPUT MODE</span>
+            <div class="segmented-control" id="input-mode-toggle">
+              <button class="seg-btn active" data-input="choices">⚡ 4-Option Tap</button>
+              <button class="seg-btn" data-input="numpad">⌨️ Pro Numpad</button>
+            </div>
+          </div>
+          <div class="config-group">
+            <span class="config-label">WRONG ANSWER PENALTY</span>
+            <div class="segmented-control" id="penalty-mode-toggle">
+              <button class="seg-btn active" data-penalty="standard">⚠️ -20 CP + Reset</button>
+              <button class="seg-btn" data-penalty="brutal">💀 Brutal (-40 CP &amp; -3s)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TRAINING MODE SELECTOR -->
+        <div class="section-header">
+          <h2>SELECT TRAINING PROTOCOL</h2>
+          <span class="section-hint">Tap a mode to select, then launch</span>
+        </div>
+
+        <div class="modes-grid" id="modes-grid">
+          <button class="mode-card selected" data-mode="boss_times">
+            <div class="mode-card-top">
+              <span class="mode-icon">⚔️</span>
+              <span class="mode-tag hot">RECOMMENDED</span>
+            </div>
+            <div class="mode-name">Times Table Bosses</div>
+            <div class="mode-desc">Crushes the hard 6, 7, 8, 9, 12 multiplications where your mind usually blanks.</div>
+          </button>
+
+          <button class="mode-card" data-mode="slicer_2d">
+            <div class="mode-card-top">
+              <span class="mode-icon">⚡</span>
+              <span class="mode-tag">LEFT-TO-RIGHT</span>
+            </div>
+            <div class="mode-name">2-Digit × 1-Digit Slicer</div>
+            <div class="mode-desc">Train 14×6, 18×7, 26×4 using Arthur Benjamin's Left-to-Right slicing trick.</div>
+          </button>
+
+          <button class="mode-card" data-mode="weakness_assassin">
+            <div class="mode-card-top">
+              <span class="mode-icon">🎯</span>
+              <span class="mode-tag danger" id="weakness-count-badge">ADAPTIVE</span>
+            </div>
+            <div class="mode-name">Weakness Assassin</div>
+            <div class="mode-desc">Targets the exact multiplication pairs you got wrong or took &gt;3s to answer.</div>
+          </button>
+
+          <button class="mode-card" data-mode="mixed_blitz">
+            <div class="mode-card-top">
+              <span class="mode-icon">🔥</span>
+              <span class="mode-tag">ALL-ROUNDER</span>
+            </div>
+            <div class="mode-name">Grade 12 Speed Blitz</div>
+            <div class="mode-desc">Fast ×, ÷, +, − mental arithmetic so you never need a calculator for basics.</div>
+          </button>
+        </div>
+
+        <!-- LAUNCH CTA -->
+        <div class="launch-bar">
+          <button class="btn-launch-primary" id="btn-start-blitz">
+            <span class="btn-launch-main">⚡ START 60s ARENA BLITZ</span>
+            <span class="btn-launch-sub">Wrong choice = Minus CP • Fast streak = 5x Overdrive</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           VIEW 2: LIVE GAMEPLAY ARENA
+           ========================================== -->
+      <section class="screen" id="screen-arena">
+        <div class="arena-top-hud">
+          <button class="btn-quit-arena" id="btn-quit-arena" title="Abort Session">✕</button>
+          <div class="timer-container">
+            <div class="timer-meta">
+              <span id="arena-mode-title">TIMES TABLE BOSSES</span>
+              <span class="timer-seconds" id="arena-timer-text">60.0s</span>
+            </div>
+            <div class="timer-track">
+              <div class="timer-fill" id="arena-timer-bar" style="width: 100%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LIVE SCORE, COMBO & PENALTY BANNER -->
+        <div class="arena-score-strip">
+          <div class="arena-stat-block">
+            <span class="arena-stat-label">SESSION CP</span>
+            <div class="arena-score-wrap">
+              <span class="arena-score-val" id="arena-score-val">0</span>
+              <span class="score-delta-popup" id="score-delta-popup"></span>
+            </div>
+          </div>
+
+          <div class="combo-badge-wrap" id="combo-badge-wrap">
+            <div class="combo-multiplier" id="arena-combo-text">1x COMBO</div>
+            <div class="combo-pips" id="arena-combo-pips">
+              <span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span>
+            </div>
+          </div>
+
+          <div class="arena-stat-block align-right">
+            <span class="arena-stat-label">Q TIME</span>
+            <span class="arena-qtime-val" id="arena-qtime-val">0.0s</span>
+          </div>
+        </div>
+
+        <!-- QUESTION STAGE -->
+        <div class="question-stage" id="question-stage">
+          <div class="question-tag-row">
+            <span class="trick-category-chip" id="arena-trick-chip">⚡ SECRET: BASE-10 GAP</span>
+            <button class="btn-peek-secret" id="btn-peek-secret" type="button">💡 Peek Trick</button>
+          </div>
+
+          <div class="equation-display" id="arena-equation">8 × 7</div>
+
+          <!-- TYPED ANSWER DISPLAY (FOR PRO NUMPAD MODE) -->
+          <div class="numpad-answer-box hidden" id="numpad-answer-box">
+            <span id="numpad-typed-val">?</span>
+          </div>
+
+          <!-- AUTO-WHISPER / SECRET BREAKDOWN BOX -->
+          <div class="whisper-box" id="arena-whisper-box">
+            <div class="whisper-header">
+              <span class="whisper-badge" id="whisper-badge">🧠 SECRET WHISPER (Mind-Freeze Assist)</span>
+            </div>
+            <div class="whisper-body" id="whisper-body">
+              <strong>5-Anchor Jump:</strong> (8 × 5) + (8 × 2) = <strong>40 + 16</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- PENALTY / RECOVERY OVERLAY WHEN USER ANSWERS WRONG -->
+        <div class="penalty-toast hidden" id="penalty-toast">
+          <div class="penalty-toast-top">
+            <span class="penalty-badge" id="penalty-badge-text">⚠️ WRONG! -20 CP PENALTY</span>
+            <span class="correct-reveal" id="penalty-correct-reveal">8 × 7 = 56</span>
+          </div>
+          <div class="penalty-trick-explain" id="penalty-trick-explain">
+            <strong>How to solve fast:</strong> Base-10 Gap → 8 needs 2, 7 needs 3. First digit: 8−3 = <strong>5</strong>. Second digit: 2×3 = <strong>6</strong> → <strong>56</strong>!
+          </div>
+        </div>
+
+        <!-- INTERACTION ZONE: 4 OPTIONS OR NUMPAD -->
+        <div class="interaction-zone">
+          <!-- 4-OPTION MULTIPLE CHOICE GRID -->
+          <div class="choices-grid" id="arena-choices-grid">
+            <button class="choice-btn" data-idx="0">48</button>
+            <button class="choice-btn" data-idx="1">54</button>
+            <button class="choice-btn" data-idx="2">56</button>
+            <button class="choice-btn" data-idx="3">64</button>
+          </div>
+
+          <!-- PRO NUMPAD (WHEN SELECTED) -->
+          <div class="numpad-grid hidden" id="arena-numpad-grid">
+            <button class="num-key" data-key="1">1</button>
+            <button class="num-key" data-key="2">2</button>
+            <button class="num-key" data-key="3">3</button>
+            <button class="num-key" data-key="4">4</button>
+            <button class="num-key" data-key="5">5</button>
+            <button class="num-key" data-key="6">6</button>
+            <button class="num-key" data-key="7">7</button>
+            <button class="num-key" data-key="8">8</button>
+            <button class="num-key" data-key="9">9</button>
+            <button class="num-key key-clear" data-key="C">CLR</button>
+            <button class="num-key" data-key="0">0</button>
+            <button class="num-key key-enter" data-key="OK">STRIKE ↵</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           VIEW 3: SECRET TECHNIQUES DOJO
+           ========================================== -->
+      <section class="screen" id="screen-secrets">
+        <div class="screen-title-block">
+          <div class="eyebrow-label">THE MENTAL MATH GRIMOIRE</div>
+          <h1>6 Secret Techniques</h1>
+          <p>Why memorize 144 facts when 6 mental algorithms solve any basic math in under 2 seconds? Try the interactive breakdown on each card, then drill it.</p>
+        </div>
+
+        <!-- INTERACTIVE LIVE SOLVER LAB -->
+        <div class="secret-lab-card">
+          <div class="lab-header">
+            <span>🧪 INTERACTIVE SECRET BREAKDOWN LAB</span>
+            <span class="lab-sub">Tap any two numbers to see the fastest secret path</span>
+          </div>
+          <div class="lab-controls">
+            <div class="lab-num-group">
+              <label>First Number</label>
+              <div class="lab-pills" id="lab-num-a">
+                <button class="lab-pill" data-val="6">6</button>
+                <button class="lab-pill active" data-val="7">7</button>
+                <button class="lab-pill" data-val="8">8</button>
+                <button class="lab-pill" data-val="9">9</button>
+                <button class="lab-pill" data-val="12">12</button>
+                <button class="lab-pill" data-val="16">16</button>
+              </div>
+            </div>
+            <div class="lab-num-group">
+              <label>Second Number</label>
+              <div class="lab-pills" id="lab-num-b">
+                <button class="lab-pill" data-val="4">4</button>
+                <button class="lab-pill" data-val="6">6</button>
+                <button class="lab-pill" data-val="7">7</button>
+                <button class="lab-pill active" data-val="8">8</button>
+                <button class="lab-pill" data-val="9">9</button>
+              </div>
+            </div>
+          </div>
+          <div class="lab-result-panel" id="lab-result-panel">
+            <!-- Populated dynamically by JS -->
+          </div>
+        </div>
+
+        <!-- SECRET CARDS LIST -->
+        <div class="secrets-list" id="secrets-list">
+          <!-- Populated dynamically by JS -->
+        </div>
+      </section>
+
+      <!-- ==========================================
+           VIEW 4: STATUS WINDOW & 12x12 MASTERY MATRIX
+           ========================================== -->
+      <section class="screen" id="screen-status">
+        <div class="screen-title-block">
+          <div class="eyebrow-label">HUNTER CALCULATION DIAGNOSTICS</div>
+          <h1>Status &amp; Mastery Matrix</h1>
+          <p>Every multiplication question updates your neural reaction map. Turn every red/gray cell into Gold (&lt;2.0s) to reach Rank S.</p>
+        </div>
+
+        <!-- RANK LADDER -->
+        <div class="rank-ladder-card" id="rank-ladder-card">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- WEAKNESS LIST -->
+        <div class="weakness-panel">
+          <div class="panel-header-row">
+            <h3>🎯 Priority Targets (Slowest / Missed)</h3>
+            <button class="btn-small-action" id="btn-drill-weaknesses">⚔️ Drill Weaknesses Now</button>
+          </div>
+          <div class="weakness-chips" id="weakness-chips-container">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- 12x12 MULTIPLICATION HEATMAP -->
+        <div class="matrix-card">
+          <div class="panel-header-row">
+            <h3>⚡ 12×12 Multiplication Speed Matrix</h3>
+            <div class="matrix-legend">
+              <span class="leg-item"><i class="dot gold"></i> &lt;2s Master</span>
+              <span class="leg-item"><i class="dot cyan"></i>Learned</span>
+              <span class="leg-item"><i class="dot red"></i>Needs Work</span>
+            </div>
+          </div>
+          <p class="matrix-tap-hint">Tap any cell in the grid to inspect its Secret Technique &amp; your stats:</p>
+          <div class="matrix-inspect-bar" id="matrix-inspect-bar">
+            Tap any square below (e.g. 7×8) to see its instant shortcut.
+          </div>
+          <div class="matrix-scroll-wrap">
+            <div class="matrix-grid" id="mastery-matrix-grid">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <div class="danger-zone-card">
+          <button class="btn-reset-stats" id="btn-reset-stats">Reset Status Progress</button>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           MODAL: POST-BLITZ RESULTS & RANK UP
+           ========================================== -->
+      <div class="modal-backdrop hidden" id="results-modal">
+        <div class="modal-card">
+          <div class="modal-eyebrow" id="res-eyebrow">SESSION COMPLETE</div>
+          <h2 class="modal-title" id="res-title">Arena Report</h2>
+
+          <div class="res-score-hero">
+            <div class="res-cp-label">NET CP EARNED</div>
+            <div class="res-cp-val" id="res-net-cp">+140 CP</div>
+            <div class="res-rank-status" id="res-rank-status">Rank E: Number Initiate</div>
+          </div>
+
+          <div class="res-stats-grid">
+            <div class="res-stat">
+              <span class="res-stat-k">SOLVED</span>
+              <span class="res-stat-v" id="res-solved">18</span>
+            </div>
+            <div class="res-stat">
+              <span class="res-stat-k">MISTAKES</span>
+              <span class="res-stat-v danger-text" id="res-mistakes">2 (-40 CP)</span>
+            </div>
+            <div class="res-stat">
+              <span class="res-stat-k">AVG SPEED</span>
+              <span class="res-stat-v" id="res-speed">1.9s</span>
+            </div>
+            <div class="res-stat">
+              <span class="res-stat-k">MAX COMBO</span>
+              <span class="res-stat-v" id="res-combo">9x</span>
+            </div>
+          </div>
+
+          <div class="res-missed-section" id="res-missed-section">
+            <div class="res-missed-title">🧠 REVIEW WHAT HURT YOUR SCORE:</div>
+            <div class="res-missed-list" id="res-missed-list"></div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-modal-secondary" id="btn-res-home">Status Hub</button>
+            <button class="btn-modal-primary" id="btn-res-again">⚡ Run It Back</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- BOTTOM NAVIGATION BAR -->
+    <nav class="bottom-nav">
+      <button class="nav-tab active" data-target="screen-home">
+        <span class="nav-icon">⚡</span>
+        <span class="nav-label">Arena</span>
+      </button>
+      <button class="nav-tab" data-target="screen-secrets">
+        <span class="nav-icon">📜</span>
+        <span class="nav-label">Secret Tricks</span>
+      </button>
+      <button class="nav-tab" data-target="screen-status">
+        <span class="nav-icon">🧬</span>
+        <span class="nav-label">Status &amp; 12×12</span>
+      </button>
+    </nav>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
