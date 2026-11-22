@@ -64,3 +64,6 @@ app/src/main/assets/ide/**/*.br
 !artifacts/Aureus-v1.1.0.exe
 !artifacts/Aureus-v1.2.0.exe
 .signing/aureus-codesign.key
+
+# Requested Floating Fan debug milestone
+!artifacts/Floating-Fan-v1.0.0-debug.apk
