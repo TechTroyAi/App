@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Floating Fan</string>
+    <string name="service_channel_name">Floating windows</string>
+    <string name="service_notification_text">Floating Fan is running. Tap to open.</string>
+</resources>

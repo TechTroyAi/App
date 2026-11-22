@@ -23,7 +23,7 @@ jobs:
       - run: python3 scripts/lint-kotlin-pitfalls.py
 
       # Debug APK — always built for testing
-      - run: ./gradlew --no-daemon assembleDebug
+      - run: ./gradlew --no-daemon :app:assembleDebug :floating-app:assembleDebug
 
       - run: python3 scripts/verify-apk.py app/build/outputs/apk/debug/app-debug.apk
 
@@ -31,6 +31,12 @@ jobs:
         with:
           name: Jadex-v${{ steps.version.outputs.name }}-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Floating-Fan-debug
+          path: floating-app/build/outputs/apk/debug/floating-app-debug.apk
           if-no-files-found: error
 
       # Release APK — signed if secrets are configured, unsigned otherwise
@@ -60,9 +66,9 @@ jobs:
       - name: Build release APK
         run: |
           if [ "${{ steps.signing.outputs.signing_configured }}" = "true" ]; then
-            ./gradlew --no-daemon assembleRelease
+            ./gradlew --no-daemon :app:assembleRelease
           else
-            ./gradlew --no-daemon assembleRelease -PskipSigning=true
+            ./gradlew --no-daemon :app:assembleRelease -PskipSigning=true
           fi
 
       # An APK only updates an existing install if it carries the SAME signing
