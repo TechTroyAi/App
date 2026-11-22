@@ -1,7 +1,5 @@
 name: Build APK
 on: [push, workflow_dispatch]
-permissions:
-  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -40,19 +38,6 @@ jobs:
           name: Floating-Fan-debug
           path: floating-app/build/outputs/apk/debug/floating-app-debug.apk
           if-no-files-found: error
-
-      - name: Place requested Floating Fan APK in branch
-        if: github.ref == 'refs/heads/arena/682029ff-app' && github.event_name == 'push'
-        run: |
-          mkdir -p artifacts
-          cp floating-app/build/outputs/apk/debug/floating-app-debug.apk artifacts/Floating-Fan-v1.0.0-debug.apk
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add artifacts/Floating-Fan-v1.0.0-debug.apk
-          if ! git diff --cached --quiet; then
-            git commit -m 'Add Floating Fan debug APK'
-            git push origin HEAD:${GITHUB_REF_NAME}
-          fi
 
       # Release APK — signed if secrets are configured, unsigned otherwise
       - name: Restore signing key (if available)
